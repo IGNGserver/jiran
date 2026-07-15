@@ -3332,12 +3332,18 @@ function replaceMainWindow(bounds, options = {}) {
   });
 }
 
+function discardFailedDashboardWindow(win, reason) {
+  if (!win || win !== dashboardWindow || win.isDestroyed()) return;
+  console.log(`[dashboard] ${reason}`);
+  win.destroy();
+}
+
 function createDashboardWindow() {
   if (dashboardWindow && !dashboardWindow.isDestroyed()) {
     // Reload so a reopened window always picks up the latest renderer + fresh history,
     // instead of showing whatever was loaded when it first opened.
+    dashboardWindow.hide();
     dashboardWindow.webContents.reload();
-    dashboardWindow.focus();
     return dashboardWindow;
   }
   const glass = nativeBlurEnabled();
@@ -3370,10 +3376,22 @@ function createDashboardWindow() {
     event.preventDefault();
     if (isAllowedExternalUrl(url)) shell.openExternal(url);
   });
-  win.once('ready-to-show', () => win.show());
+  // Only dashboard:ready may reveal a healthy window. Slow hub history must not
+  // race a wall-clock fallback and expose the unprepared heatmap. Actual load or
+  // renderer failures discard the hidden window so the next open starts cleanly.
+  win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, _url, isMainFrame) => {
+    if (!isMainFrame || errorCode === -3) return; // ERR_ABORTED is expected during reloads.
+    discardFailedDashboardWindow(win, `load failed: ${errorDescription}`);
+  });
+  win.webContents.on('render-process-gone', (_event, details) => {
+    discardFailedDashboardWindow(win, `renderer stopped: ${details.reason}`);
+  });
+  win.on('unresponsive', () => {
+    if (!win.isVisible()) discardFailedDashboardWindow(win, 'renderer became unresponsive while opening');
+  });
   win.on('closed', () => { dashboardWindow = null; });
   win.loadFile(path.join(__dirname, 'renderer', 'dashboard.html'))
-    .catch((error) => console.log(`[dashboard] load failed: ${error.message}`));
+    .catch((error) => discardFailedDashboardWindow(win, `load failed: ${error.message}`));
   return win;
 }
 
@@ -3395,9 +3413,18 @@ async function getDashboardHistory() {
   const { url: hubUrl, secret } = effectiveHubConfig();
   if (!hubUrl) return aggregateHistory([]);
   const url = `${hubUrl.replace(/\/$/, '')}/api/history`;
-  const response = await fetch(url, { headers: secret ? { authorization: `Bearer ${secret}` } : {} });
-  if (!response.ok) throw new Error(`Hub ${response.status}: ${(await response.text()).slice(0, 200)}`);
-  return response.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(url, {
+      headers: secret ? { authorization: `Bearer ${secret}` } : {},
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`Hub ${response.status}: ${(await response.text()).slice(0, 200)}`);
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 let cursorStatusCache = { value: null, at: 0 };
@@ -4216,6 +4243,13 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('dashboard:open', () => { createDashboardWindow(); return true; });
   ipcMain.handle('dashboard:getHistory', () => getDashboardHistory());
+  ipcMain.on('dashboard:ready', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win !== dashboardWindow || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  });
   ipcMain.on('dashboard:minimize', (event) => { BrowserWindow.fromWebContents(event.sender)?.minimize(); });
   ipcMain.on('dashboard:close', (event) => { BrowserWindow.fromWebContents(event.sender)?.close(); });
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
