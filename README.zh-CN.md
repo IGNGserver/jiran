@@ -151,6 +151,8 @@ npx wrangler deploy
 
 把部署 URL 贴到每台设备的小部件 设置 → 多设备同步。iOS 小部件配方与端点参考见 [worker/README.md](worker/README.md)，hub HTTP API 见 [docs/API.md](docs/API.md)。
 
+如果你使用 Cloudflare 免费额度，或只是想减少 hub 写入次数，可以保持本地采集为实时模式，并在 设置 → 多设备同步 把 **同步上传频率** 改成 10、20 或 30 分钟。Token Monitor 会合并本地更新，只按这个频率上传最新汇总。
+
 ## App 数据
 
 App 状态保存在系统的用户数据目录——卸载时一并删除该目录即可完整移除。

@@ -908,6 +908,14 @@
                   <button id="secretPasteButton" type="button" class="icon-button" title="Paste secret" data-i18n-title="settings.sync.pasteSecret" aria-label="Paste secret" data-i18n-aria-label="settings.sync.pasteSecret">⎘</button>
                 </div>
               </div>
+              <label class="sync-upload-interval-row"><span data-i18n="settings.sync.uploadInterval">Sync upload frequency</span>
+                <select id="syncUploadIntervalInput">
+                  <option value="0" data-i18n="settings.sync.uploadInterval.live">Live</option>
+                  <option value="600000" data-i18n="settings.sync.uploadInterval.10m">Every 10 minutes</option>
+                  <option value="1200000" data-i18n="settings.sync.uploadInterval.20m">Every 20 minutes</option>
+                  <option value="1800000" data-i18n="settings.sync.uploadInterval.30m">Every 30 minutes</option>
+                </select>
+              </label>
               <div id="syncClientStatus" class="hub-status" hidden></div>
             </div>
             <div id="hubHostFields" class="hub-mode-fields hidden">

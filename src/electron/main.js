@@ -118,6 +118,8 @@ const {
 } = require('./trayModeSettings');
 const { SERVICE_STATUS_PROVIDERS, createServiceStatusClient } = require('./serviceStatus');
 const { classifyStreamFailure } = require('./syncConnection');
+const { composeLocalSyncStats } = require('./syncDisplayStats');
+const { createSyncUploadScheduler, normalizeSyncUploadIntervalMs } = require('./syncUploadScheduler');
 const { describeWindowBehavior, normalizeWindowBehaviorSettings } = require('./windowBehavior');
 const {
   normalizeWindowToggleShortcut,
@@ -243,6 +245,7 @@ function defaultSettings() {
     exportIntervalMs: 60 * 1000,
     collectionMode: 'live',
     collectionIntervalMs: 5 * 60 * 1000,
+    syncUploadIntervalMs: normalizeSyncUploadIntervalMs(process.env.TOKEN_MONITOR_SYNC_UPLOAD_INTERVAL_MS),
     serviceProviderDisplayOrder: '',
     hiddenServiceProviders: '',
     serviceStatusRefreshMs: 60000,
@@ -315,6 +318,10 @@ function collectorIntervalMs() {
 
 function collectorWatchEnabled() {
   return normalizeCollectionMode(settings?.collectionMode) === 'live';
+}
+
+function syncUploadIntervalMs() {
+  return normalizeSyncUploadIntervalMs(settings?.syncUploadIntervalMs);
 }
 
 function defaultLimitProviders() {
@@ -1366,6 +1373,7 @@ function readSettings() {
     }
     merged.collectionMode = normalizeCollectionMode(merged.collectionMode);
     merged.collectionIntervalMs = normalizeCollectionIntervalMs(merged.collectionIntervalMs);
+    merged.syncUploadIntervalMs = normalizeSyncUploadIntervalMs(merged.syncUploadIntervalMs);
     merged.reduceMotion = motionPreferenceApi.normalize(merged.reduceMotion);
     if (saved.serviceProviderDisplayOrder !== undefined) {
       merged.serviceProviderDisplayOrder = String(saved.serviceProviderDisplayOrder || '');
@@ -1592,6 +1600,7 @@ let streamConnected = false;
 let streamFailure = null;
 let syncCollectorHandle = null;
 let lastCollectedDevice = null;
+let latestHubStats = null;
 let tray = null;
 let latestStats = null;
 let trayRefreshInFlight = false;
@@ -1750,7 +1759,12 @@ function stopSyncCollector() {
 function startSyncCollector() {
   stopSyncCollector();
   if (!effectiveHubConfig().url) return;
-  syncCollectorHandle = startCollector({
+  const syncUploadScheduler = createSyncUploadScheduler({
+    intervalMs: syncUploadIntervalMs(),
+    upload: postToHub,
+    onError: (error) => console.log(`[sync-collector] post failed: ${error.message}`)
+  });
+  const collectorHandle = startCollector({
     clients: clientsCsvForSetting(settings.clients),
     allTimeSince: settings.allTimeSince || '2024-01-01',
     commandTimeoutMs: 120 * 1000,
@@ -1790,10 +1804,18 @@ function startSyncCollector() {
     mimoManagedAccounts: mimoManagedAccountsForCollector(),
     onUpdate: async (summary) => {
       if (isExternalAgentActive()) { sessionUsageArchive = null; return; }
-      const visibleSummary = summaryWithArchivedClientUsage(summary);
+      const visibleSummary = {
+        ...summaryWithArchivedClientUsage(summary),
+        syncUploadIntervalMs: syncUploadIntervalMs()
+      };
       lastCollectedDevice = { ...visibleSummary, receivedAt: new Date().toISOString() };
+      const displayStats = composeLocalSyncStats(latestHubStats, lastCollectedDevice);
+      if (displayStats) {
+        updateDiscordRpc(displayStats, settings.currency);
+        sendPush({ event: 'stats', data: { type: 'stats', reason: 'local', stats: displayStats, at: new Date().toISOString() } });
+      }
       try {
-        await postToHub(visibleSummary);
+        await syncUploadScheduler.enqueue(visibleSummary);
       } catch (error) {
         console.log(`[sync-collector] post failed: ${error.message}`);
       }
@@ -1801,6 +1823,13 @@ function startSyncCollector() {
     onError: (error, reason) => console.log(`[sync-collector] ${reason}: ${error.message}`),
     logger: (msg) => console.log(`[sync-collector] ${msg}`)
   });
+  syncCollectorHandle = {
+    stop() {
+      syncUploadScheduler.stop();
+      collectorHandle.stop();
+    },
+    tick: collectorHandle.tick
+  };
 }
 
 // Host mode: this device's own usage goes straight into the embedded hub's store
@@ -2166,8 +2195,9 @@ function parseSseChunk(chunk) {
   try { return { event, data: JSON.parse(dataLines.join('\n')) }; } catch (_) { return null; }
 }
 
-async function startStatsStream() {
+async function startStatsStream(options = {}) {
   stopStatsStream();
+  if (options.resetSnapshot) latestHubStats = null;
   const { url: hubUrl, secret } = effectiveHubConfig();
   if (!hubUrl) return;
   mode = 'sync';
@@ -2196,9 +2226,14 @@ async function startStatsStream() {
       while ((idx = buffer.indexOf('\n\n')) !== -1) {
         const chunk = buffer.slice(0, idx);
         buffer = buffer.slice(idx + 2);
-        const parsed = parseSseChunk(chunk);
+        let parsed = parseSseChunk(chunk);
         if (parsed) {
-          if (parsed.event === 'stats' && parsed.data?.stats) updateDiscordRpc(parsed.data.stats, settings.currency);
+          if (parsed.event === 'stats' && parsed.data?.stats) {
+            latestHubStats = parsed.data.stats;
+            const displayStats = composeLocalSyncStats(latestHubStats, lastCollectedDevice);
+            parsed = { ...parsed, data: { ...parsed.data, stats: displayStats } };
+            updateDiscordRpc(displayStats, settings.currency);
+          }
           sendPush(parsed);
         }
       }
@@ -2702,7 +2737,7 @@ function startMode() {
     }
     await stopEmbeddedHub();
     if (effectiveHubConfig().url) {
-      startStatsStream();
+      startStatsStream({ resetSnapshot: true });
       startSyncCollector();
     } else {
       startLocalCollector();
@@ -2804,7 +2839,8 @@ async function fetchStats(options = {}) {
   const url = `${hubUrl.replace(/\/$/, '')}/api/stats`;
   const response = await fetch(url, { headers: secret ? { authorization: `Bearer ${secret}` } : {} });
   if (!response.ok) throw new Error(`Hub ${response.status}: ${(await response.text()).slice(0, 200)}`);
-  return injectLocalDeviceStatus(await response.json());
+  latestHubStats = await response.json();
+  return injectLocalDeviceStatus(composeLocalSyncStats(latestHubStats, lastCollectedDevice));
 }
 
 function managedPricingSidecarPath() {
@@ -3535,6 +3571,7 @@ app.whenReady().then(() => {
     const previousWslScanEnabled = settings.wslScanEnabled;
     const previousCollectionMode = settings.collectionMode;
     const previousCollectionIntervalMs = settings.collectionIntervalMs;
+    const previousSyncUploadIntervalMs = settings.syncUploadIntervalMs;
     const previousDeepSeekApiKey = settings.deepseekApiKey;
     const previousMinimaxApiKey = settings.minimaxApiKey;
     const previousCopilotApiToken = settings.copilotApiToken;
@@ -3582,6 +3619,7 @@ app.whenReady().then(() => {
     if (patch.ollamaCookie !== undefined) normalizedPatch.ollamaCookie = normalizeOllamaCookie(patch.ollamaCookie);
     if (patch.collectionMode !== undefined) normalizedPatch.collectionMode = normalizeCollectionMode(patch.collectionMode, settings.collectionMode);
     if (patch.collectionIntervalMs !== undefined) normalizedPatch.collectionIntervalMs = normalizeCollectionIntervalMs(patch.collectionIntervalMs, settings.collectionIntervalMs);
+    if (patch.syncUploadIntervalMs !== undefined) normalizedPatch.syncUploadIntervalMs = normalizeSyncUploadIntervalMs(patch.syncUploadIntervalMs, settings.syncUploadIntervalMs);
     settings = normalizeWindowBehaviorSettings({
       ...settings,
       ...normalizedPatch,
@@ -3621,6 +3659,7 @@ app.whenReady().then(() => {
       wslScanEnabled: parseBoolean(patch.wslScanEnabled ?? settings.wslScanEnabled, true),
       collectionMode: normalizeCollectionMode(patch.collectionMode ?? settings.collectionMode),
       collectionIntervalMs: normalizeCollectionIntervalMs(patch.collectionIntervalMs ?? settings.collectionIntervalMs),
+      syncUploadIntervalMs: normalizeSyncUploadIntervalMs(patch.syncUploadIntervalMs ?? settings.syncUploadIntervalMs),
       serviceProviderDisplayOrder: patch.serviceProviderDisplayOrder !== undefined ? String(patch.serviceProviderDisplayOrder || '') : (settings.serviceProviderDisplayOrder || ''),
       hiddenServiceProviders: patch.hiddenServiceProviders !== undefined ? String(patch.hiddenServiceProviders || '') : (settings.hiddenServiceProviders || ''),
       serviceStatusRefreshMs: normalizeServiceStatusRefreshMs(patch.serviceStatusRefreshMs ?? settings.serviceStatusRefreshMs),
@@ -3705,6 +3744,7 @@ app.whenReady().then(() => {
       settings.wslScanEnabled !== previousWslScanEnabled ||
       settings.collectionMode !== previousCollectionMode ||
       settings.collectionIntervalMs !== previousCollectionIntervalMs ||
+      (settings.hubMode === 'client' && settings.syncUploadIntervalMs !== previousSyncUploadIntervalMs) ||
       settings.deepseekApiKey !== previousDeepSeekApiKey ||
       settings.minimaxApiKey !== previousMinimaxApiKey ||
       settings.copilotApiToken !== previousCopilotApiToken ||

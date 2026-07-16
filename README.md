@@ -151,6 +151,8 @@ npx wrangler deploy
 
 Paste the deployed URL into each device's widget at Settings → Multi-device Sync. See [worker/README.md](worker/README.md) for the iOS widget recipe and endpoint reference, or [docs/API.md](docs/API.md) for the hub HTTP API.
 
+If you are on Cloudflare's free tier or otherwise want fewer hub writes, keep local collection live and set **Sync upload frequency** to 10, 20, or 30 minutes under Settings → Multi-device Sync. Token Monitor will coalesce local updates and upload only the latest summary on that cadence.
+
 ## App data
 
 App state lives in the OS user-data dir — delete it along with the app to fully uninstall.

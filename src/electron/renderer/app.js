@@ -232,6 +232,7 @@ Object.assign(els, {
   hubStatusRow: document.getElementById('hubStatusRow'),
   syncClientStatus: document.getElementById('syncClientStatus'),
   hubAddressList: document.getElementById('hubAddressList'),
+  syncUploadIntervalInput: document.getElementById('syncUploadIntervalInput'),
   collectionCadenceInput: document.getElementById('collectionCadenceInput'),
   collectionCadenceNote: document.getElementById('collectionCadenceNote'),
   sessionUsageArchiveInput: document.getElementById('sessionUsageArchiveInput'),
@@ -4991,6 +4992,11 @@ function syncSettingsForm() {
   els.showLimitSourceInput.checked = Boolean(state.settings.showLimitSource);
   els.maskLimitAccountEmailsInput.checked = Boolean(state.settings.maskLimitAccountEmails);
   els.showLimitUsedInput.value = state.settings.showLimitUsed ? 'used' : 'remaining';
+  if (els.syncUploadIntervalInput) {
+    const value = Number(state.settings.syncUploadIntervalMs);
+    const allowed = Array.from(els.syncUploadIntervalInput.options, (option) => Number(option.value));
+    els.syncUploadIntervalInput.value = String(allowed.includes(value) ? value : 0);
+  }
   if (els.collectionCadenceInput) {
     const value = Number(state.settings.collectionIntervalMs);
     const allowed = [300000, 900000, 1800000];
@@ -6513,6 +6519,9 @@ els.maskLimitAccountEmailsInput.addEventListener('change', async () => {
 els.showLimitUsedInput.addEventListener('change', async () => {
   await saveSettings({ showLimitUsed: els.showLimitUsedInput.value === 'used' });
 });
+els.syncUploadIntervalInput?.addEventListener('change', async () => {
+  await saveSettings({ syncUploadIntervalMs: Number(els.syncUploadIntervalInput.value) });
+});
 els.collectionCadenceInput?.addEventListener('change', async () => {
   const value = els.collectionCadenceInput.value;
   await saveSettings({
@@ -6827,8 +6836,13 @@ window.tokenMonitor.onStatsPush?.((payload) => {
     if (payload.data?.mode) state.mode = payload.data.mode;
     state.streamFailure = state.streamConnected ? null : (payload.data?.reason ? { reason: payload.data.reason, detail: payload.data.detail ?? null } : state.streamFailure);
   } else if (payload.data?.stats) {
-    state.streamConnected = true;
-    state.streamFailure = null;
+    // Local collector overlays update client-mode data independently of the
+    // Hub SSE transport. Preserve its current Offline/error state until a
+    // real stream status or remote stats event proves the connection changed.
+    if (payload.data?.reason !== 'local') {
+      state.streamConnected = true;
+      state.streamFailure = null;
+    }
     if (payload.data?.mode) state.mode = payload.data.mode;
     state.stats = overlayAllTimeSessions(payload.data.stats);
     applyCodexActiveAccountFromStats();
