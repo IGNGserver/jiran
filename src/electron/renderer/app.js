@@ -410,12 +410,65 @@ function setSettingsSectionExpanded(section, expanded) {
   applySettingsSectionDom(id, next);
 }
 
+// Expanding a section auto-collapses the previously open one. When that one
+// sits ABOVE the clicked header, the content above shrinks while scrollTop
+// stays put, so the clicked card visually flies upward. Pin the clicked
+// header to its on-screen position for the duration of the 250ms accordion
+// transition (rAF-corrected each frame; a single pass when motion is off).
+const SETTINGS_SCROLL_ANCHOR_MS = 360;
+const SETTINGS_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Tab']);
+let settingsScrollAnchorFrame = null;
+
+function cancelSettingsScrollAnchor() {
+  if (settingsScrollAnchorFrame === null) return;
+  cancelAnimationFrame(settingsScrollAnchorFrame);
+  settingsScrollAnchorFrame = null;
+}
+
+function cancelSettingsScrollAnchorOnKeydown(event) {
+  if (SETTINGS_SCROLL_KEYS.has(event.key)) cancelSettingsScrollAnchor();
+}
+
+function shouldAnchorSettingsScroll(section, expanding) {
+  if (!expanding) return false;
+  const sectionIndex = SETTINGS_SECTION_IDS.indexOf(section);
+  return SETTINGS_SECTION_IDS.slice(0, sectionIndex).some(id => state.settingsSections[id]);
+}
+
+function anchorSettingsScroll(anchorEl, mutate) {
+  cancelSettingsScrollAnchor();
+  const panel = els.settingsPanel;
+  if (!panel || !anchorEl) { mutate(); return; }
+  const offset = anchorEl.getBoundingClientRect().top - panel.getBoundingClientRect().top;
+  mutate();
+  const reducedMotion = prefersReducedMotion();
+  const deadline = performance.now() + SETTINGS_SCROLL_ANCHOR_MS;
+  const pin = () => {
+    settingsScrollAnchorFrame = null;
+    if (!anchorEl.isConnected || panel.classList.contains('hidden')) return;
+    const drift = anchorEl.getBoundingClientRect().top - panel.getBoundingClientRect().top - offset;
+    if (Math.abs(drift) > 0.5) panel.scrollTop += drift;
+    if (!reducedMotion && performance.now() < deadline) {
+      settingsScrollAnchorFrame = requestAnimationFrame(pin);
+    }
+  };
+  settingsScrollAnchorFrame = requestAnimationFrame(pin);
+}
+
 function setupSettingsSections() {
   for (const toggle of document.querySelectorAll('[data-settings-section]')) {
     const section = toggle.dataset.settingsSection;
-    toggle.addEventListener('click', () => setSettingsSectionExpanded(section, !state.settingsSections[section]));
+    toggle.addEventListener('click', () => {
+      const expanding = !state.settingsSections[section];
+      const mutate = () => setSettingsSectionExpanded(section, expanding);
+      if (shouldAnchorSettingsScroll(section, expanding)) anchorSettingsScroll(toggle, mutate);
+      else { cancelSettingsScrollAnchor(); mutate(); }
+    });
     setSettingsSectionExpanded(section, state.settingsSections[section]);
   }
+  els.settingsPanel?.addEventListener('pointerdown', cancelSettingsScrollAnchor, { passive: true });
+  els.settingsPanel?.addEventListener('wheel', cancelSettingsScrollAnchor, { passive: true });
+  els.settingsPanel?.addEventListener('keydown', cancelSettingsScrollAnchorOnKeydown);
 }
 
 function refreshIntervalLabel(value) {
