@@ -201,7 +201,9 @@ function normalizeInitialViewValue(value, allowed, fallback) {
   return allowed.has(raw) ? raw : fallback;
 }
 
-const state = { period: normalizeInitialViewValue(initialViewState.period, viewPeriodValues, 'today'), appUpdate: null, breakdown: normalizeInitialViewValue(initialViewState.breakdown, viewBreakdownValues, 'home'), viewSwitcherOpen: false, viewSwitcherHasOpened: false, resetCreditsTooltipHasOpened: false, resetCreditsTooltipActive: false, resetCreditsTooltipRenderPending: false, settings: null, stats: null, homeHistory: null, homeHistoryBusy: false, homeHistoryRequested: false, homeHistoryPreviewKey: '', homeActivityScrollLeft: null, homeActivityFollowEnd: true, homeActivityResizeObserver: null, serviceStatus: null, serviceStatusBusy: false, serviceProvidersExpanded: false, trendSettingsExpanded: false, trendsActivating: false, homeSettingsExpanded: false, homeLimitSettingsExpanded: false, serviceStatusTicker: null, refreshTimer: null, refreshBusy: false, refreshFeedbackTimer: null, currentTotal: 0, rowSignature: '', streamConnected: false, streamFailure: null, mode: 'idle', appInfo: null, tokscaleStatus: null, tokscaleCheck: null, tokscaleBusy: false, hubInfo: null, cursorAccount: { status: null, error: '' }, cursorAccountExpanded: false, codexAccountExpanded: false, codexAccountError: '', codexSignInBusy: false, codexSignInFlowId: '', codexLoginUrl: '', codexLoginStatus: '', codexLoginOutput: '', codexActiveAccount: null, codexPendingActiveAccount: null, codexPendingActiveAccountUntil: 0, codexPendingActiveAccountTimer: null, codexSystemSwitchingAccountId: '', codexSystemSwitchErrorAccountId: '', codexSystemSwitchError: '', codexSwitchPopoverHasOpened: false, codexSwitchPopoverActive: false, codexSwitchPopoverRenderPending: false, customPricingExpanded: false, opencodeProfileCount: 0, opencodeCookieExpanded: false, deepseekAccountExpanded: false, deepseekPendingCheckSince: 0, minimaxAccountExpanded: false, minimaxPendingCheckSince: 0, zaiAccountExpanded: false, zaiPendingCheckSince: 0, zaiteamAccountExpanded: false, zaiteamPendingCheckSince: 0, volcengineAccountExpanded: false, volcenginePendingCheckSince: 0, qoderAccountExpanded: false, qoderPendingCheckSince: 0, kimiAccountExpanded: false, kimiPendingCheckSince: 0, ollamaAccountExpanded: false, ollamaPendingCheckSince: 0, mimoAccountExpanded: false, mimoAccountError: '', copilotAccountExpanded: false, copilotManualExpanded: false, copilotPendingCheckSince: 0, copilotSignInBusy: false, copilotSignInCancelable: false, copilotSignInFlowId: '', copilotAuthorizeMessage: '', copilotLoginStatus: '', copilotErrorMessage: '', floatingBubble: initialFloatingBubble, suppressInitialNumberAnimation: window.__TOKEN_MONITOR_SUPPRESS_INITIAL_NUMBER_ANIMATION__ === true, openSession: null, detailSort: 'time', recordingWindowShortcut: false, windowShortcutInvalid: false };
+const state = { period: normalizeInitialViewValue(initialViewState.period, viewPeriodValues, 'today'), appUpdate: null, breakdown: normalizeInitialViewValue(initialViewState.breakdown, viewBreakdownValues, 'home'), viewSwitcherOpen: false, viewSwitcherHasOpened: false, resetCreditsTooltipHasOpened: false, resetCreditsTooltipActive: false, resetCreditsTooltipRenderPending: false, settings: null, stats: null, homeHistory: null, homeHistoryBusy: false, homeHistoryRequested: false, homeHistorySignature: '', homeHistoryRetries: 0, homeHistoryRetryTimer: null, homeActivityScrollLeft: null, homeActivityFollowEnd: true, homeActivityResizeObserver: null, serviceStatus: null, serviceStatusBusy: false, serviceProvidersExpanded: false, trendSettingsExpanded: false, trendsActivating: false, homeSettingsExpanded: false, homeLimitSettingsExpanded: false, serviceStatusTicker: null, refreshTimer: null, refreshBusy: false, refreshFeedbackTimer: null, currentTotal: 0, rowSignature: '', streamConnected: false, streamFailure: null, mode: 'idle', appInfo: null, tokscaleStatus: null, tokscaleCheck: null, tokscaleBusy: false, hubInfo: null, cursorAccount: { status: null, error: '' }, cursorAccountExpanded: false, codexAccountExpanded: false, codexAccountError: '', codexSignInBusy: false, codexSignInFlowId: '', codexLoginUrl: '', codexLoginStatus: '', codexLoginOutput: '', codexActiveAccount: null, codexPendingActiveAccount: null, codexPendingActiveAccountUntil: 0, codexPendingActiveAccountTimer: null, codexSystemSwitchingAccountId: '', codexSystemSwitchErrorAccountId: '', codexSystemSwitchError: '', codexSwitchPopoverHasOpened: false, codexSwitchPopoverActive: false, codexSwitchPopoverRenderPending: false, customPricingExpanded: false, opencodeProfileCount: 0, opencodeCookieExpanded: false, deepseekAccountExpanded: false, deepseekPendingCheckSince: 0, minimaxAccountExpanded: false, minimaxPendingCheckSince: 0, zaiAccountExpanded: false, zaiPendingCheckSince: 0, zaiteamAccountExpanded: false, zaiteamPendingCheckSince: 0, volcengineAccountExpanded: false, volcenginePendingCheckSince: 0, qoderAccountExpanded: false, qoderPendingCheckSince: 0, kimiAccountExpanded: false, kimiPendingCheckSince: 0, ollamaAccountExpanded: false, ollamaPendingCheckSince: 0, mimoAccountExpanded: false, mimoAccountError: '', copilotAccountExpanded: false, copilotManualExpanded: false, copilotPendingCheckSince: 0, copilotSignInBusy: false, copilotSignInCancelable: false, copilotSignInFlowId: '', copilotAuthorizeMessage: '', copilotLoginStatus: '', copilotErrorMessage: '', floatingBubble: initialFloatingBubble, suppressInitialNumberAnimation: window.__TOKEN_MONITOR_SUPPRESS_INITIAL_NUMBER_ANIMATION__ === true, openSession: null, detailSort: 'time', recordingWindowShortcut: false, windowShortcutInvalid: false };
+state.homeHistoryLoadedSignature = '';
+state.homeHistoryRetrySignature = '';
 state.appUpdateNotesPresentedVersion = '';
 state.periodMotionActive = false;
 state.animateBarsFromZero = false;
@@ -3082,23 +3084,75 @@ function openViewFromTray(viewId) {
   renderBreakdownChange(viewId, { allowHidden: true });
 }
 
+const HOME_HISTORY_MAX_RETRIES = 3;
+const HOME_HISTORY_RETRY_MS = 4000;
+
 async function loadHomeHistory() {
   if (state.homeHistoryBusy || !window.tokenMonitor.getDashboardHistory) return;
   if (!homeOverviewApi.shouldFetchHomeHistory({
-    homeHistory: state.homeHistory,
     requested: state.homeHistoryRequested,
-    preview: state.stats?.historyPreview,
-    lastPreviewKey: state.homeHistoryPreviewKey
+    stats: state.stats,
+    lastSignature: state.homeHistorySignature
   })) return;
+  // The signature is recorded before the await on purpose: it stops a failed or empty
+  // fetch from re-firing on the very next render (renderHome runs loadHomeHistory every
+  // render), which is the #39 spin loop. A transient failure or a raced empty result is
+  // recovered by the bounded timer-driven retry in the finally block instead, not by
+  // render — so Home is not stranded on the 30-day preview until the history genuinely
+  // changes, which for an account with history but no current activity might be never.
+  const requestSignature = homeOverviewApi.homeHistorySignature(state.stats);
+  const previewHadDays = homeOverviewApi.historyHasDays(state.stats?.historyPreview);
+  if (state.homeHistoryRetrySignature !== requestSignature) {
+    clearTimeout(state.homeHistoryRetryTimer);
+    state.homeHistoryRetryTimer = null;
+    state.homeHistoryRetrySignature = requestSignature;
+    state.homeHistoryRetries = 0;
+  }
   state.homeHistoryRequested = true;
-  state.homeHistoryPreviewKey = homeOverviewApi.historyPreviewKey(state.stats?.historyPreview);
+  state.homeHistorySignature = requestSignature;
   state.homeHistoryBusy = true;
+  let resolved = false;
+  let fetchedHistory = null;
   try {
-    state.homeHistory = await window.tokenMonitor.getDashboardHistory();
+    // Only ever one fetch in flight (homeHistoryBusy), so the response is the freshest
+    // history at invoke time and can be taken as-is — no older reply can land on top of
+    // a newer one.
+    fetchedHistory = await window.tokenMonitor.getDashboardHistory();
+    resolved = true;
   } catch (error) {
     console.log(`[home] history failed: ${error.message}`);
   } finally {
     state.homeHistoryBusy = false;
+    const outcome = homeOverviewApi.homeHistoryFetchOutcome({
+      resolved,
+      history: fetchedHistory,
+      previewHasDays: previewHadDays
+    });
+    if (outcome.accepted) {
+      state.homeHistory = fetchedHistory;
+      state.homeHistoryLoadedSignature = requestSignature;
+      state.homeHistoryRetries = 0;
+      state.homeHistoryRetrySignature = '';
+      clearTimeout(state.homeHistoryRetryTimer);
+      state.homeHistoryRetryTimer = null;
+    } else if (homeOverviewApi.shouldRetryHomeHistory({
+      loadedDays: outcome.loadedDays,
+      previewHasDays: previewHadDays,
+      retries: state.homeHistoryRetries,
+      maxRetries: HOME_HISTORY_MAX_RETRIES
+    })) {
+      state.homeHistoryRetries += 1;
+      clearTimeout(state.homeHistoryRetryTimer);
+      state.homeHistoryRetryTimer = setTimeout(() => {
+        state.homeHistoryRetryTimer = null;
+        // Stale display data is not proof that this signature loaded. Retry only
+        // while the target is still current and no later request accepted it.
+        if (state.homeHistoryLoadedSignature === requestSignature) return;
+        if (homeOverviewApi.homeHistorySignature(state.stats) !== requestSignature) return;
+        state.homeHistorySignature = '';
+        void loadHomeHistory();
+      }, HOME_HISTORY_RETRY_MS);
+    }
     if (state.breakdown === 'home') render();
   }
 }
@@ -3803,10 +3857,11 @@ function renderHomeTrendsModule() {
     body.append(empty);
     return module;
   }
-  // homeHistory is fetched once and frozen, so its today bucket lags the live headline
-  // total; patch today's tokens with the live period total (like the trends sparkline's
+  // The snapshot's today bucket lags the live headline total between history ticks;
+  // patch today's tokens with the live period total (like the trends sparkline's
   // patchTodayBar) so the heatmap and trend line match the number shown above them.
-  const today = new Date().toISOString().slice(0, 10);
+  // The key must be the LOCAL day: the period being patched in is local-day scoped.
+  const today = charts.localDayKey();
   const todayPeriod = state.stats?.periods?.today;
   const points = homeOverviewApi.patchDailyToday(rawDaily, today, Number(todayPeriod?.totalTokens || 0), Number(todayPeriod?.costUsd || 0));
   const activityLayout = homeOverviewApi.homeActivityHeatmapLayout();
@@ -4126,6 +4181,17 @@ async function refreshStats(options = {}) {
   }
   try {
     state.stats = overlayAllTimeSessions(await window.tokenMonitor.getStats(options));
+    if (options.forceHistory === true) {
+      // A manual history rescan is an explicit retry boundary. Let Home request the
+      // corresponding full payload even when its revision is unchanged, and restore
+      // a retry budget that an earlier outage may have exhausted.
+      clearTimeout(state.homeHistoryRetryTimer);
+      state.homeHistoryRetryTimer = null;
+      state.homeHistoryLoadedSignature = '';
+      state.homeHistoryRetrySignature = '';
+      state.homeHistoryRetries = 0;
+      state.homeHistorySignature = '';
+    }
     applyCodexActiveAccountFromStats();
     setStatus(statusTextFor(state.mode, state.streamConnected));
     render();
@@ -6743,7 +6809,10 @@ els.openRepositoryButton?.addEventListener('click', () => window.tokenMonitor.op
 els.reportIssueButton?.addEventListener('click', () => window.tokenMonitor.openExternal?.(TOKEN_MONITOR_ISSUES_URL));
 els.refreshButton.addEventListener('click', () => {
   if (state.breakdown === 'status') refreshStatusViewManually().catch(() => {});
-  else refreshStats({ force: true, feedback: true });
+  // Only this button asks for a history rescan: `{ force: true }` is used all over the
+  // settings/account flows, and folding history into it would re-run the expensive
+  // `tokscale graph` on every one of them.
+  else refreshStats({ force: true, forceHistory: true, feedback: true });
 });
 els.minButton.addEventListener('click', () => window.tokenMonitor.minimize());
 els.closeButton.addEventListener('click', () => window.tokenMonitor.close());
