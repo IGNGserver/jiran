@@ -215,7 +215,7 @@ let viewSwitcherLongPressTimer = null;
 let viewSwitcherLongPressTriggered = false;
 let viewSwitcherHoverCloseTimer = null;
 const els = {
-  shell: document.querySelector('.shell'), status: document.getElementById('status'), liveDot: document.getElementById('liveDot'), totalTokens: document.getElementById('totalTokens'), totalTokensCompact: document.getElementById('totalTokensCompact'), cost: document.getElementById('cost'), homePanel: document.getElementById('homePanel'), breakdown: document.getElementById('breakdown'), serviceStatusPanel: document.getElementById('serviceStatusPanel'), limitsPanel: document.getElementById('limitsPanel'), trendsPanel: document.getElementById('trendsPanel'), viewSwitcher: document.getElementById('viewSwitcher'), pinButton: document.getElementById('pinButton'), settingsButton: document.getElementById('settingsButton'), settingsPanel: document.getElementById('settingsPanel'), languageInput: document.getElementById('languageInput'), currencyInput: document.getElementById('currencyInput'), currencyRateRow: document.getElementById('currencyRateRow'), currencyRateModeAuto: document.getElementById('currencyRateModeAuto'), currencyRateModeManual: document.getElementById('currencyRateModeManual'), currencyRateManualField: document.getElementById('currencyRateManualField'), currencyRateOverrideInput: document.getElementById('currencyRateOverrideInput'), currencyRateStatus: document.getElementById('currencyRateStatus'), hubUrlInput: document.getElementById('hubUrlInput'), secretInput: document.getElementById('secretInput'), deviceIdInput: document.getElementById('deviceIdInput'), limitProviderCheckboxes: document.getElementById('limitProviderCheckboxes'), limitsRefreshInput: document.getElementById('limitsRefreshInput'), showLimitSourceInput: document.getElementById('showLimitSourceInput'), maskLimitAccountEmailsInput: document.getElementById('maskLimitAccountEmailsInput'), showLimitUsedInput: document.getElementById('showLimitUsedInput'), systemGlassInput: document.getElementById('systemGlassInput'), liveDotInput: document.getElementById('liveDotInput'), toolIconsInput: document.getElementById('toolIconsInput'), floatingBubbleInput: document.getElementById('floatingBubbleInput'), floatingBubbleTriggerInput: document.getElementById('floatingBubbleTriggerInput'), floatingBubbleTriggerRow: document.getElementById('floatingBubbleTriggerRow'), floatingBubbleContentInput: document.getElementById('floatingBubbleContentInput'), floatingBubbleContentRow: document.getElementById('floatingBubbleContentRow'), floatingBubbleContent: document.getElementById('floatingBubbleContent'), discordRpcInput: document.getElementById('discordRpcInput'), windowBehaviorInput: document.getElementById('windowBehaviorInput'), showTrayIconInput: document.getElementById('showTrayIconInput'), trayModeInput: document.getElementById('trayModeInput'), trayContentInput: document.getElementById('trayContentInput'), windowToggleShortcutValue: document.getElementById('windowToggleShortcutValue'), windowToggleShortcutClearButton: document.getElementById('windowToggleShortcutClearButton'), windowToggleShortcutNote: document.getElementById('windowToggleShortcutNote'), glassInput: document.getElementById('glassInput'), blurInput: document.getElementById('blurInput'), zoomInput: document.getElementById('zoomInput'), resetGlassButton: document.getElementById('resetGlassButton'), resetDepthButton: document.getElementById('resetDepthButton'), resetZoomButton: document.getElementById('resetZoomButton'), saveSettingsButton: document.getElementById('saveSettingsButton'), clientDisplayList: document.getElementById('clientDisplayList'), wslScanInput: document.getElementById('wslScanInput'), wslScanRow: document.getElementById('wslScanRow'), wslPanel: document.getElementById('wslPanel'), openConfigButton: document.getElementById('openConfigButton'), exportAutoInput: document.getElementById('exportAutoInput'), exportAutoDetails: document.getElementById('exportAutoDetails'), exportAutoStatus: document.getElementById('exportAutoStatus'), exportDirLabel: document.getElementById('exportDirLabel'), exportPickDirButton: document.getElementById('exportPickDirButton'), exportIntervalInput: document.getElementById('exportIntervalInput'), exportNowButton: document.getElementById('exportNowButton'), refreshButton: document.getElementById('refreshButton'), minButton: document.getElementById('minButton'), closeButton: document.getElementById('closeButton'), floatingBubbleTab: document.getElementById('floatingBubbleTab')
+  shell: document.querySelector('.shell'), status: document.getElementById('status'), liveDot: document.getElementById('liveDot'), totalTokens: document.getElementById('totalTokens'), totalTokensCompact: document.getElementById('totalTokensCompact'), cost: document.getElementById('cost'), homePanel: document.getElementById('homePanel'), breakdown: document.getElementById('breakdown'), serviceStatusPanel: document.getElementById('serviceStatusPanel'), limitsPanel: document.getElementById('limitsPanel'), trendsPanel: document.getElementById('trendsPanel'), viewSwitcher: document.getElementById('viewSwitcher'), pinButton: document.getElementById('pinButton'), settingsButton: document.getElementById('settingsButton'), settingsPanel: document.getElementById('settingsPanel'), languageInput: document.getElementById('languageInput'), currencyInput: document.getElementById('currencyInput'), currencyRateRow: document.getElementById('currencyRateRow'), currencyRateModeAuto: document.getElementById('currencyRateModeAuto'), currencyRateModeManual: document.getElementById('currencyRateModeManual'), currencyRateManualField: document.getElementById('currencyRateManualField'), currencyRateOverrideInput: document.getElementById('currencyRateOverrideInput'), currencyRateStatus: document.getElementById('currencyRateStatus'), hubUrlInput: document.getElementById('hubUrlInput'), secretInput: document.getElementById('secretInput'), deviceIdInput: document.getElementById('deviceIdInput'), limitProviderCheckboxes: document.getElementById('limitProviderCheckboxes'), limitsRefreshInput: document.getElementById('limitsRefreshInput'), showLimitSourceInput: document.getElementById('showLimitSourceInput'), maskLimitAccountEmailsInput: document.getElementById('maskLimitAccountEmailsInput'), showLimitUsedInput: document.getElementById('showLimitUsedInput'), systemGlassInput: document.getElementById('systemGlassInput'), liveDotInput: document.getElementById('liveDotInput'), toolIconsInput: document.getElementById('toolIconsInput'), floatingBubbleInput: document.getElementById('floatingBubbleInput'), floatingBubbleTriggerInput: document.getElementById('floatingBubbleTriggerInput'), floatingBubbleTriggerRow: document.getElementById('floatingBubbleTriggerRow'), floatingBubbleContentInput: document.getElementById('floatingBubbleContentInput'), floatingBubbleContentRow: document.getElementById('floatingBubbleContentRow'), floatingBubbleContent: document.getElementById('floatingBubbleContent'), discordRpcInput: document.getElementById('discordRpcInput'), windowBehaviorInput: document.getElementById('windowBehaviorInput'), showTrayIconInput: document.getElementById('showTrayIconInput'), showTrayProviderBadgeInput: document.getElementById('showTrayProviderBadgeInput'), trayModeInput: document.getElementById('trayModeInput'), trayContentInput: document.getElementById('trayContentInput'), windowToggleShortcutValue: document.getElementById('windowToggleShortcutValue'), windowToggleShortcutClearButton: document.getElementById('windowToggleShortcutClearButton'), windowToggleShortcutNote: document.getElementById('windowToggleShortcutNote'), glassInput: document.getElementById('glassInput'), blurInput: document.getElementById('blurInput'), zoomInput: document.getElementById('zoomInput'), resetGlassButton: document.getElementById('resetGlassButton'), resetDepthButton: document.getElementById('resetDepthButton'), resetZoomButton: document.getElementById('resetZoomButton'), saveSettingsButton: document.getElementById('saveSettingsButton'), clientDisplayList: document.getElementById('clientDisplayList'), wslScanInput: document.getElementById('wslScanInput'), wslScanRow: document.getElementById('wslScanRow'), wslPanel: document.getElementById('wslPanel'), openConfigButton: document.getElementById('openConfigButton'), exportAutoInput: document.getElementById('exportAutoInput'), exportAutoDetails: document.getElementById('exportAutoDetails'), exportAutoStatus: document.getElementById('exportAutoStatus'), exportDirLabel: document.getElementById('exportDirLabel'), exportPickDirButton: document.getElementById('exportPickDirButton'), exportIntervalInput: document.getElementById('exportIntervalInput'), exportNowButton: document.getElementById('exportNowButton'), refreshButton: document.getElementById('refreshButton'), minButton: document.getElementById('minButton'), closeButton: document.getElementById('closeButton'), floatingBubbleTab: document.getElementById('floatingBubbleTab')
 };
 Object.assign(els, {
   floatingBubbleOptions: document.getElementById('floatingBubbleOptions'),
@@ -4680,19 +4680,11 @@ const BUBBLE_CONTENT_PAD_X = 10;
 // The tray bars are black (a macOS menu-bar template); on the bubble's dark glass they need light ink.
 const BUBBLE_BARS_COLORS = { track: 'rgba(255, 255, 255, 0.22)', fill: 'rgba(255, 255, 255, 0.92)' };
 
-function isBarsMode(mode) {
-  return mode === 'bars' || mode === 'barsSession' || mode === 'barsWeekly' || mode === 'barsAllSessions';
-}
-
-function isTrayImageMode(mode) {
-  return isBarsMode(mode) || mode === 'limitsAllSessions';
-}
-
 function renderFloatingBubbleContent() {
   const el = els.floatingBubbleContent;
   if (!el || !state.floatingBubble.collapsed) return;
   const mode = state.settings?.floatingBubbleContent || 'icon';
-  if (isTrayImageMode(mode)) {
+  if (window.TokenMonitorTrayText.isGeneratedTrayIconMode(mode)) {
     const dataUrl = state.stats
       ? trayDataUrlForMode(mode, 44, BUBBLE_BARS_COLORS, { contentOnly: mode === 'barsAllSessions' || mode === 'limitsAllSessions' })
       : null;
@@ -4725,7 +4717,7 @@ function reportFloatingBubbleSize() {
   // Height is constant; only the width tracks the content.
   let width = BUBBLE_CONTENT_MIN_W;
   if (mode !== 'icon' && el) {
-    const pad = isTrayImageMode(mode) ? 8 : BUBBLE_CONTENT_PAD_X * 2;
+    const pad = window.TokenMonitorTrayText.isGeneratedTrayIconMode(mode) ? 8 : BUBBLE_CONTENT_PAD_X * 2;
     width = Math.max(BUBBLE_CONTENT_MIN_W, Math.ceil(el.scrollWidth) + pad);
   }
   window.tokenMonitor.setFloatingBubbleCollapsedSize?.({ width, height: BUBBLE_CONTENT_HEIGHT });
@@ -5106,6 +5098,8 @@ function syncSettingsForm() {
   els.trayModeInput.checked = showTrayIcon && Boolean(state.settings.trayMode);
   els.trayContentInput.value = ['tokens', 'cost', 'both', 'tokensAll', 'costAll', 'bothAll', 'limitsAllSessions', 'bars', 'barsSession', 'barsWeekly', 'barsAllSessions', 'icon'].includes(state.settings.trayContent) ? state.settings.trayContent : 'tokens';
   els.trayContentInput.disabled = !showTrayIcon;
+  els.showTrayProviderBadgeInput.checked = state.settings.showTrayProviderBadge === true;
+  els.showTrayProviderBadgeInput.disabled = !showTrayIcon;
   els.trayIconOptions?.classList.toggle('hidden', !showTrayIcon);
   els.trayOptions?.classList.toggle('hidden', !showTrayIcon || !state.settings.trayMode);
   syncWindowShortcutStatus();
@@ -6369,6 +6363,9 @@ async function saveSettings(patch) {
   preserveSettingsPanelScroll(syncSettingsForm);
   restartTimer();
   maybeUpdateBarsIcon();
+  if (patch.showTrayProviderBadge !== undefined) {
+    await deliverTrayProviderIcons(patch.showTrayProviderBadge === true);
+  }
 }
 
 function renderHomeIfVisible() {
@@ -6409,6 +6406,7 @@ async function init() {
   if (els.aboutVersion) els.aboutVersion.textContent = state.appInfo?.version ? `v${state.appInfo.version}` : '—';
   state.settings = await window.tokenMonitor.getSettings();
   applyEffectiveCurrencyRates();
+  deliverTrayProviderIcons();
 
   state.appUpdate = await window.tokenMonitor.getAppUpdateState();
   renderAppUpdatePill();
@@ -6713,6 +6711,7 @@ els.showTrayIconInput?.addEventListener('change', () => {
   els.trayModeInput.disabled = !showTrayIcon;
   if (!showTrayIcon) els.trayModeInput.checked = false;
   els.trayContentInput.disabled = !showTrayIcon;
+  els.showTrayProviderBadgeInput.disabled = !showTrayIcon;
   els.trayIconOptions?.classList.toggle('hidden', !showTrayIcon);
   els.trayOptions?.classList.toggle('hidden', !showTrayIcon || !els.trayModeInput.checked);
   saveSettings({ showTrayIcon, trayMode: showTrayIcon ? els.trayModeInput.checked : false });
@@ -6722,6 +6721,7 @@ els.trayModeInput.addEventListener('change', () => {
   saveSettings({ trayMode: els.trayModeInput.checked });
 });
 els.trayContentInput.addEventListener('change', () => saveSettings({ trayContent: els.trayContentInput.value }));
+els.showTrayProviderBadgeInput.addEventListener('change', () => saveSettings({ showTrayProviderBadge: els.showTrayProviderBadgeInput.checked }));
 els.windowToggleShortcutValue?.addEventListener('click', startWindowShortcutRecording);
 els.windowToggleShortcutClearButton?.addEventListener('click', () => setWindowToggleShortcut('').catch(() => {}));
 els.startAtLoginInput?.addEventListener('change', () => saveSettings({ startAtLogin: els.startAtLoginInput.checked }));
@@ -6965,6 +6965,7 @@ function roundedRectPath(ctx, x, y, w, h, r) {
 }
 
 const trayProviderImages = {};
+const trayProviderIconDeliveryGuard = window.TokenMonitorTrayProviderIcons.createTrayProviderIconDeliveryGuard();
 
 function renderBarsIcon(stats, height = 44, picker = pickWorstProvider, colors = {}) {
   const trackColor = colors.track || 'rgba(0, 0, 0, 0.32)';
@@ -7136,7 +7137,7 @@ function trayDataUrlForMode(mode, size = 44, colors, options = {}) {
 
 async function maybeUpdateBarsIcon() {
   const mode = state.settings?.trayContent;
-  if (mode !== 'bars' && mode !== 'barsSession' && mode !== 'barsWeekly' && mode !== 'barsAllSessions' && mode !== 'limitsAllSessions') return;
+  if (!window.TokenMonitorTrayText.isGeneratedTrayIconMode(mode)) return;
   if (!window.tokenMonitor.setTrayIcons) return;
   const dataUrl = trayDataUrlForMode(mode, 44);
   try { await window.tokenMonitor.setTrayIcons({ [mode]: dataUrl || null }); } catch (_) {}
@@ -7151,27 +7152,69 @@ function loadImage(src) {
   });
 }
 
-function imageToPngDataUrl(img, size) {
+function providerImageToPngDataUrl(img, size, showBadge = false) {
+  const { trayProviderBadgeLayout } = window.TokenMonitorTrayProviderIcons;
+  const layout = trayProviderBadgeLayout(size);
   const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = layout.iconSize;
+  canvas.height = layout.iconSize;
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, size, size);
+  const imageInset = showBadge ? Math.max(1, Math.round(layout.iconSize * 0.07)) : 0;
+  const imageSize = layout.iconSize - imageInset * 2;
+  if (showBadge) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.95)';
+    ctx.shadowBlur = Math.max(2, Math.round(layout.iconSize * 0.1));
+    ctx.drawImage(img, imageInset, imageInset, imageSize, imageSize);
+    ctx.restore();
+  }
+  ctx.drawImage(img, imageInset, imageInset, imageSize, imageSize);
+
+  if (!showBadge) return canvas.toDataURL('image/png');
+
+  const { x, y, badgeSize, radius, borderWidth } = layout;
+  roundedRectPath(ctx, x, y, badgeSize, badgeSize, radius);
+  ctx.fillStyle = '#1688f8';
+  ctx.fill();
+  ctx.lineWidth = borderWidth;
+  ctx.strokeStyle = '#ffffff';
+  ctx.stroke();
+
+  // Draw the project's sigma mark as geometry so it remains crisp without a font dependency.
+  const left = x + badgeSize * 0.29;
+  const right = x + badgeSize * 0.72;
+  const top = y + badgeSize * 0.27;
+  const middle = y + badgeSize * 0.5;
+  const bottom = y + badgeSize * 0.73;
+  ctx.beginPath();
+  ctx.moveTo(right, top);
+  ctx.lineTo(left, top);
+  ctx.lineTo(x + badgeSize * 0.56, middle);
+  ctx.lineTo(left, bottom);
+  ctx.lineTo(right, bottom);
+  ctx.lineWidth = Math.max(2, badgeSize * 0.13);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#ffffff';
+  ctx.stroke();
   return canvas.toDataURL('image/png');
 }
 
-async function deliverTrayProviderIcons() {
+async function deliverTrayProviderIcons(showBadge = state.settings?.showTrayProviderBadge === true) {
   if (!window.tokenMonitor.setTrayIcons) return;
+  const deliveryId = trayProviderIconDeliveryGuard.begin();
   const sources = window.TokenMonitorTrayProviderIcons.trayProviderIconSources(clientsWithIcon);
   const icons = {};
   for (const [id, path] of Object.entries(sources)) {
     try {
       const img = await loadImage(path);
       trayProviderImages[id] = img;
-      icons[id] = imageToPngDataUrl(img, 44);
+      icons[id] = providerImageToPngDataUrl(img, 44, showBadge);
     } catch (_) { /* skip missing */ }
   }
+  if (!trayProviderIconDeliveryGuard.isCurrent(deliveryId)) return;
   if (Object.keys(icons).length) await window.tokenMonitor.setTrayIcons(icons);
+  if (!trayProviderIconDeliveryGuard.isCurrent(deliveryId)) return;
   // Provider images may unlock a richer bars icon now that they're cached.
   maybeUpdateBarsIcon();
 }
@@ -9194,5 +9237,4 @@ initSettingsAnimationWrappers();
 setupSettingsSections();
 setupCursorAccountUI();
 setupCustomPricingUI();
-deliverTrayProviderIcons();
 init();
