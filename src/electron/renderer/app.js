@@ -1213,7 +1213,8 @@ function animateTrendBarsFrom(snapshot, { fromZero = false } = {}) {
 }
 
 const HOME_HISTORY_MOTION_MS = 920;
-const HOME_HEAT_CELL_MOTION_MS = 360;
+const HOME_HEATMAP_MOTION_MS = 640;
+const HOME_HEAT_CELL_MOTION_MS = 240;
 
 function animateHomeHistoryVisuals(activityScroll, activityCanvas, trendChart) {
   if (!state.animateChartsOnRender) return;
@@ -1226,12 +1227,12 @@ function animateHomeHistoryVisuals(activityScroll, activityCanvas, trendChart) {
     .filter(({ rect }) => viewport && rect.right > viewport.left && rect.left < viewport.right);
   const firstVisibleColumn = visibleCells.length ? visibleCells[0].column : 0;
   const lastVisibleColumn = visibleCells.length ? visibleCells[visibleCells.length - 1].column : firstVisibleColumn;
-  const heatColumnDelay = (HOME_HISTORY_MOTION_MS - HOME_HEAT_CELL_MOTION_MS) / Math.max(1, lastVisibleColumn - firstVisibleColumn);
+  const heatColumnDelay = (HOME_HEATMAP_MOTION_MS - HOME_HEAT_CELL_MOTION_MS) / Math.max(1, lastVisibleColumn - firstVisibleColumn);
   visibleCells.forEach(({ cell, column }) => {
     cell.animate([{ opacity: 0 }, { opacity: 1 }], {
       duration: HOME_HEAT_CELL_MOTION_MS,
       delay: (column - firstVisibleColumn) * heatColumnDelay,
-      easing: 'ease',
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
       fill: 'backwards'
     });
   });
