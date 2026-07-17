@@ -1747,6 +1747,15 @@ span.settings-note.settings-item-desc {
   background: rgba(var(--overlay-rgb), 0.05);
 }
 .settings-panel select:hover { border-color: var(--line-strong); }
+/* Chromium delegates an open <select> popup to a platform-specific surface.
+   Windows can give that popup a light system background while retaining our
+   light text, so make only the popup options opaque. The closed control keeps
+   the same light glass treatment as macOS instead of reverting to a heavy
+   native field. */
+html.is-windows .settings-panel select option {
+  background-color: rgb(var(--panel-rgb));
+  color: var(--text);
+}
 .settings-panel input[type="range"] {
   appearance: none;
   -webkit-appearance: none;
