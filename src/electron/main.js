@@ -150,7 +150,7 @@ if (!app.isPackaged) loadDotEnv();
 const APP_NAME = 'Token Monitor';
 const APP_ICON_PATH = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 
-const DEFAULT_WINDOW = { width: 360, height: 500 };
+const DEFAULT_WINDOW = { width: 340, height: 650 };
 const WINDOW_LIMITS = { minWidth: 240, minHeight: 140, maxWidth: 1200, maxHeight: 1400 };
 const ZOOM_LIMITS = { min: 0.7, max: 1.6, step: 0.1 };
 const CSP_HEADER = [
