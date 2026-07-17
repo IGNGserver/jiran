@@ -6,24 +6,22 @@
 
 <!-- app-update-notes:en:start -->
 ### Added
-- **Low-limit highlights:** Added an optional Home setting that highlights remaining AI tool limits below 50% and marks critical limits below 20%. (#161)
-- **Reduce Motion:** Added a three-state preference under Appearance. System follows the OS setting, On reduces animations, and Off keeps animations enabled across the main widget and Usage Dashboard. (#167)
+- **Sync upload frequency:** Choose Live or every 10, 20, or 30 minutes under Multi-device Sync. Interval modes send the latest snapshot on the selected schedule. (#148)
 
 ### Improved
-- **Usage animations:** Live token totals and breakdown values now transition smoothly, while bars, activity heatmaps, trend lines, and Dashboard bar/K-line charts animate data and period changes. Page navigation stays immediate. (#163, #166)
-- **Update release notes:** Improved the contrast and readability of the release notes popover. (#162)
+- **All-new Settings:** A complete visual and interaction redesign brings Settings in line with the modernized main interface, with one continuous card, clearer title-left/control-right rows, iOS-style switches, compact inline options, refined sliders, and cleaner shortcut and status controls. (#172)
+- **Default window:** The main window now opens narrower and taller to better fit the interface.
 
 ### Fixed
-- **App updates:** Dismissed updates remain available through manual checks and Settings, while downloaded updates expose the restart action instead of staying hidden. (#158)
-- **Claude limits:** Fall back to the Claude CLI when OAuth credentials cannot be found, so limits continue to load for signed-in CLI sessions. (#159)
+- **Settings navigation:** Clicked section headers now stay in place while accordion sections collapse. (#168)
 <!-- app-update-notes:en:end -->
 
 ## Download
 
-- **macOS Apple Silicon** — [Token-Monitor-0.29.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.29.0/Token-Monitor-0.29.0-arm64.dmg)
-- **Windows Installer** — [Token-Monitor-Setup-0.29.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.29.0/Token-Monitor-Setup-0.29.0.exe) (recommended)
-- **Windows Portable** — [Token-Monitor-0.29.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.29.0/Token-Monitor-0.29.0.exe) (no install required)
-- **Linux x64** — [Token-Monitor-0.29.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.29.0/Token-Monitor-0.29.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.30.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.30.0/Token-Monitor-0.30.0-arm64.dmg)
+- **Windows Installer** — [Token-Monitor-Setup-0.30.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.30.0/Token-Monitor-Setup-0.30.0.exe) (recommended)
+- **Windows Portable** — [Token-Monitor-0.30.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.30.0/Token-Monitor-0.30.0.exe) (no install required)
+- **Linux x64** — [Token-Monitor-0.30.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.30.0/Token-Monitor-0.30.0.AppImage)
 
 <details>
 <summary><strong>First launch and other notes</strong></summary>
@@ -63,24 +61,22 @@ open-source: https://github.com/junhoyeo/tokscale
 
 <!-- app-update-notes:zh:start -->
 ### 新增
-- **低额度提示：** 新增可选主页设置，在 AI 工具剩余额度低于 50% 时高亮，并在低于 20% 时标记为紧急。（#161）
-- **减少动态效果：** 外观中新增「系统／开启／关闭」三态设置。系统跟随操作系统，开启减少动画，关闭保留动画，并统一应用于主窗口与使用仪表板。（#167）
+- **同步上传频率：** 可在多设备同步中选择实时，或每 10、20、30 分钟上传；定时模式会按所选频率发送最新快照。（#148）
 
 ### 改进
-- **用量动画：** 实时 Token 总计与明细数值现在会平滑过渡；柱形图、活动热力图、趋势线以及仪表盘的柱形图和 K 线图会呈现数据与周期变化。页面切换仍保持即时。（#163、#166）
-- **更新说明：** 提升了更新说明弹窗的对比度和可读性。（#162）
+- **全新设置：** 设置面板迎来完整的视觉与交互设计升级，与现代化主界面保持一致；采用一体式卡片、清晰的左侧标题／右侧控件布局、iOS 风格开关、紧凑的行内选项、精致滑杆，以及更简洁的快捷键与状态控件。（#172）
+- **默认窗口：** 主窗口现在以更窄、更高的比例打开，更贴合界面内容。
 
 ### 修复
-- **应用更新：** 已忽略的更新仍可通过手动检查和设置页面操作；下载完成后会显示重启操作，不再被忽略状态隐藏。（#158）
-- **Claude 额度：** 未找到 OAuth 凭据时自动回退到 Claude CLI，使已登录的 CLI 会话仍能读取额度。（#159）
+- **设置导航：** 折叠分区时，已点击的标题现在会保持在原位。（#168）
 <!-- app-update-notes:zh:end -->
 
 ## 下载
 
-- **macOS Apple Silicon** — [Token-Monitor-0.29.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.29.0/Token-Monitor-0.29.0-arm64.dmg)
-- **Windows 安装版** — [Token-Monitor-Setup-0.29.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.29.0/Token-Monitor-Setup-0.29.0.exe)（推荐）
-- **Windows 便携版** — [Token-Monitor-0.29.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.29.0/Token-Monitor-0.29.0.exe)（免安装）
-- **Linux x64** — [Token-Monitor-0.29.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.29.0/Token-Monitor-0.29.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.30.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.30.0/Token-Monitor-0.30.0-arm64.dmg)
+- **Windows 安装版** — [Token-Monitor-Setup-0.30.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.30.0/Token-Monitor-Setup-0.30.0.exe)（推荐）
+- **Windows 便携版** — [Token-Monitor-0.30.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.30.0/Token-Monitor-0.30.0.exe)（免安装）
+- **Linux x64** — [Token-Monitor-0.30.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.30.0/Token-Monitor-0.30.0.AppImage)
 
 <details>
 <summary><strong>首次启动与其他说明</strong></summary>
