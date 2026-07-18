@@ -74,6 +74,8 @@ test('Home activity uses a custom spotlight hover instead of native SVG titles',
   assert.match(match[1], /setupHomeActivityHover\(activityScroll\)/);
   assert.match(match[1], /spotlightId:\s*'homeActivitySpotlight'/);
   assert.doesNotMatch(match[1], /titleOf:/);
+  assert.match(match[1], /tokenIntensity/);
+  assert.match(rendererSource, /computeHeatmapIntensities\(daily\)/);
 });
 
 test('Home activity tooltip is dismissed on Home rerender and when the view leaves Home', () => {

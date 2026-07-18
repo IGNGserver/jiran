@@ -228,6 +228,7 @@ function defaultSettings() {
     showToolIcons: true,
     titleIconOnly: true,
     showCompactTotalTokens: false,
+    heatmapMetric: 'cost',
     themeColors: {},
     vendorColors: {},
     floatingBubbleEnabled: false,
@@ -317,6 +318,12 @@ function normalizeCollectionMode(value, fallback = 'live') {
   const next = String(value || '').trim();
   if (COLLECTION_MODE_VALUES.has(next)) return next;
   return COLLECTION_MODE_VALUES.has(fallback) ? fallback : 'live';
+}
+
+function normalizeHeatmapMetric(value, fallback = 'cost') {
+  const next = String(value || '').trim();
+  if (next === 'tokens' || next === 'cost') return next;
+  return fallback === 'tokens' ? 'tokens' : 'cost';
 }
 
 function normalizeCollectionIntervalMs(value, fallback = DEFAULT_COLLECTION_INTERVAL_MS) {
@@ -1389,6 +1396,7 @@ function readSettings() {
     merged.collectionMode = normalizeCollectionMode(merged.collectionMode);
     merged.collectionIntervalMs = normalizeCollectionIntervalMs(merged.collectionIntervalMs);
     merged.syncUploadIntervalMs = normalizeSyncUploadIntervalMs(merged.syncUploadIntervalMs);
+    merged.heatmapMetric = normalizeHeatmapMetric(merged.heatmapMetric);
     merged.reduceMotion = motionPreferenceApi.normalize(merged.reduceMotion);
     if (saved.serviceProviderDisplayOrder !== undefined) {
       merged.serviceProviderDisplayOrder = String(saved.serviceProviderDisplayOrder || '');
@@ -3651,6 +3659,7 @@ app.whenReady().then(() => {
     if (patch.collectionMode !== undefined) normalizedPatch.collectionMode = normalizeCollectionMode(patch.collectionMode, settings.collectionMode);
     if (patch.collectionIntervalMs !== undefined) normalizedPatch.collectionIntervalMs = normalizeCollectionIntervalMs(patch.collectionIntervalMs, settings.collectionIntervalMs);
     if (patch.syncUploadIntervalMs !== undefined) normalizedPatch.syncUploadIntervalMs = normalizeSyncUploadIntervalMs(patch.syncUploadIntervalMs, settings.syncUploadIntervalMs);
+    if (patch.heatmapMetric !== undefined) normalizedPatch.heatmapMetric = normalizeHeatmapMetric(patch.heatmapMetric, settings.heatmapMetric);
     settings = normalizeWindowBehaviorSettings({
       ...settings,
       ...normalizedPatch,
