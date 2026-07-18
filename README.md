@@ -88,7 +88,7 @@ Most usage monitors are useful on the machine they run on. Token Monitor is buil
 - **Self-hosted sync backend** (in-widget hub, Node CLI hub, or Cloudflare Worker)
 - **iOS widget support** via Widgy and Scriptable through the Worker hub
 - **Discord Rich Presence** to broadcast today's tokens, cost, and top client (opt-in)
-- **Privacy-first:** only summary numbers ever leave your machine
+- **Privacy-first:** prompts, responses, source code, and file contents stay on your machine
 
 | Limits View | Devices View | Models View |
 |:---:|:---:|:---:|
@@ -107,7 +107,7 @@ Most usage monitors are useful on the machine they run on. Token Monitor is buil
 Download from [GitHub Releases](https://github.com/Javis603/token-monitor/releases).
 
 - **macOS (Apple Silicon)** — `.dmg`, signed and notarized
-- **Windows 10/11** — setup `.exe`; signing is being prepared, so SmartScreen may appear
+- **Windows 10/11** — setup and portable `.exe`, signed via [SignPath Foundation](docs/code-signing.md)
 - **Linux x64** — `.AppImage`
 
 Packaged builds check GitHub Releases automatically. When an update is available, the app shows an update indicator; supported platforms can also install from Settings → General.
@@ -249,18 +249,7 @@ npm run agent -- --clients=claude,codex,opencode --once
 
 ## Privacy
 
-The hub and agent only transmit summary fields:
-
-- device id, hostname, platform
-- total tokens per period (today / month / all-time)
-- cost totals (when `tokscale` returns cost data)
-- per-client and per-model breakdowns
-- normalized Claude Code/Codex/Cursor/Antigravity/OpenCode/Grok/Minimax/MiMo/GitHub Copilot/Kiro/GLM/Volcengine/Qoder/Kimi/Ollama limit status when AI Tool Limits is enabled
-
-They do not transmit raw AI logs, prompts, source code, or conversation
-content. They also do not transmit OAuth credentials, access tokens, refresh
-tokens, emails, or raw provider responses. `.env`, `data/`, and `node_modules/`
-are gitignored.
+Token Monitor processes usage logs locally and sends no analytics or telemetry to the project maintainer. Network access occurs only for documented or user-enabled features. See the [privacy policy](docs/privacy.md) for the data used by updates, provider integrations, Discord Rich Presence, and optional multi-device sync.
 
 ## Requirements
 
@@ -286,6 +275,7 @@ Issues and PRs are welcome. Project conventions, architecture notes, and the com
 
 - [tokscale](https://github.com/junhoyeo/tokscale) for log parsing and token accounting.
 - [CodexBar](https://github.com/steipete/CodexBar) for AI Tool Limits research.
+- **[Code signing policy](docs/code-signing.md):** Free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
 ## License
 
