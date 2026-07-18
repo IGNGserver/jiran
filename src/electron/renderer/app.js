@@ -4311,11 +4311,13 @@ function applyControlLayout(settingsInTitlebar) {
 function applyAppearanceSettings(settings) {
   const opacity = clamp(settings?.glassOpacity ?? 68, 0, 100) / 100;
   const depth = clamp(settings?.glassBlur ?? 32, 0, 100) / 100;
+  const systemGlassDisabled = settings?.systemGlass === false;
   document.documentElement.style.setProperty('--glass-alpha', opacity.toFixed(2));
   document.documentElement.style.setProperty('--line-alpha', (0.1 + depth * 0.09).toFixed(3));
   document.documentElement.style.setProperty('--line-strong-alpha', (0.18 + depth * 0.14).toFixed(3));
   document.documentElement.style.setProperty('--control-alpha', (0.03 + depth * 0.045).toFixed(3));
   document.documentElement.style.setProperty('--highlight-alpha', (0.045 + depth * 0.06).toFixed(3));
+  document.documentElement.classList.toggle('system-glass-disabled', systemGlassDisabled);
   applyReduceMotionPreference(settings?.reduceMotion);
   // Only full settings objects carry themeColors; glass/zoom preview patches
   // omit it, so we must not wipe theme overrides mid-slider-drag.
@@ -4346,6 +4348,7 @@ function applyAppearanceSettings(settings) {
 
 const themePresetsApi = window.TokenMonitorThemePresets;
 let themeCodeFeedbackGeneration = 0;
+let appliedThemeOverrides = {};
 // Snapshot of the canonical brand colours, taken before any override is
 // applied. clientColors is mutated in place (other modules hold the same
 // reference), so this is the source of truth for "reset to brand".
@@ -4374,11 +4377,13 @@ function matchingThemePresetId(overrides) {
 }
 
 function applyThemeColors(overrides) {
+  appliedThemeOverrides = themePresetsApi.normalizeOverrides(overrides, themePresetsApi.INTERFACE_COLOR_KEYS);
   const root = document.documentElement.style;
-  for (const { name, value } of themePresetsApi.themeCssVarEntries(overrides)) {
+  for (const { name, value } of themePresetsApi.themeCssVarEntries(appliedThemeOverrides)) {
     if (value) root.setProperty(name, value);
     else root.removeProperty(name);
   }
+  renderFloatingBubbleContent();
 }
 
 function applyVendorColorOverrides(overrides) {
@@ -4388,8 +4393,7 @@ function applyVendorColorOverrides(overrides) {
 
 // Current resolved palette value for an interface colour key.
 function resolvedThemeColor(key) {
-  const clean = themePresetsApi.normalizeOverrides(state.settings?.themeColors, themePresetsApi.INTERFACE_COLOR_KEYS);
-  return clean[key] || themePresetsApi.DEFAULT_THEME[key];
+  return appliedThemeOverrides[key] || themePresetsApi.DEFAULT_THEME[key];
 }
 
 function buildAppearanceColorControls() {
@@ -4741,11 +4745,19 @@ function normalizeWindowToggleShortcutValue(value) {
   return windowShortcutApi.normalizeWindowToggleShortcut(value);
 }
 
-const BUBBLE_CONTENT_MIN_W = 18;
+const BUBBLE_CONTENT_MIN_W = 34;
 const BUBBLE_CONTENT_HEIGHT = 34;
 const BUBBLE_CONTENT_PAD_X = 10;
-// The tray bars are black (a macOS menu-bar template); on the bubble's dark glass they need light ink.
-const BUBBLE_BARS_COLORS = { track: 'rgba(255, 255, 255, 0.22)', fill: 'rgba(255, 255, 255, 0.92)' };
+
+function floatingBubbleGeneratedColors() {
+  const text = resolvedThemeColor('text');
+  const rgb = themePresetsApi.hexToRgbTriplet(text);
+  return {
+    track: `rgba(${rgb}, 0.22)`,
+    fill: `rgba(${rgb}, 0.92)`,
+    text: `rgba(${rgb}, 0.92)`
+  };
+}
 
 function renderFloatingBubbleContent() {
   const el = els.floatingBubbleContent;
@@ -4753,7 +4765,10 @@ function renderFloatingBubbleContent() {
   const mode = state.settings?.floatingBubbleContent || 'icon';
   if (window.TokenMonitorTrayText.isGeneratedTrayIconMode(mode)) {
     const dataUrl = state.stats
-      ? trayDataUrlForMode(mode, 44, BUBBLE_BARS_COLORS, { contentOnly: mode === 'barsAllSessions' || mode === 'limitsAllSessions' })
+      ? trayDataUrlForMode(mode, 44, floatingBubbleGeneratedColors(), {
+          contentOnly: mode === 'barsAllSessions' || mode === 'limitsAllSessions',
+          providerContrastHalo: true
+        })
       : null;
     if (dataUrl) {
       el.classList.add('bars');
@@ -7037,7 +7052,19 @@ function roundedRectPath(ctx, x, y, w, h, r) {
 const trayProviderImages = {};
 const trayProviderIconDeliveryGuard = window.TokenMonitorTrayProviderIcons.createTrayProviderIconDeliveryGuard();
 
-function renderBarsIcon(stats, height = 44, picker = pickWorstProvider, colors = {}) {
+function drawProviderImage(ctx, image, x, y, size, contrastHalo = false) {
+  if (contrastHalo) {
+    const lightSurface = themePresetsApi.isLightHex(resolvedThemeColor('bg'));
+    ctx.save();
+    ctx.shadowColor = lightSurface ? 'rgba(0, 0, 0, 0.58)' : 'rgba(255, 255, 255, 0.82)';
+    ctx.shadowBlur = Math.max(2, Math.round(size * 0.1));
+    ctx.drawImage(image, x, y, size, size);
+    ctx.restore();
+  }
+  ctx.drawImage(image, x, y, size, size);
+}
+
+function renderBarsIcon(stats, height = 44, picker = pickWorstProvider, colors = {}, options = {}) {
   const trackColor = colors.track || 'rgba(0, 0, 0, 0.32)';
   const fillColor = colors.fill || 'rgba(0, 0, 0, 1)';
   const selection = picker(stats);
@@ -7054,7 +7081,7 @@ function renderBarsIcon(stats, height = 44, picker = pickWorstProvider, colors =
   ctx.clearRect(0, 0, layout.width, layout.height);
 
   if (providerImage) {
-    ctx.drawImage(providerImage, layout.padX, layout.iconY, layout.iconSize, layout.iconSize);
+    drawProviderImage(ctx, providerImage, layout.padX, layout.iconY, layout.iconSize, options.providerContrastHalo === true);
   }
 
   function drawBar(y, percent) {
@@ -7085,14 +7112,14 @@ function pickConfiguredSessionProviders(stats, configOrder) {
   });
 }
 
-function renderAllSessionsIcon(stats, height = 44, configOrder, colors = {}) {
+function renderAllSessionsIcon(stats, height = 44, configOrder, colors = {}, options = {}) {
   const trackColor = colors.track || 'rgba(0, 0, 0, 0.32)';
   const fillColor = colors.fill || 'rgba(0, 0, 0, 1)';
   const picks = pickConfiguredSessionProviders(stats, configOrder);
   if (picks.length === 0) return null;
   // With one tool, preserve its canonical pair; a lone weekly/billing window is
   // promoted to the top lane and the lower lane remains an empty track.
-  if (picks.length === 1) return renderBarsIcon(stats, height, () => picks[0], colors);
+  if (picks.length === 1) return renderBarsIcon(stats, height, () => picks[0], colors, options);
 
   const { trayBarFillWidth, trayBarsLayout } = window.TokenMonitorTrayBars;
   const layout = trayBarsLayout(height, { contentOnly: true });
@@ -7181,7 +7208,7 @@ function renderLimitSessionsIcon(stats, height = 44, configOrder, colors = {}, o
   const centerY = height / 2;
   entries.forEach((entry, index) => {
     if (entry.image) {
-      ctx.drawImage(entry.image, x, layout.iconY, iconSize, iconSize);
+      drawProviderImage(ctx, entry.image, x, layout.iconY, iconSize, options.providerContrastHalo === true);
       x += iconSize + gap;
     }
     ctx.fillText(entry.text, x, centerY + 1);
@@ -7197,7 +7224,7 @@ function renderLimitSessionsIcon(stats, height = 44, configOrder, colors = {}, o
 function barsDataUrlForMode(mode, size = 44, colors, options = {}) {
   if (mode === 'barsAllSessions') return renderAllSessionsIcon(state.stats, size, configuredLimitProviderOrder(), colors, options);
   const pickers = { barsSession: pickWorstSessionProvider, barsWeekly: pickWorstWeeklyProvider };
-  return renderBarsIcon(state.stats, size, pickers[mode] || pickWorstProvider, colors);
+  return renderBarsIcon(state.stats, size, pickers[mode] || pickWorstProvider, colors, options);
 }
 
 function trayDataUrlForMode(mode, size = 44, colors, options = {}) {

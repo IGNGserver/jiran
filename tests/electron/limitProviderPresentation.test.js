@@ -347,12 +347,15 @@ test('tray primary-limit modes use the shared provider-aware resolver', () => {
   assert.match(renderBars, /secondaryWindow/);
   assert.doesNotMatch(renderBars, /\.find\(\(w\) => w\.kind/);
   assert.match(renderAllSessions, /trayBarsLayout\(height, \{ contentOnly: true \}\)/);
+  assert.match(renderAllSessions, /function renderAllSessionsIcon\(stats, height = 44, configOrder, colors = \{\}, options = \{\}\)/);
+  assert.match(renderAllSessions, /picks\.length === 1\) return renderBarsIcon\(stats, height, \(\) => picks\[0\], colors, options\)/);
 });
 
 test('limit percent tray mode renders provider icons into a generated tray image', () => {
   const app = readRendererFile('app.js');
   const main = fs.readFileSync(path.join(__dirname, '../../src/electron/main.js'), 'utf8');
   const renderLimitSessionsIcon = functionBody(app, 'renderLimitSessionsIcon', 'barsDataUrlForMode');
+  const drawProviderImage = functionBody(app, 'drawProviderImage', 'renderBarsIcon');
   const maybeUpdateBarsIcon = functionBody(app, 'maybeUpdateBarsIcon', 'loadImage');
   const updateTrayDisplay = functionBody(main, 'updateTrayDisplay', 'sendStatus');
 
@@ -363,6 +366,16 @@ test('limit percent tray mode renders provider icons into a generated tray image
   assert.match(renderLimitSessionsIcon, /primaryWindow/);
   assert.match(renderLimitSessionsIcon, /secondaryWindow/);
   assert.match(renderLimitSessionsIcon, /trayProviderImages\[pick\.providerRecord\.provider\]/);
+  assert.match(renderLimitSessionsIcon, /drawProviderImage\(ctx, entry\.image/);
+  assert.match(drawProviderImage, /shadowColor/);
+  assert.match(drawProviderImage, /shadowBlur/);
+  assert.doesNotMatch(drawProviderImage, /fillRect|\.fill\(/);
+  assert.match(app, /providerContrastHalo:\s*true/);
+  assert.match(app, /function floatingBubbleGeneratedColors\(\)/);
+  assert.match(app, /resolvedThemeColor\('text'\)/);
+  assert.match(app, /appliedThemeOverrides = themePresetsApi\.normalizeOverrides\(overrides/);
+  assert.match(app, /function applyThemeColors\(overrides\)[\s\S]*renderFloatingBubbleContent\(\);/);
+  assert.match(app, /function resolvedThemeColor\(key\)[\s\S]*appliedThemeOverrides\[key\]/);
   assert.match(renderLimitSessionsIcon, /`500 \$\{fontSize\}px/);
   assert.match(renderLimitSessionsIcon, /formatPercent\(limitFillPercent/);
   assert.match(renderLimitSessionsIcon, /·/);
