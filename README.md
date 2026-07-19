@@ -61,6 +61,20 @@ Token Monitor supports token usage, account-limit checks, and session details se
 | <img src=".github/assets/tools-icon/qoder.png" width="28" alt="Qoder" /> | Qoder | Qoder dashboard cookie (big-model credits via Qoder usage API) | — | ✅ | — |
 | <img src=".github/assets/tools-icon/ollama.png" width="28" alt="Ollama" /> | Ollama | Ollama Cloud cookie (session/weekly usage via ollama.com/settings) | — | ✅ | — |
 
+## Showcase
+
+| Home View | Limits View | Tools View |
+|:---:|:---:|:---:|
+| ![Home View](.github/assets/home-view.png) | ![Limits View](.github/assets/limits-view.png) | ![Tools View](.github/assets/tools-view.png) |
+
+| Session View | Models View | Service Status |
+|:---:|:---:|:---:|
+| ![Session View](.github/assets/sessions-view.png) | ![Models View](.github/assets/models-view.png) | ![Service Status](.github/assets/status-view.png) |
+
+| Usage Dashboard — Overview | Usage Dashboard — Trends |
+|:---:|:---:|
+| ![Usage Dashboard Overview](.github/assets/dashboard-overview.png) | ![Usage Dashboard Trends](.github/assets/dashboard-trends.png) |
+
 ## Why Token Monitor?
 
 Most usage monitors are useful on the machine they run on. Token Monitor is built for multi-device work: each device watches its own local logs, sends summary updates to your hub, and every connected widget sees token changes almost immediately.
@@ -89,18 +103,6 @@ Most usage monitors are useful on the machine they run on. Token Monitor is buil
 - **iOS widget support** via Widgy and Scriptable through the Worker hub
 - **Discord Rich Presence** to broadcast today's tokens, cost, and top client (opt-in)
 - **Privacy-first:** prompts, responses, source code, and file contents stay on your machine
-
-| Limits View | Devices View | Models View |
-|:---:|:---:|:---:|
-| ![Limits View](.github/assets/limits-view.png) | ![Devices View](.github/assets/devices-view.png) | ![Models View](.github/assets/models-view.png) |
-
-| Session View | Session Details | Service Status |
-|:---:|:---:|:---:|
-| ![Session View](.github/assets/sessions-view.png) | ![Session Details](.github/assets/session-details.png) | ![Service Status](.github/assets/status-view.png) |
-
-| Usage Dashboard — Overview | Usage Dashboard — Trends |
-|:---:|:---:|
-| ![Usage Dashboard Overview](.github/assets/dashboard-overview.png) | ![Usage Dashboard Trends](.github/assets/dashboard-trends.png) |
 
 ## Installation
 
