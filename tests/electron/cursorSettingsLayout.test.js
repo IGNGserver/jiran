@@ -220,7 +220,7 @@ test('OpenCode profile enable toggles restart the collector mode so limits sourc
   );
   assert.ok(handler, 'opencode:setProfileEnabled handler should exist');
   assert.match(handler, /profiles\[name\]\.enabled = Boolean\(enabled\);/);
-  assert.match(handler, /saveSettings\(\);/);
+  assert.match(handler, /saveSettings\(\{ throwOnError: true \}\);/);
   assert.match(handler, /opencodeStatusCache = \{ value: null, at: 0 \};/);
   assert.match(handler, /startMode\(\)/);
 });
@@ -458,7 +458,17 @@ test('Codex system account switching is exposed from limits account rows', () =>
   assert.match(switchFlush, /state\.breakdown !== 'limits'/);
   assert.match(switchFlush, /renderLimits\(\)/);
   const switchBody = functionBody(main, 'switchCodexSystemAccount', 'refreshCodexManagedAccountLimits');
-  assert.doesNotMatch(switchBody, /restart: false/);
+  assert.match(switchBody, /const previousAccounts = normalizeCodexManagedAccounts\(settings\.codexManagedAccounts\)/);
+  assert.match(switchBody, /liveAuthSnapshot = await snapshotCodexAuthFile\(liveAuthPath\)/);
+  assert.match(switchBody, /preservedLiveAccount = await preserveLiveCodexAuthAsManagedAccount/);
+  assert.match(switchBody, /restart: false/);
+  assert.match(switchBody, /settings\.codexManagedAccounts = previousAccounts;/);
+  assert.match(switchBody, /restoreCodexAuthFileSnapshot\(liveAuthSnapshot\)/);
+  assert.match(switchBody, /preservedLiveAccount\?\.rollback\?\.\(\)/);
+  const preserveBody = functionBody(main, 'preserveLiveCodexAuthAsManagedAccount', 'codexLoginErrorMessage');
+  assert.match(preserveBody, /const authSnapshot = await snapshotCodexAuthFile/);
+  assert.match(preserveBody, /persist: false/);
+  assert.match(preserveBody, /rollback: \(\) => restoreCodexAuthFileSnapshot/);
   const findExistingBody = functionBody(main, 'findExistingCodexAccount', 'codexAccountId');
   assert.match(findExistingBody, /if \(identity\.accountKey && account\.accountKey && !codexEmailDerivedAccountKey\(account, identity\)\)/);
   assert.match(main, /function codexEmailDerivedAccountKey\(account, identity\)/);
@@ -818,11 +828,13 @@ test('opencode status env account avoids saved profile names', () => {
 
 test('settingsForRenderer strips provider cookies before they reach the renderer', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'electron', 'main.js'), 'utf8');
+  const credentialStore = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'shared', 'credentialStore.js'), 'utf8');
   const body = main.slice(
     main.indexOf('function settingsForRenderer'),
     main.indexOf('function pushSettingsToRenderer')
   );
   assert.ok(body, 'settingsForRenderer should exist');
+  assert.match(body, /credentialSettingsForRenderer\(settings, \{\s*expose: \['hubHostSecret', 'secret'\]\s*\}\)/);
   // The raw OpenCode cookie must be reduced to a presence flag, never forwarded verbatim.
   assert.match(body, /opencodeCookie:[^,}]*\?\s*'set'\s*:\s*''/);
   // Multi-account profile cookies are redacted the same way.
@@ -833,14 +845,56 @@ test('settingsForRenderer strips provider cookies before they reach the renderer
   );
   assert.match(mimoRendererShape, /id, accountKey, accountEmail, accountLabel, addedAt, updatedAt, enabled/);
   assert.doesNotMatch(mimoRendererShape, /cookieHeader/);
-  assert.doesNotMatch(main, /safeStorage/);
-  assert.match(main, /fs\.writeFileSync\(temporary, `\$\{cookieHeader\}\\n`, \{ encoding: 'utf8', mode: 0o600 \}\)/);
-  assert.match(main, /fs\.chmodSync\(destination, 0o600\)/);
+  assert.match(credentialStore, /fsApi\.openSync\(temporary, 'wx', 0o600\)/);
+  assert.match(credentialStore, /fsApi\.fchmodSync\(descriptor, 0o600\)/);
+  assert.match(credentialStore, /fsApi\.openSync\(directory, constants\.O_RDONLY\)/);
+  assert.match(main, /ensureCredentialStore\(\)\.writeMimoCredential\(id, cookieHeader\)/);
   assert.match(main, /cookieHeader: readMimoCredential\(account\.id\)/);
-  assert.match(main, /cookieHeader: readMimoCredential\(account\.id\)/);
-  assert.doesNotMatch(main, /legacyCookieHeader|keepLegacyCookie|hadPlaintextMimoCookie/);
+  assert.match(main, /migrateLegacyMimoCredentialFiles\(merged\.mimoManagedAccounts\)/);
   assert.match(main, /if \(!removeMimoCredential\(accountId\)\) return \{ ok: false, error: 'Could not remove stored credential' \};/);
   assert.match(main, /delete result\.account\.cookieHeader/);
+});
+
+test('legacy credential cleanup retries independently from the migration marker', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'electron', 'main.js'), 'utf8');
+  const body = functionBody(main, 'loadCredentialSettings', 'migrateLegacyMimoCredentialFiles');
+  assert.match(body, /store\.migrateLegacySettings\(saved\);/);
+  assert.match(body, /if \(hasCredentialSettings\(saved\)\) \{/);
+  assert.match(body, /writePrivateJsonAtomic\(settingsPath, stripCredentialSettings\(saved\)\)/);
+  assert.doesNotMatch(body, /migration\.migrated/);
+});
+
+test('legacy MiMo migration rejects symlinks and retries cleanup after a partial failure', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'electron', 'main.js'), 'utf8');
+  const body = functionBody(main, 'migrateLegacyMimoCredentialFiles', 'readSettings');
+  assert.match(body, /readRegularFileNoFollow\(legacyMimoCredentialPath\(account\.id\)/);
+  assert.match(body, /ensureCredentialStore\(\)\.migrateLegacyMimoCredentials\(entries\);/);
+  assert.match(body, /if \(!readMimoCredential\(entry\.id\)\) continue;/);
+  assert.doesNotMatch(body, /migratedIds/);
+});
+
+test('credential storage failures preserve the file and surface one actionable error', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'electron', 'main.js'), 'utf8');
+  const reporter = functionBody(main, 'reportCredentialStorageError', 'loadCredentialSettings');
+  assert.match(reporter, /credentialStorageErrorShown \|\| !app\.isReady\(\)/);
+  assert.match(reporter, /dialog\.showErrorBox\(/);
+  assert.match(reporter, /save was stopped and previous data was restored where possible/);
+  const saveBody = functionBody(main, 'saveSettings', 'loginItemEnabledHere');
+  assert.match(saveBody, /persistSettingsAndCredentials\(/);
+  assert.match(saveBody, /settings = previousSettings;/);
+  assert.match(saveBody, /reportCredentialStorageError\('could not persist settings', error\)/);
+  assert.match(saveBody, /if \(options\.throwOnError\) throw error;/);
+
+  const settingsHandler = main.slice(
+    main.indexOf("ipcMain.handle('settings:update'"),
+    main.indexOf("ipcMain.handle('appearance:preview'")
+  );
+  assert.match(settingsHandler, /saveSettings\(\{ throwOnError: true \}\);/);
+
+  const renderer = readRendererFile('app.js');
+  const rendererSave = functionBody(renderer, 'saveSettings', 'renderHomeIfVisible');
+  assert.match(rendererSave, /state\.settings = await window\.tokenMonitor\.getSettings\(\)/);
+  assert.match(rendererSave, /throw error;/);
 });
 
 test('main settings normalize the Z.ai API region', () => {
