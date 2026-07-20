@@ -8,6 +8,15 @@ const path = require('node:path');
 // update after Authenticode changes the installer bytes.
 const { buildBlockMap } = require('app-builder-lib/out/targets/blockmap/blockmap');
 
+const BUILD_NUMBER_ENV_KEYS = [
+  'BUILD_NUMBER',
+  'TRAVIS_BUILD_NUMBER',
+  'APPVEYOR_BUILD_NUMBER',
+  'CIRCLE_BUILD_NUM',
+  'BUILD_BUILDNUMBER',
+  'CI_PIPELINE_IID'
+];
+
 function unquote(value) {
   return value.trim().replace(/^['"]|['"]$/g, '');
 }
@@ -48,10 +57,33 @@ function signingPackageMetadata(packageJsonPath) {
   return { pkg, version, productName };
 }
 
-function expectedWindowsApplication(packageJsonPath) {
-  const { version, productName } = signingPackageMetadata(packageJsonPath);
+function windowsApplicationProductVersion(pkg, env = process.env) {
+  if (pkg.shortVersionWindows !== undefined) {
+    const shortVersion = String(pkg.shortVersionWindows || '');
+    if (!/^\d+\.\d+\.\d+\.\d+$/.test(shortVersion)) {
+      throw new Error(`Unsupported shortVersionWindows for signing: ${shortVersion}`);
+    }
+    return shortVersion;
+  }
+
+  const [major, maybeMinor, maybePatch] = String(pkg.version || '').split('.').map((part) => parseInt(part, 10));
+  if ([major, maybeMinor, maybePatch].some((part) => Number.isNaN(part))) {
+    throw new Error(`Unsupported package version for Windows signing: ${String(pkg.version)}`);
+  }
+  const configuredBuildNumber = pkg.build?.buildNumber;
+  const environmentBuildNumber = BUILD_NUMBER_ENV_KEYS.map((key) => env[key]).find(Boolean);
+  const candidateBuildNumber = configuredBuildNumber || environmentBuildNumber;
+  const buildNumber = /^\d+$/.test(String(candidateBuildNumber || ''))
+    ? String(candidateBuildNumber)
+    : '0';
+  return `${major}.${maybeMinor}.${maybePatch}.${buildNumber}`;
+}
+
+function expectedWindowsApplication(packageJsonPath, env = process.env) {
+  const { pkg, version, productName } = signingPackageMetadata(packageJsonPath);
   return {
     version,
+    productVersion: windowsApplicationProductVersion(pkg, env),
     productName,
     application: `${productName}.exe`
   };
@@ -427,6 +459,7 @@ if (require.main === module) {
           console.log(`Wrote ${result.updateConfigPath}`);
         } else if (command === 'prepare-application') {
           console.log(`version=${result.version}`);
+          console.log(`product_version=${result.productVersion}`);
           console.log(`application=${result.application}`);
         } else if (command === 'prepare-artifacts') {
           console.log(`version=${result.version}`);
@@ -448,6 +481,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  windowsApplicationProductVersion,
   expectedWindowsApplication,
   expectedWindowsArtifacts,
   windowsAppUpdateConfig,

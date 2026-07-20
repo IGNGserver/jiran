@@ -130,7 +130,7 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: dist/signpath-application-output
           parameters: |
-            version: ${{ toJSON(steps.prepare-unsigned-win-app.outputs.version) }}
+            version: ${{ toJSON(steps.prepare-unsigned-win-app.outputs.product_version) }}
       - name: Apply signed Windows application
         if: matrix.target == 'win'
         shell: bash

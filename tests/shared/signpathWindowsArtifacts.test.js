@@ -8,6 +8,7 @@ const test = require('node:test');
 const zlib = require('node:zlib');
 
 const {
+  windowsApplicationProductVersion,
   expectedWindowsApplication,
   expectedWindowsArtifacts,
   windowsAppUpdateConfig,
@@ -103,6 +104,14 @@ test('release workflow signs the application before packaging and signs public a
 
   assert.ok(unpacked >= 0);
   assert.match(workflow, /path: \$\{\{ runner\.temp \}\}\/signpath-application-input\s/);
+  assert.match(
+    workflow,
+    /artifact-configuration-slug: application[\s\S]*?version: \$\{\{ toJSON\(steps\.prepare-unsigned-win-app\.outputs\.product_version\) \}\}/
+  );
+  assert.match(
+    workflow,
+    /artifact-configuration-slug: initial[\s\S]*?version: \$\{\{ toJSON\(steps\.prepare-unsigned-win\.outputs\.version\) \}\}/
+  );
   assert.ok(unpacked < signApplication);
   assert.ok(signApplication < prepackaged);
   assert.ok(prepackaged < signArtifacts);
@@ -175,11 +184,26 @@ test('expectedWindowsArtifacts resolves the public installer and portable names 
 
 test('expectedWindowsApplication resolves the branded executable from package.json', (t) => {
   const fixture = makeFixture(t);
-  assert.deepEqual(expectedWindowsApplication(fixture.packageJsonPath), {
+  assert.deepEqual(expectedWindowsApplication(fixture.packageJsonPath, {}), {
     version: VERSION,
+    productVersion: `${VERSION}.0`,
     productName: 'Token Monitor',
     application: APPLICATION
   });
+});
+
+test('windows application ProductVersion mirrors electron-builder four-part metadata', () => {
+  const pkg = { version: VERSION, build: {} };
+  assert.equal(windowsApplicationProductVersion(pkg, {}), `${VERSION}.0`);
+  assert.equal(windowsApplicationProductVersion(pkg, { BUILD_NUMBER: '42' }), `${VERSION}.42`);
+  assert.equal(
+    windowsApplicationProductVersion({ ...pkg, build: { buildNumber: '7' } }, { BUILD_NUMBER: '42' }),
+    `${VERSION}.7`
+  );
+  assert.equal(
+    windowsApplicationProductVersion({ ...pkg, shortVersionWindows: '3.2.1.9' }, {}),
+    '3.2.1.9'
+  );
 });
 
 test('writes the updater config skipped by electron-builder prepackaged mode', (t) => {
