@@ -20,6 +20,18 @@ test('syncPayload preserves the upload interval used by hub staleness checks', (
   assert.equal(payload.syncUploadIntervalMs, 20 * 60 * 1000);
 });
 
+test('syncPayload carries OS version metadata to the hub', () => {
+  const payload = syncPayload({
+    deviceId: 'dev-a',
+    osName: 'macOS',
+    osVersion: '26.0',
+    limits: { providers: [] }
+  });
+
+  assert.equal(payload.osName, 'macOS');
+  assert.equal(payload.osVersion, '26.0');
+});
+
 test('syncPayload bounds uploads by omitting all-time sessions', () => {
   const summary = {
     deviceId: 'dev-a',
