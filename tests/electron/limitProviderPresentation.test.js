@@ -8,10 +8,14 @@ const vm = require('node:vm');
 const accountIdentityApi = require('../../src/electron/renderer/accountIdentity');
 
 const {
+  antigravityQuotaWindow,
   apiKeyAccountStatus,
   isCodexLiveAccount,
   limitProviderDisplayLabel,
   limitProviderCapabilityTags,
+  limitProviderCompactWindowLabel,
+  limitProviderCompactWindowPeriodLabel,
+  limitProviderCompactWindows,
   limitProviderMainDeviceLabel,
   limitProviderProvenance,
   limitResetRemainingMs,
@@ -48,6 +52,87 @@ test('limitProviderDisplayLabel normalizes short account labels without rewritin
   assert.equal(limitProviderDisplayLabel('Team'), 'Team');
   assert.equal(limitProviderDisplayLabel('primary.user@example.com'), 'primary.user@example.com');
   assert.equal(limitProviderDisplayLabel(''), '');
+});
+
+test('compact Antigravity labels distinguish duplicate periods by model group', () => {
+  const windows = [
+    { kind: 'session', label: 'Gemini 5-hour' },
+    { kind: 'session', label: 'Claude/GPT 5-hour' }
+  ];
+
+  assert.equal(limitProviderCompactWindowLabel('antigravity', windows[0], windows), 'Gemini');
+  assert.equal(limitProviderCompactWindowLabel('antigravity', windows[1], windows), 'Claude/GPT');
+  assert.equal(limitProviderCompactWindowLabel('codex', windows[0], windows), '');
+});
+
+test('Antigravity quota presentation parses grouped period labels once', () => {
+  assert.deepEqual(antigravityQuotaWindow({ kind: 'session', label: 'Gemini 5-hour' }), {
+    groupLabel: 'Gemini',
+    windowLabel: '5-hour'
+  });
+  assert.deepEqual(antigravityQuotaWindow({ kind: 'weekly', label: 'Future Group weekly' }), {
+    groupLabel: 'Future Group',
+    windowLabel: 'Weekly'
+  });
+  assert.equal(antigravityQuotaWindow({ kind: 'weekly', label: 'Gemini Pro' }), null);
+});
+
+test('compact Antigravity windows surface critical weekly quotas per model group', () => {
+  const windows = [
+    { kind: 'session', label: 'Gemini 5-hour', remainingPercent: 100 },
+    { kind: 'weekly', label: 'Gemini weekly', remainingPercent: 0 },
+    { kind: 'session', label: 'Claude/GPT 5-hour', remainingPercent: 20 },
+    { kind: 'weekly', label: 'Claude/GPT weekly', remainingPercent: 80 }
+  ];
+
+  assert.deepEqual(limitProviderCompactWindows('antigravity', windows), [windows[1], windows[2]]);
+  const selected = limitProviderCompactWindows('antigravity', windows);
+  assert.equal(limitProviderCompactWindowPeriodLabel('antigravity', selected[0], selected), 'Weekly');
+  assert.equal(limitProviderCompactWindowPeriodLabel('antigravity', selected[1], selected), '5-hour');
+});
+
+test('compact Antigravity windows keep 5-hour primary until weekly is critical', () => {
+  const aboveCritical = [
+    { kind: 'session', label: 'Gemini 5-hour', remainingPercent: 60 },
+    { kind: 'weekly', label: 'Gemini weekly', remainingPercent: 30 }
+  ];
+  const critical = [
+    { kind: 'session', label: 'Gemini 5-hour', remainingPercent: 60 },
+    { kind: 'weekly', label: 'Gemini weekly', remainingPercent: 10 }
+  ];
+
+  assert.deepEqual(limitProviderCompactWindows('antigravity', aboveCritical), [aboveCritical[0]]);
+  assert.deepEqual(limitProviderCompactWindows('antigravity', critical), [critical[1]]);
+});
+
+test('compact Antigravity windows prefer 5-hour on ties and preserve legacy pools', () => {
+  const grouped = [
+    { kind: 'session', label: 'Gemini 5-hour', remainingPercent: 100 },
+    { kind: 'weekly', label: 'Gemini weekly', remainingPercent: 100 },
+    { kind: 'session', label: 'Claude/GPT 5-hour', remainingPercent: 100 },
+    { kind: 'weekly', label: 'Claude/GPT weekly', remainingPercent: 100 }
+  ];
+  const legacy = [
+    { kind: 'session', label: 'Gemini Pro', remainingPercent: 50 },
+    { kind: 'session', label: 'Gemini Flash', remainingPercent: 40 }
+  ];
+
+  assert.deepEqual(limitProviderCompactWindows('antigravity', grouped), [grouped[0], grouped[2]]);
+  assert.equal(limitProviderCompactWindows('antigravity', legacy), legacy);
+});
+
+test('compact Antigravity labels preserve period fallback when groups are not distinct', () => {
+  const differentPeriods = [
+    { kind: 'session', label: 'Gemini 5-hour' },
+    { kind: 'weekly', label: 'Gemini weekly' }
+  ];
+  const legacy = [
+    { kind: 'session', label: 'Gemini Pro' },
+    { kind: 'session', label: 'Gemini Flash' }
+  ];
+
+  assert.equal(limitProviderCompactWindowLabel('antigravity', differentPeriods[0], differentPeriods), '');
+  assert.equal(limitProviderCompactWindowLabel('antigravity', legacy[0], legacy), '');
 });
 
 test('limitResetRemainingMs keeps future resets, briefly marks reset time, and expires old timestamps', () => {
@@ -459,11 +544,12 @@ test('Antigravity groups returned quota windows under dynamic model-family headi
   const renderProviderWindows = functionBody(app, 'renderProviderWindows', 'renderLimitProviderRow');
   const css = readRendererFile('styles.css');
 
+  const context = { limitProviderPresentationApi: { antigravityQuotaWindow } };
   const grouped = vm.runInNewContext(`${quotaGroups}\nantigravityQuotaGroups({ windows: [
     { kind: 'session', label: 'Gemini 5-hour' },
     { kind: 'weekly', label: 'Gemini weekly' },
     { kind: 'weekly', label: 'Future Group weekly' }
-  ] });`);
+  ] });`, context);
   assert.deepEqual(JSON.parse(JSON.stringify(grouped)), [
     {
       label: 'Gemini',
@@ -482,11 +568,10 @@ test('Antigravity groups returned quota windows under dynamic model-family headi
   const legacy = vm.runInNewContext(`${quotaGroups}\nantigravityQuotaGroups({ windows: [
     { kind: 'weekly', label: 'Gemini Pro' },
     { kind: 'weekly', label: 'Claude' }
-  ] });`);
+  ] });`, context);
   assert.deepEqual(JSON.parse(JSON.stringify(legacy)), []);
 
-  assert.match(quotaGroups, /window\.kind === 'session' \? '5-hour' : 'Weekly'/);
-  assert.match(quotaGroups, /const groupLabel = label\.replace\(suffix, ''\)\.trim\(\)/);
+  assert.match(quotaGroups, /limitProviderPresentationApi\.antigravityQuotaWindow\(window\)/);
   assert.match(quotaGroups, /groups\.set\(entry\.groupLabel, \[\]\)/);
   assert.match(quotaGroups, /entries\.some\(\(entry\) => entry === null\)/);
   assert.match(renderProviderWindows, /provider\.provider === 'antigravity'/);
@@ -622,16 +707,21 @@ test('Home uses explicit billing labels so Copilot Premium and Chat stay distinc
   const app = readRendererFile('app.js');
   const i18n = readRendererFile('i18n.js');
   const homeLabel = functionBody(app, 'homeLimitWindowLabel', 'renderHomeLimitModule');
+  const homeRows = functionBody(app, 'homeLimitRows', 'homeLimitWindowLabel');
   const homeModule = functionBody(app, 'renderHomeLimitModule', 'renderHomeModelModule');
   const valueFormatter = functionBody(app, 'formatHomeLimitWindowValue', 'balanceRemainingWindow');
 
   assert.match(homeLabel, /if \(window\?\.kind === 'billing'\) \{/);
+  assert.match(homeLabel, /limitProviderCompactWindowLabel\(providerId, window, visibleWindows\)/);
+  assert.match(homeRows, /limitProviderCompactWindows\(provider, provider\.windows\)/);
   assert.match(homeLabel, /const label = String\(window\?\.label \|\| ''\)\.trim\(\);/);
   assert.match(homeLabel, /if \(label\) return label;/);
   assert.match(homeLabel, /billing: 'home\.limit\.billing'/);
   assert.match(homeLabel, /if \(window\?\.kind === 'balance'\) return 'Balance';/);
   assert.match(homeModule, /const showUsed = Boolean\(state\.settings\?\.showLimitUsed\);/);
   assert.match(homeModule, /value\.textContent = window\.value \|\| formatHomeLimitWindowValue\(window, showUsed\);/);
+  assert.match(homeModule, /limitProviderCompactWindowPeriodLabel\(row\.providerId, window, row\.windows\)/);
+  assert.match(homeModule, /`\$\{periodLabel\} · \$\{resetLabel\}`/);
   assert.match(valueFormatter, /`\$\{formatMoney\(window\.amount, window\.currency\)\} left`/);
   assert.match(valueFormatter, /`\$\{formatPercent\(percent\)\} \$\{limitModeSuffix\(showUsed\)\}`/);
   assert.doesNotMatch(i18n, /home\.limit\.(balance|leftPercent|leftAmount)/);
