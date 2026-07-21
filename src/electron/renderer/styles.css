@@ -3029,7 +3029,7 @@ html.is-windows .settings-panel select option {
 }
 .limit-windows-antigravity-grouped {
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 10px;
 }
 .limit-window-group {
   display: grid;
