@@ -594,6 +594,18 @@ test('Qoder renders its single Credits billing window full-width', () => {
   assert.match(renderProviderWindows, /limit-window-wide/);
 });
 
+test('Kimi renders 5-hour and Weekly above one full-width Monthly window', () => {
+  const app = readRendererFile('app.js');
+  const renderProviderWindows = functionBody(app, 'renderProviderWindows', 'renderLimitProviderRow');
+
+  assert.match(renderProviderWindows, /provider\.provider === 'kimi'/);
+  assert.match(renderProviderWindows, /const fiveHour = windowForKind\(provider, 'session'\);/);
+  assert.match(renderProviderWindows, /const weekly = windowForKind\(provider, 'weekly'\);/);
+  assert.match(renderProviderWindows, /const monthly = windowForKind\(provider, 'billing'\);/);
+  assert.match(renderProviderWindows, /monthly\.detail \|\| ''/);
+  assert.match(renderProviderWindows, /node\.classList\.add\('limit-window-wide'\);/);
+});
+
 test('Ollama renders Session and Weekly usage windows', () => {
   const app = readRendererFile('app.js');
   const renderProviderWindows = functionBody(app, 'renderProviderWindows', 'renderLimitProviderRow');
@@ -1156,12 +1168,26 @@ test('Z.ai, Volcengine, Qoder, and Ollama source labels and setup statuses', () 
 });
 
 test('Kimi capability tags and source label', () => {
-  assert.deepEqual(presentation.limitProviderCapabilityTags('kimi'), ['Coding Plan', 'API key']);
+  assert.deepEqual(presentation.limitProviderCapabilityTags('kimi'), ['Membership/Coding Plan', 'Web/API']);
   assert.equal(presentation.limitProviderSourceLabel({ provider: 'kimi', source: 'api' }), 'API');
+  assert.equal(presentation.limitProviderSourceLabel({ provider: 'kimi', source: 'web' }), 'Web');
   assert.deepEqual(
     presentation.limitProviderStatusLabel({ provider: 'kimi', status: 'notConfigured' }),
-    { label: 'Add API key', tone: 'setup' }
+    { label: 'Add credential', tone: 'setup' }
   );
+  assert.deepEqual(
+    presentation.limitProviderStatusLabel({ provider: 'kimi', status: 'unauthorized' }),
+    { label: 'Update credential', tone: 'setup' }
+  );
+});
+
+test('Kimi credential statuses are localized in settings', () => {
+  const app = readRendererFile('app.js');
+  const i18n = readRendererFile('i18n.js');
+  assert.match(app, /'Add credential': 'settings\.limits\.status\.addCredential'/);
+  assert.match(app, /'Update credential': 'settings\.limits\.status\.updateCredential'/);
+  assert.match(i18n, /'settings\.limits\.status\.addCredential': '新增憑證'/);
+  assert.match(i18n, /'settings\.limits\.status\.updateCredential': '更新憑證'/);
 });
 
 test('Kimi usage and limits share the canonical provider id and vendor color', () => {
