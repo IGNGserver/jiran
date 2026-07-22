@@ -1,5 +1,7 @@
 'use strict';
 
+const { abortError } = require('./probeDeadline');
+
 const { spawn } = require('node:child_process');
 const https = require('node:https');
 const http = require('node:http');
@@ -18,6 +20,10 @@ function probeTimeoutError() {
   return errorWithStatus('unavailable', 'Antigravity probe timed out');
 }
 
+function throwIfAborted(signal) {
+  if (signal?.aborted) throw abortError(signal);
+}
+
 function remainingMs(deadlineMs) {
   return Math.max(0, deadlineMs - Date.now());
 }
@@ -28,17 +34,25 @@ function boundedTimeoutMs(deadlineMs, maximum = DEFAULT_RPC_TIMEOUT_MS) {
   return Math.max(1, Math.min(maximum, remaining));
 }
 
-function promiseBeforeDeadline(factory, deadlineMs, maximum = DEFAULT_RPC_TIMEOUT_MS) {
+function promiseBeforeDeadline(factory, deadlineMs, maximum = DEFAULT_RPC_TIMEOUT_MS, signal = null) {
   const timeoutMs = boundedTimeoutMs(deadlineMs, maximum);
+  if (signal?.aborted) return Promise.reject(abortError(signal));
   return new Promise((resolve, reject) => {
     let settled = false;
     const finish = (fn, value) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      signal?.removeEventListener?.('abort', onAbort);
       fn(value);
     };
+    const onAbort = () => finish(reject, abortError(signal));
     const timer = setTimeout(() => finish(reject, probeTimeoutError()), timeoutMs);
+    signal?.addEventListener?.('abort', onAbort, { once: true });
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
     Promise.resolve()
       .then(() => factory(timeoutMs))
       .then((value) => finish(resolve, value), (error) => finish(reject, error));
@@ -49,7 +63,8 @@ function callBeforeDeadline(call, args, deadlineMs, maximum = DEFAULT_RPC_TIMEOU
   return promiseBeforeDeadline(
     (timeoutMs) => call({ ...args, timeoutMs }),
     deadlineMs,
-    maximum
+    maximum,
+    args.signal
   );
 }
 
@@ -551,6 +566,7 @@ async function resolveWorkingEndpoint(candidates, call, deadlineMs, signal) {
       }, deadlineMs, attemptTimeoutMs);
       return { candidates: prioritizeCandidate(candidate, candidates), lastError: null };
     } catch (error) {
+      throwIfAborted(signal);
       lastError = error;
       // Any HTTP response proves that the port, scheme, and CSRF routing are
       // reachable even when this lightweight endpoint itself is unsupported.
@@ -595,11 +611,15 @@ async function groupedQuotaFromCandidates(candidates, call, {
             || preferredPlanInfoName(identity?.userStatus?.planStatus?.planInfo)
             || null;
           accountEmail = identity?.userStatus?.email?.trim?.() || null;
-        } catch (_) {}
+        } catch (_) {
+          throwIfAborted(signal);
+        }
+        throwIfAborted(signal);
         return { snapshot: { accountPlan, accountEmail, windows }, lastError };
       }
       lastError = errorWithStatus('unavailable', 'empty quota summary');
     } catch (err) {
+      throwIfAborted(signal);
       lastError = err;
       if (remainingMs(summaryDeadlineMs) <= 0) break;
     }
@@ -626,10 +646,14 @@ async function legacyQuotaFromCandidates(candidates, call, { probeDeadlineMs, si
           || null;
         const accountEmail = data.userStatus.email?.trim?.() || null;
         const models = modelsFromConfigs(configs);
-        if (models.length > 0) return { snapshot: { accountPlan, accountEmail, pools: collapsePools(models) }, lastError };
+        if (models.length > 0) {
+          throwIfAborted(signal);
+          return { snapshot: { accountPlan, accountEmail, pools: collapsePools(models) }, lastError };
+        }
       }
       lastError = errorWithStatus('unavailable', 'empty user status');
     } catch (err) {
+      throwIfAborted(signal);
       lastError = err;
       if (remainingMs(userStatusDeadlineMs) <= 0) break;
     }
@@ -644,10 +668,12 @@ async function legacyQuotaFromCandidates(candidates, call, { probeDeadlineMs, si
       }, probeDeadlineMs);
       const models = modelsFromConfigs(fallback?.clientModelConfigs);
       if (models.length > 0) {
+        throwIfAborted(signal);
         return { snapshot: { accountPlan: null, accountEmail: null, pools: collapsePools(models) }, lastError };
       }
       lastError = errorWithStatus('unavailable', 'empty model configs');
     } catch (err) {
+      throwIfAborted(signal);
       lastError = err;
       if (remainingMs(probeDeadlineMs) <= 0) break;
     }
@@ -672,9 +698,13 @@ async function detectedProcessInfos(deps) {
 async function probe(deps = {}) {
   const probeTimeoutMs = Math.max(1, Number(deps.probeTimeoutMs) || DEFAULT_PROBE_TIMEOUT_MS);
   const probeDeadlineMs = Date.now() + probeTimeoutMs;
+  throwIfAborted(deps.signal);
   const abortController = new AbortController();
-  const abortTimer = setTimeout(() => abortController.abort(), probeTimeoutMs);
-  const runtimeDeps = { ...deps, signal: abortController.signal };
+  const abortTimer = setTimeout(() => abortController.abort(probeTimeoutError()), probeTimeoutMs);
+  const signal = deps.signal
+    ? AbortSignal.any([abortController.signal, deps.signal])
+    : abortController.signal;
+  const runtimeDeps = { ...deps, signal };
   const listPorts = deps.listeningPorts || listeningPorts;
   const call = deps.callLs || callLs;
   let lastError = errorWithStatus('notConfigured', 'Antigravity language server not running');
@@ -682,7 +712,9 @@ async function probe(deps = {}) {
   try {
     const infos = await promiseBeforeDeadline(
       (timeoutMs) => detectedProcessInfos({ ...runtimeDeps, timeoutMs }),
-      probeDeadlineMs
+      probeDeadlineMs,
+      DEFAULT_RPC_TIMEOUT_MS,
+      signal
     );
 
     // Source priority is deliberate and independent of ps/PID order. Processes
@@ -694,20 +726,23 @@ async function probe(deps = {}) {
         try {
           const ports = await promiseBeforeDeadline(
             (timeoutMs) => listPorts(info.pid, { ...runtimeDeps, timeoutMs }),
-            probeDeadlineMs
+            probeDeadlineMs,
+            DEFAULT_RPC_TIMEOUT_MS,
+            signal
           );
           const initialCandidates = endpointCandidates(info, ports);
           const resolved = await resolveWorkingEndpoint(
             initialCandidates,
             call,
             probeDeadlineMs,
-            abortController.signal
+            signal
           );
           return { info, candidates: resolved.candidates, error: resolved.lastError };
         } catch (error) {
           return { info, candidates: [], error };
         }
       }));
+      throwIfAborted(signal);
       const candidatesByProcess = prepared.filter((entry) => entry.candidates.length > 0);
       for (const entry of prepared) {
         if (entry.error) lastError = entry.error;
@@ -719,9 +754,10 @@ async function probe(deps = {}) {
         groupedQuotaFromCandidates(entry.candidates, call, {
           summaryDeadlineMs,
           probeDeadlineMs,
-          signal: abortController.signal
+          signal
         })
       )));
+      throwIfAborted(signal);
       const grouped = groupedResults.find((result) => result.snapshot);
       if (grouped?.snapshot) return { ...grouped.snapshot, sourceDetail: kind };
       for (const result of groupedResults) lastError = result.lastError || lastError;
@@ -729,9 +765,10 @@ async function probe(deps = {}) {
       const legacyResults = await Promise.all(candidatesByProcess.map((entry) => (
         legacyQuotaFromCandidates(entry.candidates, call, {
           probeDeadlineMs,
-          signal: abortController.signal
+          signal
         })
       )));
+      throwIfAborted(signal);
       const legacy = legacyResults.find((result) => result.snapshot);
       if (legacy?.snapshot) return { ...legacy.snapshot, sourceDetail: kind };
       for (const result of legacyResults) lastError = result.lastError || lastError;
