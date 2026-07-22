@@ -4,26 +4,25 @@
 
 <!-- app-update-notes:en:start -->
 ### Added
-- **Kimi membership limits:** Connect a Kimi web session cookie to display 5-hour, weekly, and monthly quota windows. An API key fallback restores 5-hour and weekly when web access is unavailable. (#221)
-- **Antigravity grouped quotas:** Antigravity limits now show five-hour and weekly quota windows per model family, read dynamically from the running app, CLI, or IDE. Weekly-only plans and the legacy RPC fallback are preserved. (#217)
+- **Windows Accent Blur:** Windows users can choose the experimental Accent Blur style under **Settings → Appearance → Windows Glass Style**. It keeps the background translucent and blurred when the window is unfocused, with an automatic Acrylic fallback on unsupported systems. (#229)
 
 ### Improved
-- **Antigravity Home summary:** The compact Home display shows the five-hour window by default; the weekly window takes over automatically when it becomes the tighter constraint, and the reset time is shown alongside the period label. (#219)
-- **OpenCode profile and plan labels:** Account identity (profile name) is now shown separately from Go/Zen plan labels in both Home and Limits, and provider names appear automatically when tool icons are hidden. (#216)
-- **WSL SQLite guidance:** The WSL status panel now surfaces a hint for OpenCode and Hermes — whose usage lives in SQLite — guiding users to run the headless agent inside WSL when usage stays empty. (#222)
-- **Theme color consistency:** A custom accent color no longer affects semantic status colors such as success or warning indicators, making theme presets and custom colors behave more predictably. (#214)
+- **Usage and limits resilience:** Token usage and AI Tool Limits now refresh independently. Slow or failing providers use bounded concurrency and retries without blocking usage or other limits updates. (#225, #227)
+- **Glass appearance:** Custom glass tint and opacity now render without decorative color shifts, while very low opacity in macOS transparent mode avoids Chromium compositing artifacts. (#231)
+- **WSL usage collection:** Every requested tool can now be scanned in each detected WSL home without duplicating usage from the native Windows host.
 
 ### Fixed
-- **Expired reset windows:** When a provider's reset window expires mid-session, the app now automatically re-fetches that provider's limits instead of holding a stale countdown. (#212)
+- **Large session lists:** Hub-backed Month and Total session lists remain responsive during live updates and keep stable scroll geometry as rows appear. (#235)
+- **Custom model pricing:** Pricing rows once again keep model details readable and the edit and remove actions correctly aligned. (#236)
 <!-- app-update-notes:en:end -->
 
 ## Download
 
-- **macOS Apple Silicon** — [Token-Monitor-0.33.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.33.0/Token-Monitor-0.33.0-arm64.dmg)
-- **macOS Intel** — [Token-Monitor-0.33.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.33.0/Token-Monitor-0.33.0-x64.dmg)
-- **Windows Installer** — [Token-Monitor-Setup-0.33.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.33.0/Token-Monitor-Setup-0.33.0.exe) (recommended)
-- **Windows Portable** — [Token-Monitor-0.33.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.33.0/Token-Monitor-0.33.0.exe) (no install required)
-- **Linux x64** — [Token-Monitor-0.33.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.33.0/Token-Monitor-0.33.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.34.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0-arm64.dmg)
+- **macOS Intel** — [Token-Monitor-0.34.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0-x64.dmg)
+- **Windows Installer** — [Token-Monitor-Setup-0.34.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-Setup-0.34.0.exe) (recommended)
+- **Windows Portable** — [Token-Monitor-0.34.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0.exe) (no install required)
+- **Linux x64** — [Token-Monitor-0.34.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0.AppImage)
 
 <details>
 <summary><strong>First launch and other notes</strong></summary>
@@ -61,26 +60,25 @@ open-source: https://github.com/junhoyeo/tokscale
 
 <!-- app-update-notes:zh:start -->
 ### 新增
-- **Kimi 会员额度：** 连接 Kimi 网页登录 Cookie，即可显示 5 小时、每周与每月配额窗口。在 Web 无法访问时，可改用 API Key 作为备援，以恢复 5 小时与每周额度。（#221）
-- **Antigravity 分组配额：** Antigravity 额度现在会按模型系列分别显示五小时与每周配额窗口，直接从运行中的应用、CLI 或 IDE 读取。仅有每周配额的套餐及旧版 RPC 回退均保持兼容。（#217）
+- **Windows Accent Blur：** Windows 用户现在可以在 **设置 → 外观 → Windows 玻璃样式** 中选择实验性的 Accent Blur；窗口失去焦点时背景仍保持半透明和模糊，不支持时会自动回退到 Acrylic。（#229）
 
 ### 改进
-- **Antigravity 首页摘要：** 紧凑首页默认显示五小时窗口；当每周配额更为紧张时自动切换，重置时间也会显示在时段标签旁。（#219）
-- **OpenCode 账号与套餐标签分离：** 首页与额度视图现在将账号身份（配置名称）与 Go/Zen 套餐标签分开显示，隐藏工具图标时也会自动补充提供商名称。（#216）
-- **WSL SQLite 引导：** WSL 状态面板新增针对 OpenCode 与 Hermes 的提示——由于这两者的用量存储在 SQLite 中，当用量持续为空时，会引导用户在 WSL 内运行 headless agent。（#222）
-- **主题色系分层：** 自定义强调色不再影响成功、警告等语义状态色，主题预设与自定义颜色的表现更加一致可预期。（#214）
+- **用量与额度刷新韧性：** Token 用量与 AI 工具额度现在独立刷新；缓慢或失败的提供商会通过有限并发与重试处理，不再阻塞用量或其他额度更新。（#225、#227）
+- **玻璃效果呈现：** 自定义玻璃色调与透明度不再受装饰性叠色影响；macOS 透明模式在极低透明度下也能避免 Chromium 合成异常。（#231）
+- **WSL 用量采集：** 每个检测到的 WSL 主目录现在都能扫描所有指定工具，同时避免重复计入 Windows 主机上的原生用量。
 
 ### 修复
-- **到期重置窗口：** 额度重置窗口到期后，会自动重新获取该提供商的额度，不再停留在过期的倒计时上。（#212）
+- **大型会话列表：** 通过 Hub 加载的月度与总计会话列表在实时更新时保持流畅，并在新增行时维持稳定的滚动位置。（#235）
+- **自定义模型定价：** 定价行现在会正确显示模型详情，并恢复编辑与移除操作的对齐布局。（#236）
 <!-- app-update-notes:zh:end -->
 
 ## 下载
 
-- **macOS Apple Silicon** — [Token-Monitor-0.33.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.33.0/Token-Monitor-0.33.0-arm64.dmg)
-- **macOS Intel** — [Token-Monitor-0.33.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.33.0/Token-Monitor-0.33.0-x64.dmg)
-- **Windows 安装版** — [Token-Monitor-Setup-0.33.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.33.0/Token-Monitor-Setup-0.33.0.exe)（推荐）
-- **Windows 便携版** — [Token-Monitor-0.33.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.33.0/Token-Monitor-0.33.0.exe)（免安装）
-- **Linux x64** — [Token-Monitor-0.33.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.33.0/Token-Monitor-0.33.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.34.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0-arm64.dmg)
+- **macOS Intel** — [Token-Monitor-0.34.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0-x64.dmg)
+- **Windows 安装版** — [Token-Monitor-Setup-0.34.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-Setup-0.34.0.exe)（推荐）
+- **Windows 便携版** — [Token-Monitor-0.34.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0.exe)（免安装）
+- **Linux x64** — [Token-Monitor-0.34.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0.AppImage)
 
 <details>
 <summary><strong>首次启动与其他说明</strong></summary>
