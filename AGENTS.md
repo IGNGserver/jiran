@@ -76,9 +76,8 @@ The default client CSV lives in **one** place: `DEFAULT_CLIENTS` in `src/shared/
 | Docs & env examples | the supported-tools table in `README.md` and its translations (`README.*.md`) + the client CSV in `.env.example` |
 | Guard tests | the expected-client lists in `tests/shared/clientTracking.test.js` |
 
-Two caveats on top of the table:
+One caveat on top of the table:
 
-- If the client's tokscale `--home` scan can fall back to a HOST-native DB that ignores `--home` (currently only `zed`), also add it to `WSL_HOST_FALLBACK_GATES` keyed to the WSL-home file whose presence suppresses that fallback, so it is dropped from a home's scan when absent and never double-counts the host DB.
 - Self-synced clients (cursor/antigravity) additionally go in `SELF_SYNCED_CLIENTS`; parse-local clients must NOT.
 
 ### Data flow contract
