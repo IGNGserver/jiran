@@ -254,6 +254,7 @@ function defaultSettings() {
     titleIconOnly: true,
     showCompactTotalTokens: false,
     heatmapMetric: 'cost',
+    homeActiveDaysWindow: 'all',
     themeColors: {},
     vendorColors: {},
     floatingBubbleEnabled: false,
@@ -351,6 +352,13 @@ function normalizeHeatmapMetric(value, fallback = 'cost') {
   const next = String(value || '').trim();
   if (next === 'tokens' || next === 'cost') return next;
   return fallback === 'tokens' ? 'tokens' : 'cost';
+}
+
+function normalizeHomeActiveDaysWindow(value, fallback = 'all') {
+  const next = String(value || '').trim();
+  if (next === 'year') return 'year';
+  if (next === 'all') return 'all';
+  return fallback === 'year' ? 'year' : 'all';
 }
 
 function normalizeCollectionIntervalMs(value, fallback = DEFAULT_COLLECTION_INTERVAL_MS) {
@@ -1637,6 +1645,7 @@ function readSettings() {
     merged.collectionIntervalMs = normalizeCollectionIntervalMs(merged.collectionIntervalMs);
     merged.syncUploadIntervalMs = normalizeSyncUploadIntervalMs(merged.syncUploadIntervalMs);
     merged.heatmapMetric = normalizeHeatmapMetric(merged.heatmapMetric);
+    merged.homeActiveDaysWindow = normalizeHomeActiveDaysWindow(merged.homeActiveDaysWindow);
     merged.reduceMotion = motionPreferenceApi.normalize(merged.reduceMotion);
     if (saved.serviceProviderDisplayOrder !== undefined) {
       merged.serviceProviderDisplayOrder = String(saved.serviceProviderDisplayOrder || '');
@@ -3852,6 +3861,7 @@ app.whenReady().then(() => {
     if (patch.collectionIntervalMs !== undefined) normalizedPatch.collectionIntervalMs = normalizeCollectionIntervalMs(patch.collectionIntervalMs, settings.collectionIntervalMs);
     if (patch.syncUploadIntervalMs !== undefined) normalizedPatch.syncUploadIntervalMs = normalizeSyncUploadIntervalMs(patch.syncUploadIntervalMs, settings.syncUploadIntervalMs);
     if (patch.heatmapMetric !== undefined) normalizedPatch.heatmapMetric = normalizeHeatmapMetric(patch.heatmapMetric, settings.heatmapMetric);
+    if (patch.homeActiveDaysWindow !== undefined) normalizedPatch.homeActiveDaysWindow = normalizeHomeActiveDaysWindow(patch.homeActiveDaysWindow, settings.homeActiveDaysWindow);
     settings = normalizeWindowBehaviorSettings({
       ...settings,
       ...normalizedPatch,
@@ -4011,6 +4021,7 @@ app.whenReady().then(() => {
       if (settings.discordRpcEnabled && latestStats) updateDiscordRpc(latestStats, settings.currency);
       refreshExchangeRates();              // async: fetch if stale, then re-push
     }
+    pushSettingsToRenderer();
     return settingsForRenderer();
   });
   ipcMain.handle('appearance:preview', (_event, patch) => {

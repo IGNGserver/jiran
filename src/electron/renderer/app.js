@@ -4209,8 +4209,17 @@ function renderHomeTrendsModule() {
     cell: activityLayout.cell,
     gap: activityLayout.gap
   });
-  const activeDays = activity.cells.filter((cell) => cell.tokens > 0).length;
-  const { module, body } = homeModuleShell('trends', t('home.activity'), 'trends', t('home.activeDays', { count: activeDays }));
+  const summaryActiveDays = state.stats?.historyPreview?.summary?.activeDays;
+  const activeDaysWindow = state.settings?.homeActiveDaysWindow || 'all';
+  const displayActiveDays = activeDaysWindow === 'year'
+    ? activity.cells.filter((cell) => cell.tokens > 0).length
+    : (Number.isFinite(summaryActiveDays)
+        ? summaryActiveDays
+        : activity.cells.filter((cell) => cell.tokens > 0).length);
+  const activeDaysLabel = activeDaysWindow === 'year'
+    ? t('home.activeDaysYear', { count: displayActiveDays })
+    : t('home.activeDays', { count: displayActiveDays });
+  const { module, body } = homeModuleShell('trends', t('home.activity'), 'trends', activeDaysLabel);
   const activityScroll = document.createElement('div');
   activityScroll.className = 'home-activity-scroll';
   activityScroll.tabIndex = 0;
@@ -6219,14 +6228,16 @@ function renderHomeSettingsList() {
 }
 
 function renderHomeActivitySettings() {
-  const row = document.createElement('div');
-  row.className = 'home-activity-settings';
-  const label = document.createElement('span');
-  label.textContent = t('settings.home.heatmapColor');
-  const options = document.createElement('div');
-  options.className = 'inline-options';
-  options.setAttribute('role', 'radiogroup');
-  options.setAttribute('aria-label', label.textContent);
+  const frag = document.createDocumentFragment();
+
+  const heatmapRow = document.createElement('div');
+  heatmapRow.className = 'home-activity-settings';
+  const heatmapLabel = document.createElement('span');
+  heatmapLabel.textContent = t('settings.home.heatmapColor');
+  const heatmapOptions = document.createElement('div');
+  heatmapOptions.className = 'inline-options';
+  heatmapOptions.setAttribute('role', 'radiogroup');
+  heatmapOptions.setAttribute('aria-label', heatmapLabel.textContent);
   const currentMetric = state.settings?.heatmapMetric || 'cost';
   for (const metric of ['tokens', 'cost']) {
     const option = document.createElement('label');
@@ -6242,10 +6253,40 @@ function renderHomeActivitySettings() {
     const text = document.createElement('span');
     text.textContent = t(metric === 'tokens' ? 'dashboard.heatmap.tokens' : 'dashboard.heatmap.cost');
     option.append(input, text);
-    options.append(option);
+    heatmapOptions.append(option);
   }
-  row.append(label, options);
-  return row;
+  heatmapRow.append(heatmapLabel, heatmapOptions);
+  frag.append(heatmapRow);
+
+  const daysRow = document.createElement('div');
+  daysRow.className = 'home-activity-settings';
+  const daysLabel = document.createElement('span');
+  daysLabel.textContent = t('settings.home.activeDaysWindow');
+  const daysOptions = document.createElement('div');
+  daysOptions.className = 'inline-options';
+  daysOptions.setAttribute('role', 'radiogroup');
+  daysOptions.setAttribute('aria-label', daysLabel.textContent);
+  const currentDaysWindow = state.settings?.homeActiveDaysWindow || 'all';
+  for (const mode of ['all', 'year']) {
+    const option = document.createElement('label');
+    option.className = 'inline-option';
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'homeActiveDaysWindow';
+    input.value = mode;
+    input.checked = currentDaysWindow === mode;
+    input.addEventListener('change', () => {
+      if (input.checked) void saveSettings({ homeActiveDaysWindow: mode }).then(renderHomeIfVisible);
+    });
+    const text = document.createElement('span');
+    text.textContent = t(`settings.home.activeDaysWindow.${mode}`);
+    option.append(input, text);
+    daysOptions.append(option);
+  }
+  daysRow.append(daysLabel, daysOptions);
+  frag.append(daysRow);
+
+  return frag;
 }
 
 function renderTrendSettingsList() {
