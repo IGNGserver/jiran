@@ -2046,7 +2046,7 @@ html.is-windows .settings-panel select option {
   align-items: center;
   margin-top: -6px;
   margin-bottom: -2px;
-  padding: 0 2px;
+  padding: 0;
 }
 .view-back-row.hidden { display: none; }
 .back-home-button {
@@ -2054,18 +2054,18 @@ html.is-windows .settings-panel select option {
   height: 26px;
   align-items: center;
   gap: 6px;
-  margin-left: -6px;
-  padding: 0 6px;
+  margin-left: 0;
+  padding: 0 6px 0 0;
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   font-size: 11px;
-  transition: color 120ms ease, background 120ms ease;
+  transition: color 120ms ease;
 }
-.back-home-button:hover {
-  background: rgba(var(--overlay-rgb), 0.06);
+.back-home-button:hover,
+.back-home-button:active {
   color: var(--text);
 }
 .back-home-button:focus-visible {
@@ -2073,14 +2073,14 @@ html.is-windows .settings-panel select option {
   outline-offset: 1px;
   color: var(--text);
 }
-.back-home-button:active { background: rgba(var(--overlay-rgb), 0.1); }
 .back-home-icon {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 14px;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
   background: currentColor;
   -webkit-mask: url("icons/actions/arrow-left.svg") center / contain no-repeat;
   mask: url("icons/actions/arrow-left.svg") center / contain no-repeat;
+  transform: translateX(-2px);
 }
 .breakdown {
   position: relative;
