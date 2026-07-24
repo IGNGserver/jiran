@@ -4,9 +4,18 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 
 const root = path.join(__dirname, '..', '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+
+function functionBody(source, name, nextName) {
+  const start = source.indexOf(`function ${name}(`);
+  assert.notEqual(start, -1, `${name} function should exist`);
+  const end = source.indexOf(`function ${nextName}(`, start);
+  assert.notEqual(end, -1, `${nextName} function should follow ${name}`);
+  return source.slice(start, end);
+}
 
 test('OpenRouter settings provide multi-account API key management without a custom URL', () => {
   const html = read('src/electron/renderer/index.html');
@@ -83,10 +92,13 @@ test('OpenRouter Limits presentation shows a real balance meter and compact spen
   assert.match(app, /\['Week', optionalFiniteNumber\(balance\?\.weekSpend\)\]/);
   assert.match(app, /\['All time', optionalFiniteNumber\(balance\?\.allTimeSpend\)\]/);
   assert.match(app, /summary\.className = 'limit-spend-summary'/);
-  assert.match(app, /tooltip\.className = 'limit-reset-credits-tooltip'/);
+  assert.match(app, /tooltip\.className = 'limit-detail-tooltip'/);
   assert.match(app, /info\.tabIndex = 0/);
-  assert.match(app, /const releaseSpendTooltip = \(\) => \{\s*requestAnimationFrame\(\(\) => \{\s*if \(resetCreditsTooltipShouldHoldRender\(\)\) return;/);
-  assert.match(app, /const creditsWindow = \(provider\.windows \|\| \[\]\)\.find/);
+  assert.match(app, /const releaseSpendTooltip = \(\) => \{\s*requestAnimationFrame\(\(\) => \{\s*if \(limitDetailTooltipShouldHoldRender\(\)\) return;/);
+  assert.match(app, /function openrouterCreditsWindow\(provider\)/);
+  assert.match(app, /windows\.find\(\(window\) => window\?\.metric === 'credits'\)/);
+  assert.match(app, /windows\.find\(\(window\) => !window\?\.metric && window\?\.label === 'Credits'\)/);
+  assert.match(app, /const creditsWindow = openrouterCreditsWindow\(provider\)/);
   assert.match(app, /limitWindowNode\(\s*'Balance',\s*\{ \.\.\.balanceWindow, label: 'Balance' \}/);
   assert.match(app, /\.filter\(\(window\) => window !== creditsWindow\)/);
   assert.match(app, /const hasMeter = quotaWindow\?\.showMeter !== false/);
@@ -95,6 +107,20 @@ test('OpenRouter Limits presentation shows a real balance meter and compact spen
   assert.match(styles, /\.limit-icon-openrouter/);
   assert.match(styles, /\.limit-spend-summary\s*\{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/s);
   assert.match(colors, /openrouter: '#6566F1'/);
+});
+
+test('OpenRouter credits lookup keeps the mixed-version label fallback', () => {
+  const app = read('src/electron/renderer/app.js');
+  const helper = functionBody(app, 'openrouterCreditsWindow', 'formatLimitWindowValue');
+  const findCredits = (windows) => vm.runInNewContext(
+    `${helper}\nopenrouterCreditsWindow(${JSON.stringify({ windows })});`
+  );
+  const legacyCredits = { kind: 'billing', label: 'Credits', remaining: 4 };
+  const metricCredits = { kind: 'billing', metric: 'credits', label: 'Account credit', remaining: 8 };
+
+  assert.equal(findCredits([legacyCredits, metricCredits]).metric, 'credits');
+  assert.equal(findCredits([legacyCredits]).label, 'Credits');
+  assert.equal(findCredits([{ ...legacyCredits, metric: 'quota' }]), null);
 });
 
 test('OpenRouter is documented with its supplied icon in every supported-tools table', () => {
