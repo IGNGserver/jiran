@@ -165,6 +165,7 @@ const {
   moveFloatingBubbleBounds
 } = require('./floatingBubble');
 const { applyWindowsChrome } = require('./windowsChrome');
+const { setMoveToActiveSpace } = require('./macosSpaceBehavior');
 const {
   WINDOWS_BACKDROP_ACCENT,
   normalizeWindowsBackdropMode
@@ -1410,7 +1411,6 @@ function expandFloatingBubble(options = {}) {
   sendFloatingBubbleState();
   if (options.focus !== false) {
     mainWindow.show();
-    mainWindow.focus();
   }
   return true;
 }
@@ -1834,6 +1834,32 @@ function applyMacActivationPolicy(state = {}) {
   if (!app.dock) return;
   if (mode === 'accessory') app.dock.hide();
   else app.dock.show();
+}
+
+function applyMacSpaceBehavior(trayMode = Boolean(settings?.trayMode)) {
+  if (process.platform !== 'darwin' || !mainWindow || mainWindow.isDestroyed()) return;
+  if (trayMode) {
+    setMoveToActiveSpace(mainWindow, false);
+    if (typeof mainWindow.setVisibleOnAllWorkspaces === 'function') {
+      mainWindow.setVisibleOnAllWorkspaces(true, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true
+      });
+    }
+    if (typeof mainWindow.setHiddenInMissionControl === 'function') {
+      mainWindow.setHiddenInMissionControl(true);
+    }
+  } else {
+    if (typeof mainWindow.setVisibleOnAllWorkspaces === 'function') {
+      mainWindow.setVisibleOnAllWorkspaces(false);
+    }
+    if (typeof mainWindow.setHiddenInMissionControl === 'function') {
+      mainWindow.setHiddenInMissionControl(false);
+    }
+    // Apply this last because Electron's workspace/Mission Control setters also
+    // update NSWindow.collectionBehavior.
+    setMoveToActiveSpace(mainWindow, true);
+  }
 }
 
 function applyWindowSettings() {
@@ -2484,13 +2510,13 @@ async function startStatsStream(options = {}) {
 function showPopover() {
   if (!mainWindow || mainWindow.isDestroyed() || !tray) return;
   applyMacActivationPolicy();
+  applyMacSpaceBehavior(true);
   applyWindowSettings();
   const current = mainWindow.getBounds();
   const target = popoverBounds(tray, current.width, current.height);
   mainWindow.setBounds(target);
   suppressNextBlurHide = true;
   mainWindow.show();
-  mainWindow.focus();
   // The focus event itself may not fire a blur; the suppress flag covers the
   // case where macOS fires blur immediately after show because the click that
   // opened us still has the menu bar as the focused element.
@@ -2516,10 +2542,10 @@ function focusExistingWindow() {
   }
   if (mainWindow.isMinimized()) mainWindow.restore();
   if (settings?.trayMode) showPopover();
-  else if (floatingBubbleState.collapsed) expandFloatingBubble();
   else {
-    mainWindow.show();
-    mainWindow.focus();
+    applyMacSpaceBehavior(false);
+    if (floatingBubbleState.collapsed) expandFloatingBubble();
+    else mainWindow.show();
   }
 }
 
@@ -2931,11 +2957,7 @@ function enterTrayMode() {
   applyMacActivationPolicy();
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (typeof mainWindow.setSkipTaskbar === 'function') mainWindow.setSkipTaskbar(true);
-    // Without this, .show() yanks the user back to the Space the window was last
-    // shown on instead of popping over the current Space / fullscreen app.
-    if (typeof mainWindow.setVisibleOnAllWorkspaces === 'function') {
-      mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    }
+    applyMacSpaceBehavior(true);
     mainWindow.hide();
   }
 }
@@ -2944,9 +2966,7 @@ function exitTrayMode() {
   applyMacActivationPolicy({ mainWindowVisible: true });
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (typeof mainWindow.setSkipTaskbar === 'function') mainWindow.setSkipTaskbar(false);
-    if (typeof mainWindow.setVisibleOnAllWorkspaces === 'function') {
-      mainWindow.setVisibleOnAllWorkspaces(false);
-    }
+    applyMacSpaceBehavior(false);
     const restore = restoredBounds() || DEFAULT_WINDOW;
     mainWindow.setBounds({
       width: restore.width,
@@ -2955,7 +2975,6 @@ function exitTrayMode() {
     });
     applyWindowSettings();
     mainWindow.show();
-    mainWindow.focus();
   }
   if (!shouldCreateTray(settings)) destroyTray();
   else ensureTray();
@@ -3569,6 +3588,7 @@ function createWindow(boundsOverride, options = {}) {
   });
   mainWindow = win;
   mainWindowChrome = { collapsedFloatingBubble };
+  applyMacSpaceBehavior();
   applyWindowsChrome(win, { round: true });
   let windowsAccentFallback = false;
   if (windowsAccent && !applyWindowsAccentBlur(win)) {
