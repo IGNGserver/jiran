@@ -2684,6 +2684,7 @@ html.is-windows .settings-panel select option {
 .row-icon-workbuddy  { -webkit-mask-image: url(../../../assets/icons/workbuddy.svg);     mask-image: url(../../../assets/icons/workbuddy.svg); }
 .row-icon-proma      { -webkit-mask-image: url(../../../assets/icons/proma.svg);         mask-image: url(../../../assets/icons/proma.svg); }
 .row-icon-opencode   { -webkit-mask-image: url(../../../assets/icons/opencode.svg);      mask-image: url(../../../assets/icons/opencode.svg); }
+.row-icon-openrouter { -webkit-mask-image: url(../../../assets/icons/openrouter.svg);    mask-image: url(../../../assets/icons/openrouter.svg); }
 .row-icon-openclaw   { -webkit-mask-image: url(../../../assets/icons/openclaw.svg);      mask-image: url(../../../assets/icons/openclaw.svg); }
 .row-icon-deepseek   { -webkit-mask-image: url(../../../assets/icons/deepseek.svg);      mask-image: url(../../../assets/icons/deepseek.svg); }
 .row-icon-xai        { -webkit-mask-image: url(../../../assets/icons/grok.svg);          mask-image: url(../../../assets/icons/grok.svg); }
@@ -2736,6 +2737,10 @@ html.is-windows .settings-panel select option {
 .limit-icon-opencode {
   -webkit-mask-image: url(../../../assets/icons/opencode.svg);
   mask-image: url(../../../assets/icons/opencode.svg);
+}
+.limit-icon-openrouter {
+  -webkit-mask-image: url(../../../assets/icons/openrouter.svg);
+  mask-image: url(../../../assets/icons/openrouter.svg);
 }
 .limit-icon-deepseek {
   -webkit-mask-image: url(../../../assets/icons/deepseek.svg);
@@ -3301,6 +3306,25 @@ html.is-windows .limit-live-badge {
 }
 .limit-window-note {
   gap: 3px;
+}
+.limit-spend-line {
+  min-width: 0;
+}
+.limit-spend-right {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+.limit-spend-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.limit-spend-info-wrap {
+  transform: none;
 }
 .limit-reset-credits {
   display: grid;
@@ -3906,6 +3930,7 @@ html.is-windows .limit-live-badge {
 }
 #cursorManualPanel textarea,
 #opencodeManualPanel textarea,
+#openrouterApiKeyInput,
 #deepseekManualPanel input,
 #minimaxManualPanel input,
 #zaiManualPanel input,
@@ -3924,6 +3949,7 @@ html.is-windows .limit-live-badge {
 }
 #cursorManualPanel textarea,
 #opencodeManualPanel textarea,
+#openrouterApiKeyInput,
 #deepseekManualPanel input,
 #minimaxManualPanel input,
 #zaiManualPanel input,
