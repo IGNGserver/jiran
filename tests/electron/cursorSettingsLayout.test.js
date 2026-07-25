@@ -7,7 +7,10 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const rendererDir = path.join(__dirname, '..', '..', 'src', 'electron', 'renderer');
-const { maskEmailAddress } = require('../../src/electron/renderer/accountIdentity');
+const {
+  codexAccountDisplayLabel,
+  maskEmailAddress
+} = require('../../src/electron/renderer/accountIdentity');
 
 function readRendererFile(name) {
   return fs.readFileSync(path.join(rendererDir, name), 'utf8');
@@ -253,7 +256,9 @@ test('Codex account panel supports per-account enable toggles without showing ti
   assert.match(body, /input\.checked = account\.enabled !== false/);
   assert.match(body, /window\.tokenMonitor\.codex\.setAccountEnabled\(account\.id, input\.checked\)/);
   assert.match(body, /info\.className = 'managed-account-info'/);
-  assert.match(body, /info\.textContent = enabled \? limitProviderPresentationApi\.limitProviderDisplayLabel\(account\.accountLabel\) : t\('settings\.codex\.disabled'\);/);
+  assert.match(body, /account\.workspaceLabel/);
+  assert.match(body, /enabled \? limitProviderPresentationApi\.limitProviderDisplayLabel\(account\.accountLabel\) : t\('settings\.codex\.disabled'\)/);
+  assert.match(body, /info\.textContent = accountMetadata\.join\(' · '\);/);
   assert.match(body, /right\.append\(info, remove\)/);
   assert.match(body, /row\.append\(input, main, right\)/);
   assert.doesNotMatch(
@@ -327,7 +332,7 @@ test('Codex account email masking is an opt-in display-only setting', () => {
       app,
       ['codexAccountTitle'],
       "codexAccountTitle({ accountEmail: 'primary.user@example.com' }, 0)",
-      { accountIdentityApi: { maskEmailAddress }, state: { settings: { maskLimitAccountEmails: false } } }
+      { accountIdentityApi: { codexAccountDisplayLabel }, state: { settings: { maskLimitAccountEmails: false } } }
     ),
     'primary.user@example.com'
   );
@@ -336,7 +341,7 @@ test('Codex account email masking is an opt-in display-only setting', () => {
       app,
       ['codexAccountTitle'],
       "codexAccountTitle({ accountEmail: 'primary.user@example.com' }, 0)",
-      { accountIdentityApi: { maskEmailAddress }, state: { settings: { maskLimitAccountEmails: true } } }
+      { accountIdentityApi: { codexAccountDisplayLabel }, state: { settings: { maskLimitAccountEmails: true } } }
     ),
     'p***r@example.com'
   );
@@ -487,8 +492,14 @@ test('Codex system account switching is exposed from limits account rows', () =>
   assert.match(preserveBody, /persist: false/);
   assert.match(preserveBody, /rollback: \(\) => restoreCodexAuthFileSnapshot/);
   const findExistingBody = functionBody(main, 'findExistingCodexAccount', 'codexAccountId');
-  assert.match(findExistingBody, /if \(identity\.accountKey && account\.accountKey && !codexEmailDerivedAccountKey\(account, identity\)\)/);
-  assert.match(main, /function codexEmailDerivedAccountKey\(account, identity\)/);
+  assert.match(findExistingBody, /codexManagedAccountMatchesIdentity\(account, identity\)/);
+  assert.match(main, /codexManagedAccountMatchesIdentity/);
+  const hydrateAccountsBody = functionBody(main, 'hydrateCodexManagedAccounts', 'codexAccountsForRenderer');
+  assert.match(hydrateAccountsBody, /readRegularFileNoFollow\(account\.authPath/);
+  assert.match(hydrateAccountsBody, /upgradeCodexManagedAccountIdentity\(account, codexAuthIdentity\(auth\)\)/);
+  const ensureSettingsBody = functionBody(main, 'ensureSettingsLoaded', 'updateRendererViewState');
+  assert.match(ensureSettingsBody, /hydrateCodexManagedAccounts\(persistedCodexAccounts\)/);
+  assert.match(ensureSettingsBody, /saveSettings\(\)/);
   const refreshBody = functionBody(main, 'refreshCodexManagedAccountLimits', 'migrateLimitProviders');
   assert.match(refreshBody, /deviceRuntimeHandle\.refreshLimits\(\{/);
   assert.match(refreshBody, /provider: 'codex'/);

@@ -240,7 +240,7 @@ function normalizeInitialViewValue(value, allowed, fallback) {
   return allowed.has(raw) ? raw : fallback;
 }
 
-const state = { period: normalizeInitialViewValue(initialViewState.period, viewPeriodValues, 'today'), appUpdate: null, breakdown: normalizeInitialViewValue(initialViewState.breakdown, viewBreakdownValues, 'home'), viewSwitcherOpen: false, viewSwitcherHasOpened: false, limitDetailTooltipHasOpened: false, limitDetailTooltipActive: false, limitDetailTooltipRenderPending: false, settings: null, stats: null, homeHistory: null, homeHistoryBusy: false, homeHistoryRequested: false, homeHistorySignature: '', homeHistoryRetries: 0, homeHistoryRetryTimer: null, homeActivityScrollLeft: null, homeActivityFollowEnd: true, homeActivityResizeObserver: null, serviceStatus: null, serviceStatusBusy: false, serviceProvidersExpanded: false, trendSettingsExpanded: false, trendsActivating: false, homeSettingsExpanded: false, homeLimitSettingsExpanded: false, serviceStatusTicker: null, refreshTimer: null, refreshBusy: false, refreshFeedbackTimer: null, currentTotal: 0, rowSignature: '', streamConnected: false, streamFailure: null, mode: 'idle', appInfo: null, tokscaleStatus: null, tokscaleCheck: null, tokscaleBusy: false, hubInfo: null, cursorAccount: { status: null, error: '' }, cursorAccountExpanded: false, codexAccountExpanded: false, codexAccountError: '', codexSignInBusy: false, codexSignInFlowId: '', codexLoginUrl: '', codexLoginStatus: '', codexLoginOutput: '', codexActiveAccount: null, codexPendingActiveAccount: null, codexPendingActiveAccountUntil: 0, codexPendingActiveAccountTimer: null, codexSystemSwitchingAccountId: '', codexSystemSwitchErrorAccountId: '', codexSystemSwitchError: '', codexSwitchPopoverHasOpened: false, codexSwitchPopoverActive: false, codexSwitchPopoverRenderPending: false, customPricingExpanded: false, opencodeProfileCount: 0, opencodeCookieExpanded: false, openrouterProfileCount: 0, openrouterAccountExpanded: false, deepseekAccountExpanded: false, deepseekPendingCheckSince: 0, minimaxAccountExpanded: false, minimaxPendingCheckSince: 0, zaiAccountExpanded: false, zaiPendingCheckSince: 0, zaiteamAccountExpanded: false, zaiteamPendingCheckSince: 0, volcengineAccountExpanded: false, volcenginePendingCheckSince: 0, qoderAccountExpanded: false, qoderPendingCheckSince: 0, kimiAccountExpanded: false, kimiPendingCheckSince: 0, ollamaAccountExpanded: false, ollamaPendingCheckSince: 0, mimoAccountExpanded: false, mimoAccountError: '', copilotAccountExpanded: false, copilotManualExpanded: false, copilotPendingCheckSince: 0, copilotSignInBusy: false, copilotSignInCancelable: false, copilotSignInFlowId: '', copilotAuthorizeMessage: '', copilotLoginStatus: '', copilotErrorMessage: '', floatingBubble: initialFloatingBubble, suppressInitialNumberAnimation: window.__TOKEN_MONITOR_SUPPRESS_INITIAL_NUMBER_ANIMATION__ === true, openSession: null, detailSort: 'time', recordingWindowShortcut: false, windowShortcutInvalid: false };
+const state = { period: normalizeInitialViewValue(initialViewState.period, viewPeriodValues, 'today'), appUpdate: null, breakdown: normalizeInitialViewValue(initialViewState.breakdown, viewBreakdownValues, 'home'), viewSwitcherOpen: false, viewSwitcherHasOpened: false, limitDetailTooltipHasOpened: false, limitDetailTooltipActive: false, limitDetailTooltipRenderPending: false, settings: null, stats: null, homeHistory: null, homeHistoryBusy: false, homeHistoryRequested: false, homeHistorySignature: '', homeHistoryRetries: 0, homeHistoryRetryTimer: null, homeActivityScrollLeft: null, homeActivityFollowEnd: true, homeActivityResizeObserver: null, serviceStatus: null, serviceStatusBusy: false, serviceProvidersExpanded: false, trendSettingsExpanded: false, trendsActivating: false, homeSettingsExpanded: false, homeLimitSettingsExpanded: false, serviceStatusTicker: null, refreshTimer: null, refreshBusy: false, refreshFeedbackTimer: null, currentTotal: 0, rowSignature: '', streamConnected: false, streamFailure: null, mode: 'idle', appInfo: null, tokscaleStatus: null, tokscaleCheck: null, tokscaleBusy: false, hubInfo: null, cursorAccount: { status: null, error: '' }, cursorAccountExpanded: false, codexAccountExpanded: false, codexAccountError: '', codexSignInBusy: false, codexSignInFlowId: '', codexLoginUrl: '', codexLoginStatus: '', codexLoginOutput: '', codexWorkspaceChoices: [], codexWorkspaceId: '', codexActiveAccount: null, codexPendingActiveAccount: null, codexPendingActiveAccountUntil: 0, codexPendingActiveAccountTimer: null, codexSystemSwitchingAccountId: '', codexSystemSwitchErrorAccountId: '', codexSystemSwitchError: '', codexSwitchPopoverHasOpened: false, codexSwitchPopoverActive: false, codexSwitchPopoverRenderPending: false, customPricingExpanded: false, opencodeProfileCount: 0, opencodeCookieExpanded: false, openrouterProfileCount: 0, openrouterAccountExpanded: false, deepseekAccountExpanded: false, deepseekPendingCheckSince: 0, minimaxAccountExpanded: false, minimaxPendingCheckSince: 0, zaiAccountExpanded: false, zaiPendingCheckSince: 0, zaiteamAccountExpanded: false, zaiteamPendingCheckSince: 0, volcengineAccountExpanded: false, volcenginePendingCheckSince: 0, qoderAccountExpanded: false, qoderPendingCheckSince: 0, kimiAccountExpanded: false, kimiPendingCheckSince: 0, ollamaAccountExpanded: false, ollamaPendingCheckSince: 0, mimoAccountExpanded: false, mimoAccountError: '', copilotAccountExpanded: false, copilotManualExpanded: false, copilotPendingCheckSince: 0, copilotSignInBusy: false, copilotSignInCancelable: false, copilotSignInFlowId: '', copilotAuthorizeMessage: '', copilotLoginStatus: '', copilotErrorMessage: '', floatingBubble: initialFloatingBubble, suppressInitialNumberAnimation: window.__TOKEN_MONITOR_SUPPRESS_INITIAL_NUMBER_ANIMATION__ === true, openSession: null, detailSort: 'time', recordingWindowShortcut: false, windowShortcutInvalid: false };
 state.homeHistoryLoadedSignature = '';
 state.homeHistoryRetrySignature = '';
 state.homeReturnVisible = false;
@@ -3046,9 +3046,11 @@ function renderLimitProviderRow(id, label, provider, color, options = {}) {
   return row;
 }
 
-function codexAccountTitle(provider, index) {
-  const email = String(provider?.accountEmail || '').trim();
-  if (email) return state.settings?.maskLimitAccountEmails ? accountIdentityApi.maskEmailAddress(email) : email;
+function codexAccountTitle(provider, index, providers = [provider]) {
+  const label = accountIdentityApi.codexAccountDisplayLabel(provider, providers, {
+    maskEmail: state.settings?.maskLimitAccountEmails
+  });
+  if (label) return label;
   // Never fall back to the plan label here — "Plus" as a title reads like an
   // account name. The plan still shows on the right via limitProviderPlan().
   return `Account ${index + 1}`;
@@ -3065,7 +3067,7 @@ function renderCodexAccountGroup(label, providers, color) {
   const accountList = document.createElement('div');
   accountList.className = 'limit-account-list';
   providers.forEach((provider, index) => {
-    accountList.append(renderLimitProviderRow('codex', codexAccountTitle(provider, index), provider, color, {
+    accountList.append(renderLimitProviderRow('codex', codexAccountTitle(provider, index, providers), provider, color, {
       accountRow: true,
       accountTitle: true,
       allowSystemSwitch: true,
@@ -3938,8 +3940,8 @@ function homeModuleShell(kind, title, viewId, meta = '') {
   return { module, body };
 }
 
-function homeLimitAccountTitle(id, provider, index) {
-  if (id === 'codex') return codexAccountTitle(provider, index);
+function homeLimitAccountTitle(id, provider, index, providerEntries = [provider]) {
+  if (id === 'codex') return codexAccountTitle(provider, index, providerEntries);
   if (id === 'mimo') return mimoAccountTitle(provider, index);
   if (id === 'opencode') return opencodeAccountTitle(provider, index);
   return String(provider?.accountEmail || provider?.accountName || '').trim() || `Account ${index + 1}`;
@@ -3966,7 +3968,7 @@ function homeLimitRows() {
       const option = providerOptions.find((entry) => entry.id === id);
       const providerTitle = option?.label || id;
       if (providerEntries.length > 1) {
-        const accountTitle = homeLimitAccountTitle(id, provider, index);
+        const accountTitle = homeLimitAccountTitle(id, provider, index, providerEntries);
         return state.settings?.showHomeLimitProviderNames === true || state.settings?.showToolIcons === false
           ? `${providerTitle} · ${accountTitle}`
           : accountTitle;
@@ -8814,16 +8816,26 @@ function renderCodexLoginStatus() {
   const openButton = document.getElementById('codexOpenLoginUrlButton');
   const copyButton = document.getElementById('codexCopyLoginUrlButton');
   const statusEl = document.getElementById('codexLoginStatus');
+  const workspaceSelection = document.getElementById('codexWorkspaceSelection');
+  const workspaceSelect = document.getElementById('codexWorkspaceSelect');
   const urlActions = document.getElementById('codexLoginUrlActions');
   const details = document.getElementById('codexLoginDetails');
   const output = document.getElementById('codexLoginOutput');
-  if (!addButton || !cancelButton || !refreshButton || !openButton || !copyButton || !statusEl || !urlActions || !details || !output) return;
+  if (!addButton || !cancelButton || !refreshButton || !openButton || !copyButton || !statusEl || !workspaceSelection || !workspaceSelect || !urlActions || !details || !output) return;
 
   addButton.classList.toggle('hidden', state.codexSignInBusy);
   cancelButton.classList.toggle('hidden', !state.codexSignInBusy);
   refreshButton.classList.toggle('hidden', state.codexSignInBusy);
   statusEl.textContent = state.codexLoginStatus;
   statusEl.classList.toggle('hidden', !state.codexLoginStatus);
+  workspaceSelection.classList.toggle('hidden', state.codexWorkspaceChoices.length === 0);
+  workspaceSelect.replaceChildren(...state.codexWorkspaceChoices.map((workspace) => {
+    const option = document.createElement('option');
+    option.value = workspace.id;
+    option.textContent = workspace.label || workspace.id;
+    option.selected = workspace.id === state.codexWorkspaceId;
+    return option;
+  }));
   urlActions.classList.toggle('hidden', !state.codexSignInBusy);
   openButton.classList.toggle('hidden', !state.codexLoginUrl);
   copyButton.classList.toggle('hidden', !state.codexLoginUrl);
@@ -8886,7 +8898,12 @@ function renderCodexAccounts() {
       right.className = 'managed-account-right';
       const info = document.createElement('span');
       info.className = 'managed-account-info';
-      info.textContent = enabled ? limitProviderPresentationApi.limitProviderDisplayLabel(account.accountLabel) : t('settings.codex.disabled');
+      const accountMetadata = [
+        account.workspaceLabel,
+        enabled ? limitProviderPresentationApi.limitProviderDisplayLabel(account.accountLabel) : t('settings.codex.disabled')
+      ].filter((value, index, values) => value && values.indexOf(value) === index);
+      info.textContent = accountMetadata.join(' · ');
+      info.title = accountMetadata.join(' · ');
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'managed-account-remove';
@@ -10133,9 +10150,21 @@ function setupCursorAccountUI() {
     const codexCancelButton = document.getElementById('codexCancelLoginButton');
     const codexOpenUrlButton = document.getElementById('codexOpenLoginUrlButton');
     const codexCopyUrlButton = document.getElementById('codexCopyLoginUrlButton');
+    const codexWorkspaceSelect = document.getElementById('codexWorkspaceSelect');
+    const codexConfirmWorkspaceButton = document.getElementById('codexConfirmWorkspaceButton');
     const codexLoginDetails = document.getElementById('codexLoginDetails');
     window.tokenMonitor.codex.onLoginStatus((status) => {
-      if (!status || !isCurrentCodexSignInFlow(status.flowId) || status.phase !== 'output') return;
+      if (!status || !isCurrentCodexSignInFlow(status.flowId)) return;
+      if (status.phase === 'workspaceSelection') {
+        state.codexWorkspaceChoices = Array.isArray(status.workspaces) ? status.workspaces : [];
+        state.codexWorkspaceId = state.codexWorkspaceChoices.some((workspace) => workspace.id === status.currentWorkspaceId)
+          ? status.currentWorkspaceId
+          : state.codexWorkspaceChoices[0]?.id || '';
+        state.codexLoginStatus = t('settings.codex.chooseWorkspace');
+        renderCodexLoginStatus();
+        return;
+      }
+      if (status.phase !== 'output') return;
       state.codexLoginOutput = (state.codexLoginOutput + String(status.text || '')).slice(-3000);
       if (status.loginUrl) state.codexLoginUrl = status.loginUrl;
       state.codexLoginStatus = t(state.codexLoginUrl ? 'settings.codex.loginWaiting' : 'settings.codex.loginStarting');
@@ -10148,6 +10177,8 @@ function setupCursorAccountUI() {
       state.codexSignInBusy = true;
       state.codexLoginUrl = '';
       state.codexLoginOutput = '';
+      state.codexWorkspaceChoices = [];
+      state.codexWorkspaceId = '';
       state.codexLoginStatus = t('settings.codex.loginStarting');
       state.codexAccountError = '';
       if (codexLoginDetails) codexLoginDetails.open = false;
@@ -10170,6 +10201,8 @@ function setupCursorAccountUI() {
           await refreshStats({ force: true });
           state.codexLoginStatus = '';
           state.codexLoginOutput = '';
+          state.codexWorkspaceChoices = [];
+          state.codexWorkspaceId = '';
         }
       } catch (err) {
         if (!isCurrentCodexSignInFlow(flowId)) return;
@@ -10181,6 +10214,8 @@ function setupCursorAccountUI() {
           state.codexSignInBusy = false;
           state.codexSignInFlowId = '';
           state.codexLoginUrl = '';
+          state.codexWorkspaceChoices = [];
+          state.codexWorkspaceId = '';
           renderCodexLoginStatus();
           renderCodexAccounts();
         }
@@ -10197,10 +10232,33 @@ function setupCursorAccountUI() {
       state.codexLoginUrl = '';
       state.codexLoginStatus = '';
       state.codexLoginOutput = '';
+      state.codexWorkspaceChoices = [];
+      state.codexWorkspaceId = '';
       state.codexAccountError = '';
       if (codexLoginDetails) codexLoginDetails.open = false;
       renderCodexLoginStatus();
       renderCodexAccounts();
+    });
+
+    codexWorkspaceSelect.addEventListener('change', () => {
+      state.codexWorkspaceId = codexWorkspaceSelect.value;
+    });
+
+    codexConfirmWorkspaceButton.addEventListener('click', async () => {
+      const flowId = state.codexSignInFlowId;
+      const workspaceId = state.codexWorkspaceId;
+      if (!isCurrentCodexSignInFlow(flowId) || !workspaceId) return;
+      codexConfirmWorkspaceButton.disabled = true;
+      try {
+        const result = await window.tokenMonitor.codex.selectWorkspace({ flowId, workspaceId });
+        if (!result?.ok || !isCurrentCodexSignInFlow(flowId)) return;
+        state.codexWorkspaceChoices = [];
+        state.codexWorkspaceId = '';
+        state.codexLoginStatus = t('settings.codex.loginLoadingAccount');
+        renderCodexLoginStatus();
+      } finally {
+        codexConfirmWorkspaceButton.disabled = false;
+      }
     });
 
     codexOpenUrlButton.addEventListener('click', async () => {

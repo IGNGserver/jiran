@@ -35,8 +35,20 @@ const { createHub } = require('../hub/server');
 const { deepseekToken, normalizeLimitsRefreshMs, parseBoolean, parseLimitProviders, runCodexLogin, minimaxToken, copilotToken, zaiToken, zaiRegion, zaiTeamToken, volcengineCredentials, qoderCookie, kimiToken, kimiWebToken, ollamaSessionCookie } = require('../shared/limitCollector');
 const { fetchOllamaLimits, rememberOllamaValidation } = require('../shared/ollamaLimits');
 const { copilotLoginErrorMessage, isAllowedVerificationUrl, runCopilotDeviceFlowLogin } = require('../shared/copilotDeviceFlow');
-const { codexAuthIdentity, hashAccountKey } = require('../shared/codexAuth');
+const {
+  codexAuthIdentity,
+  codexManagedAccountIdentityKey,
+  codexManagedAccountMatchesIdentity,
+  hashAccountKey,
+  preserveCodexManagedHydrationCollisions,
+  upgradeCodexManagedAccountIdentity
+} = require('../shared/codexAuth');
 const { codexLoginUrlFromOutput, isAllowedCodexLoginUrl } = require('../shared/codexLogin');
+const {
+  authWithSelectedCodexWorkspace,
+  listCodexWorkspaces,
+  normalizeWorkspaceId
+} = require('../shared/codexWorkspaces');
 const {
   codexAccountMatchesIdentity,
   liveCodexAuthPath,
@@ -539,6 +551,8 @@ function normalizeCopilotEnterpriseHost(value) {
 let codexLoginController = null;
 let codexLoginFlowId = '';
 let codexLoginCanCancel = false;
+let codexWorkspaceSelection = null;
+let codexWorkspaceLabelHydrationPromise = null;
 let copilotLoginController = null;
 let copilotLoginFlowId = '';
 
@@ -551,15 +565,27 @@ function normalizeCodexManagedAccounts(value) {
     const id = String(account.id || '').trim();
     const homePath = String(account.homePath || '').trim();
     if (!id || !homePath) continue;
+    const email = String(account.email || '').trim().toLowerCase();
+    const workspaceAccountId = normalizeWorkspaceId(
+      account.workspaceAccountId
+      || account.providerAccountId
+    );
     const accountKey = String(account.accountKey || '').trim();
-    const dedupe = accountKey || String(account.email || '').trim().toLowerCase() || id;
+    const dedupe = codexManagedAccountIdentityKey({
+      id,
+      accountKey,
+      email,
+      workspaceAccountId
+    });
     if (seen.has(dedupe)) continue;
     seen.add(dedupe);
     accounts.push({
       id,
-      email: String(account.email || '').trim().toLowerCase(),
+      email,
       accountKey,
       accountLabel: String(account.accountLabel || '').trim(),
+      workspaceAccountId,
+      workspaceLabel: String(account.workspaceLabel || '').trim(),
       homePath,
       authPath: String(account.authPath || path.join(homePath, 'auth.json')).trim(),
       addedAt: account.addedAt || new Date().toISOString(),
@@ -570,10 +596,96 @@ function normalizeCodexManagedAccounts(value) {
   return accounts;
 }
 
+function hydrateCodexManagedAccounts(value) {
+  const storedAccounts = normalizeCodexManagedAccounts(value);
+  const hydratedAccounts = storedAccounts.map((account) => {
+    try {
+      const auth = JSON.parse(readRegularFileNoFollow(account.authPath, {
+        fs,
+        description: 'Managed Codex auth',
+        encoding: 'utf8'
+      }));
+      return upgradeCodexManagedAccountIdentity(account, codexAuthIdentity(auth));
+    } catch (_) {
+      return account;
+    }
+  });
+  const resolvedAccounts = preserveCodexManagedHydrationCollisions(storedAccounts, hydratedAccounts);
+  if (resolvedAccounts.some((account, index) => account !== hydratedAccounts[index])) {
+    console.warn('[codex] Managed account identity hydration found a collision; preserved stored identities.');
+  }
+  return resolvedAccounts;
+}
+
+function hydrateCodexManagedWorkspaceLabels() {
+  if (codexWorkspaceLabelHydrationPromise) return codexWorkspaceLabelHydrationPromise;
+  const candidates = normalizeCodexManagedAccounts(settings?.codexManagedAccounts)
+    .filter((account) => account.workspaceAccountId && !account.workspaceLabel);
+  if (candidates.length === 0) return Promise.resolve(false);
+
+  const task = Promise.all(candidates.map(async (account) => {
+    try {
+      const auth = JSON.parse(readRegularFileNoFollow(account.authPath, {
+        fs,
+        description: 'Managed Codex auth',
+        encoding: 'utf8'
+      }));
+      const workspaces = await listCodexWorkspaces(auth, { env: process.env });
+      const workspace = workspaces.find((entry) => entry.id === account.workspaceAccountId);
+      return workspace?.label
+        ? { id: account.id, workspaceAccountId: account.workspaceAccountId, label: workspace.label }
+        : null;
+    } catch (_) {
+      return null;
+    }
+  })).then((results) => {
+    const labels = new Map(
+      results.filter(Boolean).map((result) => [result.id, result])
+    );
+    if (labels.size === 0) return false;
+    let changed = false;
+    const accounts = normalizeCodexManagedAccounts(settings?.codexManagedAccounts).map((account) => {
+      const resolved = labels.get(account.id);
+      if (
+        !resolved
+        || account.workspaceLabel
+        || account.workspaceAccountId !== resolved.workspaceAccountId
+      ) return account;
+      changed = true;
+      return {
+        ...account,
+        workspaceLabel: resolved.label,
+        updatedAt: new Date().toISOString()
+      };
+    });
+    if (!changed) return false;
+    settings.codexManagedAccounts = accounts;
+    saveSettings();
+    pushSettingsToRenderer();
+    void queueLimitInvalidation({ provider: 'codex' }, 'workspace-label-hydrated');
+    return true;
+  });
+
+  codexWorkspaceLabelHydrationPromise = task.finally(() => {
+    codexWorkspaceLabelHydrationPromise = null;
+  });
+  return codexWorkspaceLabelHydrationPromise;
+}
+
 function codexAccountsForRenderer() {
   return normalizeCodexManagedAccounts(settings?.codexManagedAccounts).map(({
-    id, email, accountKey, accountLabel, addedAt, updatedAt, enabled
-  }) => ({ id, email, accountKey, accountLabel, addedAt, updatedAt, enabled }));
+    id, email, accountKey, accountLabel, workspaceAccountId, workspaceLabel, addedAt, updatedAt, enabled
+  }) => ({
+    id,
+    email,
+    accountKey,
+    accountLabel,
+    workspaceAccountId,
+    workspaceLabel,
+    addedAt,
+    updatedAt,
+    enabled
+  }));
 }
 
 function codexManagedAccountsForCollector() {
@@ -742,18 +854,8 @@ function codexManagedHomePath(accountId) {
   return resolvedHome;
 }
 
-function codexEmailDerivedAccountKey(account, identity) {
-  const email = String(identity.email || account.email || '').trim().toLowerCase();
-  return Boolean(email && String(account.accountKey || '').trim() === hashAccountKey(email));
-}
-
 function findExistingCodexAccount(accounts, identity) {
-  return accounts.find((account) => {
-    if (identity.accountKey && account.accountKey && !codexEmailDerivedAccountKey(account, identity)) {
-      return account.accountKey === identity.accountKey;
-    }
-    return Boolean(identity.email && account.email === identity.email);
-  });
+  return accounts.find((account) => codexManagedAccountMatchesIdentity(account, identity));
 }
 
 function codexAccountId(identity, existing) {
@@ -783,6 +885,8 @@ function commitCodexManagedAccount(identity, homePath, existing, options = {}) {
     email: identity.email,
     accountKey: identity.accountKey || hashAccountKey(identity.email || id),
     accountLabel: identity.accountLabel,
+    workspaceAccountId: identity.workspaceAccountId || identity.providerAccountId || '',
+    workspaceLabel: String(identity.workspaceLabel || '').trim(),
     homePath,
     authPath: path.join(homePath, 'auth.json'),
     addedAt: existing?.addedAt || now,
@@ -887,6 +991,54 @@ async function rollbackCodexManagedHome(homePath, backupHomePath, movedToFinal) 
   if (backupHomePath) await fs.promises.rename(backupHomePath, homePath);
 }
 
+async function resolveCodexWorkspaceAfterLogin(auth, homePath, options = {}) {
+  const initialIdentity = codexAuthIdentity(auth);
+  let workspaces;
+  try {
+    workspaces = await listCodexWorkspaces(auth, {
+      env: process.env,
+      signal: options.signal
+    });
+  } catch (error) {
+    if (options.signal?.aborted) return { cancelled: true };
+    console.warn('Could not list Codex workspaces after sign-in:', error?.message || error);
+    return { auth, identity: initialIdentity };
+  }
+  if (options.signal?.aborted) return { cancelled: true };
+  if (workspaces.length === 0) return { auth, identity: initialIdentity };
+
+  const currentWorkspaceId = normalizeWorkspaceId(initialIdentity.workspaceAccountId);
+  let selected;
+  if (workspaces.length === 1) {
+    selected = workspaces[0];
+  } else if (typeof options.selectWorkspace === 'function') {
+    const selectedId = normalizeWorkspaceId(await options.selectWorkspace({
+      email: initialIdentity.email,
+      currentWorkspaceId,
+      workspaces
+    }));
+    if (!selectedId || options.signal?.aborted) return { cancelled: true };
+    selected = workspaces.find((workspace) => workspace.id === selectedId) || null;
+    if (!selected) throw new Error('The selected Codex workspace is no longer available.');
+  } else {
+    selected = workspaces.find((workspace) => workspace.id === currentWorkspaceId) || null;
+  }
+  if (!selected) return { auth, identity: initialIdentity };
+
+  const selectedAuth = authWithSelectedCodexWorkspace(auth, selected.id);
+  await writeCodexAuthFile(
+    path.join(homePath, 'auth.json'),
+    `${JSON.stringify(selectedAuth, null, 2)}\n`
+  );
+  return {
+    auth: selectedAuth,
+    identity: {
+      ...codexAuthIdentity(selectedAuth),
+      workspaceLabel: selected.label
+    }
+  };
+}
+
 // Best practice: each account gets its own OAuth grant via an isolated
 // `codex login` (CodexBar/tokscale model), so it never shares a refresh-token
 // lineage with the user's live Codex CLI login.
@@ -909,7 +1061,10 @@ async function addCodexManagedAccount(onOutput, options = {}) {
     } catch (_) {
       return { ok: false, error: 'Sign-in finished but no Codex credentials were written.' };
     }
-    const identity = codexAuthIdentity(auth);
+    const workspaceResult = await resolveCodexWorkspaceAfterLogin(auth, tempHome, options);
+    if (workspaceResult.cancelled) return cancelledCodexLoginResult();
+    auth = workspaceResult.auth;
+    const identity = workspaceResult.identity;
     if (!identity.accountKey && !identity.email) {
       return { ok: false, error: 'Could not identify the Codex account after sign-in.' };
     }
@@ -1239,7 +1394,17 @@ function floatingBubblePayload() {
 function ensureSettingsLoaded() {
   if (settings) return settings;
   settings = readSettings();
+  const persistedCodexAccounts = settings.codexManagedAccounts;
+  const hydratedCodexAccounts = hydrateCodexManagedAccounts(persistedCodexAccounts);
   persistedSettingsSnapshot = cloneSettingsSnapshot(settings);
+  if (JSON.stringify(hydratedCodexAccounts) !== JSON.stringify(persistedCodexAccounts)) {
+    settings.codexManagedAccounts = hydratedCodexAccounts;
+    if (!saveSettings()) {
+      // Keep the runtime identity coherent even if the migration cannot be
+      // persisted yet; the next ordinary settings save will retry it.
+      settings.codexManagedAccounts = hydratedCodexAccounts;
+    }
+  }
   rendererViewState = normalizeInitialRendererViewState(settings.lastViewState, rendererViewState);
   return settings;
 }
@@ -3847,6 +4012,7 @@ app.whenReady().then(() => {
   if (settings.trayMode) enterTrayMode();
   regenerateTokscalePricing();
   startMode();
+  void hydrateCodexManagedWorkspaceLabels();
   if (settings.discordRpcEnabled) startDiscordRpc();
   rateCache = readRateCache();
   applyEffectiveRates();                 // use cache/defaults immediately, avoid first-paint gap
@@ -4624,6 +4790,28 @@ app.whenReady().then(() => {
         });
       }, {
         signal: controller.signal,
+        selectWorkspace: ({ email, currentWorkspaceId, workspaces }) => new Promise((resolve) => {
+          const finish = (workspaceId) => {
+            if (codexWorkspaceSelection?.controller === controller) codexWorkspaceSelection = null;
+            controller.signal.removeEventListener('abort', onAbort);
+            resolve(workspaceId);
+          };
+          const onAbort = () => finish('');
+          codexWorkspaceSelection = {
+            controller,
+            flowId,
+            webContentsId: event.sender.id,
+            workspaceIds: new Set(workspaces.map((workspace) => workspace.id)),
+            finish
+          };
+          controller.signal.addEventListener('abort', onAbort, { once: true });
+          sendStatus({
+            phase: 'workspaceSelection',
+            email,
+            currentWorkspaceId,
+            workspaces: workspaces.map(({ id, label }) => ({ id, label }))
+          });
+        }),
         onCommit: () => {
           if (codexLoginController === controller) codexLoginCanCancel = false;
         }
@@ -4634,11 +4822,24 @@ app.whenReady().then(() => {
       return { ...result, flowId };
     } finally {
       if (codexLoginController === controller) {
+        if (codexWorkspaceSelection?.controller === controller) codexWorkspaceSelection.finish('');
         codexLoginController = null;
         codexLoginFlowId = '';
         codexLoginCanCancel = false;
       }
     }
+  });
+  ipcMain.handle('codex:selectWorkspace', (event, request = {}) => {
+    const flowId = String(request?.flowId || '').trim();
+    const workspaceId = normalizeWorkspaceId(request?.workspaceId);
+    const pending = codexWorkspaceSelection;
+    if (!pending || pending.webContentsId !== event.sender.id) return { ok: false, stale: true };
+    if (flowId && pending.flowId && flowId !== pending.flowId) return { ok: false, stale: true };
+    if (!workspaceId || !pending.workspaceIds.has(workspaceId)) {
+      return { ok: false, error: 'Unknown Codex workspace.' };
+    }
+    pending.finish(workspaceId);
+    return { ok: true };
   });
   ipcMain.handle('codex:cancelLogin', (_event, request = {}) => {
     const flowId = String(request?.flowId || '').trim();

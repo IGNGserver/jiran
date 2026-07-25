@@ -86,7 +86,7 @@ test('Codex managed home paths reject traversal outside the managed root', () =>
   const main = read(path.join(electronDir, 'main.js'));
   const helper = main.slice(
     main.indexOf('function codexManagedHomePath'),
-    main.indexOf('function codexEmailDerivedAccountKey')
+    main.indexOf('function findExistingCodexAccount')
   );
   const addAccount = main.slice(
     main.indexOf('async function addCodexManagedAccount'),
@@ -98,6 +98,57 @@ test('Codex managed home paths reject traversal outside the managed root', () =>
   assert.match(helper, /resolvedHome\.startsWith\(`\$\{resolvedRoot\}\$\{path\.sep\}`\)/);
   assert.match(addAccount, /const homePath = codexManagedHomePath\(codexAccountId\(identity, existing\)\);/);
   assert.match(addAccount, /if \(!homePath\) return \{ ok: false, error:/);
+});
+
+test('Codex managed login selects and persists a workspace before account commit', () => {
+  const main = read(path.join(electronDir, 'main.js'));
+  const preload = read(path.join(electronDir, 'preload.js'));
+  const html = read(path.join(rendererDir, 'index.html'));
+  const app = read(path.join(rendererDir, 'app.js'));
+  const resolver = main.slice(
+    main.indexOf('async function resolveCodexWorkspaceAfterLogin'),
+    main.indexOf('// Best practice: each account gets its own OAuth grant')
+  );
+  const addAccount = main.slice(
+    main.indexOf('async function addCodexManagedAccount'),
+    main.indexOf('async function removeCodexManagedAccount')
+  );
+
+  assert.match(resolver, /listCodexWorkspaces\(auth/);
+  assert.match(resolver, /options\.selectWorkspace/);
+  assert.match(resolver, /authWithSelectedCodexWorkspace/);
+  assert.match(resolver, /writeCodexAuthFile/);
+  const workspaceIndex = addAccount.indexOf('resolveCodexWorkspaceAfterLogin');
+  const matchingIndex = addAccount.indexOf('findExistingCodexAccount');
+  assert.ok(
+    workspaceIndex !== -1 && matchingIndex !== -1 && workspaceIndex < matchingIndex,
+    'workspace identity must be resolved before account matching'
+  );
+  assert.match(main, /ipcMain\.handle\('codex:selectWorkspace'/);
+  assert.match(preload, /selectWorkspace: \(options = \{\}\) => ipcRenderer\.invoke\('codex:selectWorkspace', options\)/);
+  assert.match(html, /id="codexWorkspaceSelection"/);
+  assert.match(html, /id="codexWorkspaceSelect"/);
+  assert.match(app, /status\.phase === 'workspaceSelection'/);
+  assert.match(app, /window\.tokenMonitor\.codex\.selectWorkspace\(\{ flowId, workspaceId \}\)/);
+});
+
+test('Codex startup hydrates missing managed workspace labels without blocking startup', () => {
+  const main = read(path.join(electronDir, 'main.js'));
+  const hydration = main.slice(
+    main.indexOf('function hydrateCodexManagedWorkspaceLabels'),
+    main.indexOf('function codexAccountsForRenderer')
+  );
+  const ready = main.slice(
+    main.indexOf('app.whenReady().then'),
+    main.indexOf("ipcMain.handle('settings:get'")
+  );
+
+  assert.match(hydration, /filter\(\(account\) => account\.workspaceAccountId && !account\.workspaceLabel\)/);
+  assert.match(hydration, /listCodexWorkspaces\(auth, \{ env: process\.env \}\)/);
+  assert.match(hydration, /workspaceAccountId !== resolved\.workspaceAccountId/);
+  assert.match(hydration, /workspaceLabel: resolved\.label/);
+  assert.match(hydration, /queueLimitInvalidation\(\{ provider: 'codex' \}, 'workspace-label-hydrated'\)/);
+  assert.match(ready, /void hydrateCodexManagedWorkspaceLabels\(\);/);
 });
 
 test('Codex login renderer ignores stale flows and exposes explicit URL actions', () => {

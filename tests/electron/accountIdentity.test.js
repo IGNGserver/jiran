@@ -6,6 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
+  codexAccountDisplayLabel,
   codexAccountIdForProvider,
   codexAccountMatchesProvider,
   isCodexLiveAccount,
@@ -17,6 +18,67 @@ test('Codex account email masking uses the final separator in quoted local parts
   assert.equal(maskEmailAddress('primary.user@example.com'), 'p***r@example.com');
   assert.equal(maskEmailAddress('ab@example.com'), 'a***b@example.com');
   assert.equal(maskEmailAddress('"user@name"@example.com'), '"***"@example.com');
+});
+
+test('Codex account labels add workspace context only when identity labels collide', () => {
+  const unique = [
+    { accountEmail: 'one@example.com', accountName: 'Personal' },
+    { accountEmail: 'two@example.com', accountName: 'Acme Team' }
+  ];
+  assert.equal(codexAccountDisplayLabel(unique[0], unique), 'one@example.com');
+  assert.equal(codexAccountDisplayLabel(unique[1], unique), 'two@example.com');
+
+  const duplicateEmail = [
+    { accountEmail: 'member@example.com', accountName: 'Personal' },
+    { accountEmail: 'member@example.com', accountName: 'Acme Team' }
+  ];
+  assert.equal(
+    codexAccountDisplayLabel(duplicateEmail[0], duplicateEmail),
+    'member@example.com · Personal'
+  );
+  assert.equal(
+    codexAccountDisplayLabel(duplicateEmail[1], duplicateEmail),
+    'member@example.com · Acme Team'
+  );
+
+  const maskedCollision = [
+    { accountEmail: 'primary.user@example.com', accountName: 'Personal' },
+    { accountEmail: 'power@example.com', accountName: 'Acme Team' }
+  ];
+  assert.equal(
+    codexAccountDisplayLabel(maskedCollision[0], maskedCollision, { maskEmail: true }),
+    'p***r@example.com · Personal'
+  );
+  assert.equal(
+    codexAccountDisplayLabel(maskedCollision[1], maskedCollision, { maskEmail: true }),
+    'p***r@example.com · Acme Team'
+  );
+
+  assert.equal(
+    codexAccountDisplayLabel({ accountName: 'Workspace without email' }, unique),
+    'Workspace without email'
+  );
+
+  const duplicateWorkspaceNames = [
+    {
+      accountEmail: 'member@example.com',
+      accountName: 'Acme Team',
+      accountKey: 'sha256:abcdef123456'
+    },
+    {
+      accountEmail: 'member@example.com',
+      accountName: 'Acme Team',
+      accountKey: 'sha256:abcdef654321'
+    }
+  ];
+  assert.equal(
+    codexAccountDisplayLabel(duplicateWorkspaceNames[0], duplicateWorkspaceNames),
+    'member@example.com · Acme Team · #abcdef1'
+  );
+  assert.equal(
+    codexAccountDisplayLabel(duplicateWorkspaceNames[1], duplicateWorkspaceNames),
+    'member@example.com · Acme Team · #abcdef6'
+  );
 });
 
 test('Codex account identity matches by key or normalized email fields', () => {

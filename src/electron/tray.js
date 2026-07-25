@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const { formatTrayText, isBarsTrayIconMode, isGeneratedTrayIconMode, pickWorstLimit } = require('../shared/trayText');
-const { maskEmailAddress } = require('./renderer/accountIdentity');
+const { codexAccountDisplayLabel } = require('./renderer/accountIdentity');
 const { translate: translateMessage } = require('./renderer/i18n');
 
 const ICON_PATH = path.join(__dirname, '..', '..', 'assets', 'icon.png');
@@ -121,9 +121,9 @@ function buildTrayMenuTemplate(options = {}) {
   const codexAccounts = Array.isArray(state.codexAccounts) ? state.codexAccounts : [];
   const codexItem = codexAccounts.length >= 2 ? (() => {
     const labelFor = (account, index) => {
-      const email = String(account?.email || '').trim();
-      if (email) return state.maskAccountEmails ? maskEmailAddress(email) : email;
-      return t('trayMenu.codexAccountFallback', { number: index + 1 });
+      return codexAccountDisplayLabel(account, codexAccounts, {
+        maskEmail: state.maskAccountEmails
+      }) || t('trayMenu.codexAccountFallback', { number: index + 1 });
     };
     const activeIndex = codexAccounts.findIndex((account) => account.id === state.activeCodexAccountId);
     const label = activeIndex >= 0
