@@ -4,25 +4,26 @@
 
 <!-- app-update-notes:en:start -->
 ### Added
-- **Windows Accent Blur:** Windows users can choose the experimental Accent Blur style under **Settings → Appearance → Windows Glass Style**. It keeps the background translucent and blurred when the window is unfocused, with an automatic Acrylic fallback on unsupported systems. (#229)
-
-### Improved
-- **Usage and limits resilience:** Token usage and AI Tool Limits now refresh independently. Slow or failing providers use bounded concurrency and retries without blocking usage or other limits updates. (#225, #227)
-- **Glass appearance:** Custom glass tint and opacity now render without decorative color shifts, while very low opacity in macOS transparent mode avoids Chromium compositing artifacts. (#231)
-- **WSL usage collection:** Every requested tool can now be scanned in each detected WSL home without duplicating usage from the native Windows host.
+- **Menu bar layout composer:** The menu bar and the Floating Bubble can now use a layout you build yourself. Pick **Custom…** under **Settings → Window**, then add AI tool icons, quota bars, percentages, reset times, tokens, cost, account names, or custom text; drag to reorder against a live preview; and give each item its own AI tool, account, quota window, and typeface. Items set to Automatic follow a condition you choose — lowest remaining quota, highest tokens, or highest cost — over a selected period. The built-in presets stay available. (#251, #256)
+- **OpenRouter Accounts:** Track one or more OpenRouter accounts under **Settings → Accounts** using an API key that stays on this device. Available balance, key limit, credits, and provider-reported spend appear in a compact meter with hover detail, and Free, Pay-as-you-go, and Management keys are distinguished. (#247)
+- **Automatic update downloads:** Enable **Download updates automatically** under **Settings → General → App Updates** to fetch new versions in the background after startup, scheduled, and manual checks. Installing stays under your control through a dedicated **Restart** action, release notes remain available after the download, and on Windows the update now installs without flashing an installer window. (#239, #253)
+- **Active days range:** The Home activity module can count active days over **All time** or the **Last 12 months**. (#210)
+- **Back to Home:** Views opened from a Home module now show a return control; switching views from the footer stays direct navigation. (#238)
 
 ### Fixed
-- **Large session lists:** Hub-backed Month and Total session lists remain responsive during live updates and keep stable scroll geometry as rows appear. (#235)
-- **Custom model pricing:** Pricing rows once again keep model details readable and the edit and remove actions correctly aligned. (#236)
+- **Codex Team and Personal accounts:** Two Codex workspaces that share one email — a Personal and a Team workspace, for example — no longer collapse into a single account. Each keeps its own identity across Settings, AI Tool Limits, the menu bar, and Hub aggregation. (#254, #257)
+- **macOS menu bar popover:** Clicking the menu bar icon no longer occasionally switches to the Space the window was last shown on before appearing. (#250)
+- **Settings across windows:** Changing a setting in the **Usage Dashboard** window — switching **Token Activity** between Tokens and Cost, for example — now updates the main window immediately. (#210)
+- **DeepSeek spend history:** Month-to-date spend is preserved as older balance observations are pruned, and existing history migrates automatically. (#246)
 <!-- app-update-notes:en:end -->
 
 ## Download
 
-- **macOS Apple Silicon** — [Token-Monitor-0.34.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0-arm64.dmg)
-- **macOS Intel** — [Token-Monitor-0.34.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0-x64.dmg)
-- **Windows Installer** — [Token-Monitor-Setup-0.34.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-Setup-0.34.0.exe) (recommended)
-- **Windows Portable** — [Token-Monitor-0.34.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0.exe) (no install required)
-- **Linux x64** — [Token-Monitor-0.34.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.35.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0-arm64.dmg)
+- **macOS Intel** — [Token-Monitor-0.35.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0-x64.dmg)
+- **Windows Installer** — [Token-Monitor-Setup-0.35.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-Setup-0.35.0.exe) (recommended)
+- **Windows Portable** — [Token-Monitor-0.35.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0.exe) (no install required)
+- **Linux x64** — [Token-Monitor-0.35.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0.AppImage)
 
 <details>
 <summary><strong>First launch and other notes</strong></summary>
@@ -60,25 +61,26 @@ open-source: https://github.com/junhoyeo/tokscale
 
 <!-- app-update-notes:zh:start -->
 ### 新增
-- **Windows Accent Blur：** Windows 用户现在可以在 **设置 → 外观 → Windows 玻璃样式** 中选择实验性的 Accent Blur；窗口失去焦点时背景仍保持半透明和模糊，不支持时会自动回退到 Acrylic。（#229）
-
-### 改进
-- **用量与额度刷新韧性：** Token 用量与 AI 工具额度现在独立刷新；缓慢或失败的提供商会通过有限并发与重试处理，不再阻塞用量或其他额度更新。（#225、#227）
-- **玻璃效果呈现：** 自定义玻璃色调与透明度不再受装饰性叠色影响；macOS 透明模式在极低透明度下也能避免 Chromium 合成异常。（#231）
-- **WSL 用量采集：** 每个检测到的 WSL 主目录现在都能扫描所有指定工具，同时避免重复计入 Windows 主机上的原生用量。
+- **菜单栏布局编辑器：** 菜单栏与悬浮小窗现在可以使用你自己搭建的布局。在 **设置 → 窗口** 中选择 **自定义…**，即可加入 AI 工具图标、额度条、百分比、重置时间、Tokens、费用、账号或自定义文字，拖动排序并实时预览，还能为每个项目单独指定 AI 工具、账号、额度窗口与字体。设为「自动」的项目会按你选择的条件跟随——剩余额度最少、Tokens 最多或费用最高——并可指定统计周期。内置预设仍然保留。（#251、#256）
+- **OpenRouter 账号：** 在 **设置 → 账号** 中用只保存在本机的 API 密钥追踪一个或多个 OpenRouter 账号；可用余额、密钥上限、credits 与服务商上报的花费会以紧凑的额度条呈现，悬停可查看明细，并区分 Free、Pay-as-you-go 与 Management 密钥。（#247）
+- **自动下载更新：** 在 **设置 → 常规 → 应用更新** 中打开 **自动下载更新**，启动后、定时与手动检查时都会在后台下载新版本；安装仍由你决定，通过专门的 **重新启动** 操作完成，下载完成后仍可查看发布说明，Windows 上安装时也不再闪出安装程序窗口。（#239、#253）
+- **活跃天数范围：** 主页活动模块的活跃天数可在 **全部时间** 与 **近 12 个月** 之间切换。（#210）
+- **返回主页：** 从主页模块打开的视图现在会显示返回控件；从底部切换视图仍是直接跳转。（#238）
 
 ### 修复
-- **大型会话列表：** 通过 Hub 加载的月度与总计会话列表在实时更新时保持流畅，并在新增行时维持稳定的滚动位置。（#235）
-- **自定义模型定价：** 定价行现在会正确显示模型详情，并恢复编辑与移除操作的对齐布局。（#236）
+- **Codex 团队与个人账号：** 共用同一邮箱的两个 Codex 工作区（例如个人与团队）不再被合并成一个账号，在设置、AI 工具额度、菜单栏与 Hub 汇总中都保留各自的身份。（#254、#257）
+- **macOS 菜单栏弹窗：** 点击菜单栏图标时，不再偶尔先切换到窗口上次显示所在的 Space 才出现。（#250）
+- **多窗口设置同步：** 在 **使用仪表板** 窗口修改设置（例如把 **Token 活动** 从 Tokens 切换到成本）后，主窗口会立即同步更新。（#210）
+- **DeepSeek 花费历史：** 清理较早的余额记录时不再丢失当月累计花费，已有历史会自动迁移。（#246）
 <!-- app-update-notes:zh:end -->
 
 ## 下载
 
-- **macOS Apple Silicon** — [Token-Monitor-0.34.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0-arm64.dmg)
-- **macOS Intel** — [Token-Monitor-0.34.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0-x64.dmg)
-- **Windows 安装版** — [Token-Monitor-Setup-0.34.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-Setup-0.34.0.exe)（推荐）
-- **Windows 便携版** — [Token-Monitor-0.34.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0.exe)（免安装）
-- **Linux x64** — [Token-Monitor-0.34.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.34.0/Token-Monitor-0.34.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.35.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0-arm64.dmg)
+- **macOS Intel** — [Token-Monitor-0.35.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0-x64.dmg)
+- **Windows 安装版** — [Token-Monitor-Setup-0.35.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-Setup-0.35.0.exe)（推荐）
+- **Windows 便携版** — [Token-Monitor-0.35.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0.exe)（免安装）
+- **Linux x64** — [Token-Monitor-0.35.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0.AppImage)
 
 <details>
 <summary><strong>首次启动与其他说明</strong></summary>
