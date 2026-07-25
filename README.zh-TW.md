@@ -26,7 +26,7 @@
 
 ## 什麼是 Token Monitor？
 
-一款桌面小工具，即時顯示 Claude Code、Codex、Cursor、GitHub Copilot 等 25+ 種 AI 編程工具的 Token 用量與 AI 工具額度，具備即時多裝置同步與歷史使用趨勢功能，並支援依工具、裝置、模型、session 或專案分項顯示。
+一款桌面小工具，即時顯示 Claude Code、Codex、Cursor、GitHub Copilot 等 27+ 種 AI 編程工具的 Token 用量與 AI 工具額度，具備即時多裝置同步與歷史使用趨勢功能，並支援依工具、裝置、模型、session 或專案分項顯示。
 
 ## 支援的工具
 
@@ -49,7 +49,7 @@ Token Monitor 對 Token 用量、帳戶額度與 session 明細分別支援：
 | <img src=".github/assets/tools-icon/pi.png" width="28" alt="Pi" /> | Pi | `~/.pi/agent/sessions/`、`~/.omp/agent/sessions/`（Oh My Pi） | ✅ | — | — |
 | <img src=".github/assets/tools-icon/zed.png" width="28" alt="Zed" /> | Zed | `~/.local/share/zed/threads/threads.db` | ✅ | — | — |
 | <img src=".github/assets/tools-icon/kilocode.png" width="28" alt="Kilo Code" /> | Kilo Code | VS Code globalStorage tasks（`.../kilocode.kilo-code/tasks/`）—— 僅 Linux 與遠端/WSL | ✅ | — | — |
-| <img src=".github/assets/tools-icon/mimo-code.png" width="28" alt="MiMo Code" /> | MiMo Code | `~/.local/share/mimocode/mimocode.db` | ✅ | — | — |
+| <img src=".github/assets/tools-icon/mimo-code.png" width="28" alt="MiMo Code" /> | MiMo Code | `~/.local/share/mimocode/mimocode.db` | ✅ | ✅ | — |
 | <img src=".github/assets/tools-icon/zcode.png" width="28" alt="ZCode" /> | ZCode / GLM | `~/.zcode/projects/`；Z.ai API 金鑰（透過 Z.ai API 查詢 GLM 個人/團隊 Coding Plan 額度） | ✅ | ✅ | — |
 | <img src=".github/assets/tools-icon/kiro.png" width="28" alt="Kiro" /> | Kiro | `~/.kiro/sessions/cli/`、Kiro IDE globalStorage 與 `kiro-cli` 資料庫 | ✅ | ✅ | — |
 | <img src=".github/assets/tools-icon/codebuddy.png" width="28" alt="CodeBuddy" /> | CodeBuddy | `~/.codebuddy/projects/` 與 IDE / VS Code 擴充套件日誌 | ✅ | — | — |
@@ -92,7 +92,7 @@ Token Monitor 對 Token 用量、帳戶額度與 session 明細分別支援：
 
 ### 用量追蹤
 
-- **即時 Token 追蹤**：Claude Code、Codex、Cursor、GitHub Copilot、Antigravity、OpenCode 等 20+ 種 AI 工具，每輪對話後 UI 在數秒內更新（完整清單見上方表格）
+- **即時 Token 追蹤**：Claude Code、Codex、Cursor、GitHub Copilot、Antigravity、OpenCode 等 21+ 種 AI 工具，每輪對話後 UI 在數秒內更新（完整清單見上方表格）
 - **單一 session 明細**：點進 Claude Code、Codex 或 OpenCode 的 session，可看每則提問的 Token 消耗，並展開查看每次回覆的 Token 拆分與用到的工具（開啟時才即時讀取本機 transcript 或資料庫，絕不同步）
 - **快取命中統計**：點擊任何工具或模型，展開查看輸入 Token（快取命中與未命中）、輸出 Token 的詳細分類及命中率百分比
 - **成本與幣別**：Token 數量旁附帶成本；可用 USD、TWD、HKD 或 CNY 顯示，匯率每日自動更新，也可在設定中手動覆寫
@@ -100,7 +100,7 @@ Token Monitor 對 Token 用量、帳戶額度與 session 明細分別支援：
 
 ### 額度、趨勢與匯出
 
-- **AI 工具額度偵測**：涵蓋 Claude Code、Codex、Cursor、OpenRouter、GLM、Kimi 等 15+ 家供應商的 session、每週、帳單與 credits 視窗，支援多個 OpenRouter 帳號，以及 DeepSeek 預付餘額與消費
+- **AI 工具額度偵測**：涵蓋 Claude Code、Codex、Cursor、OpenRouter、GLM、Kimi 等 17+ 家供應商的 session、每週、帳單與 credits 視窗，支援多個 OpenRouter 帳號，以及 DeepSeek 預付餘額與消費
 - **多帳號與 Codex 帳號切換**：同一供應商可追蹤多個帳號、各自顯示額度；已加入追蹤的 Codex 帳號還能一鍵切換為本機使用帳號，免重新登入授權
 - **保留已刪除會話用量**：許多工具會定期清除舊 session（Claude Code 預設清 30 天前的 transcript），一刪就再也算不到。開啟後，Token Monitor 會在本機不設期限地封存已觀測到的每日工具／模型用量，讓熱力圖與趨勢即使在來源檔案被清掉後仍然完整（詳見下方[〈會話資料保留期〉](#會話資料保留期)）
 - **使用趨勢與儀表板**：主頁的活躍熱力圖與趨勢圖，加上獨立的儀表板視窗，提供連續天數，以及跨所有裝置、依工具／依模型堆疊的歷史（柱狀圖與 K 線兩種檢視）
@@ -120,6 +120,7 @@ Token Monitor 對 Token 用量、帳戶額度與 session 明細分別支援：
 - **分組檢視**：可依工具、裝置、模型、session、專案或帳戶額度分組查看用量
 - **選單列（macOS）與系統匣（Windows）彈出視窗**：圖示旁可顯示成本、token 數，或最接近用完的供應商剩餘額度百分比
 - **懸浮小窗模式**：可將小工具收成可拖曳的緊湊小窗，支援點擊或懸停預覽展開，並可顯示托盤同款內容
+- **選單列排版自訂**：選單列與懸浮小窗的顯示內容可以直接挑內建版型，也可以選「自訂…」自己排——加入 AI 工具圖示、額度條、百分比、重置時間、成本或自訂文字等項目，拖曳排序並即時預覽，每個項目還能各自指定 AI 工具、帳號、額度週期與字型
 - **外觀控制**：介面主題切換（含淺色模式）、各工具廠商色、玻璃透明度、模糊度、完全透明視窗
 - **工具列表自訂**：可隱藏、置頂和拖曳排序主列表中的工具，不影響實際追蹤
 - **可錄製全域快捷鍵**：可從任何地方快速顯示或隱藏視窗
@@ -241,7 +242,7 @@ npm run pack         # 未封裝的 app 目錄（無安裝檔），方便本機�
 
 設定分兩處，日常使用只需要前者：
 
-- **小工具（GUI）**——點右下角的 `⚙` 開啟，分區依序為：一般（語言、登入啟動、更新）、主畫面（首頁模組與顯示幣別）、視窗（視窗行為、托盤模式、懸浮小窗、快捷鍵）、外觀（主題與廠商色）、採集（追蹤的工具、採集頻率、保留已刪除會話用量、資料匯出）、AI 工具額度、帳號（各供應商憑證）、多裝置同步。標題列的 `⇧` 鈕可循環切換視窗行為。
+- **小工具（GUI）**——點右下角的 `⚙` 開啟，分區依序為：一般（語言、登入啟動、更新）、主畫面（首頁模組與顯示幣別）、視窗（視窗行為、選單列與懸浮小窗排版、托盤模式、快捷鍵）、外觀（主題與廠商色）、採集（追蹤的工具、採集頻率、保留已刪除會話用量、資料匯出）、AI 工具額度、帳號（各供應商憑證）、多裝置同步。標題列的 `⇧` 鈕可循環切換視窗行為。
 - **無頭代理與 hub**——沒有 UI，用專案根目錄的 `.env` 設定（從 `.env.example` 複製）；優先序為 CLI 旗標 → 環境變數 → 內建預設。
 
 每一項設定與所有環境變數的完整說明，請見[設定參考文件](docs/configuration.md)。
