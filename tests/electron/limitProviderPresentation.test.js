@@ -483,7 +483,7 @@ test('Codex limits render as one provider group with account subrows', () => {
   const app = readRendererFile('app.js');
   const styles = readRendererFile('styles.css');
   const renderLimits = functionBody(app, 'renderLimits', 'serviceStatusLabel');
-  const renderGroup = functionBody(app, 'renderCodexAccountGroup', 'claudeAccountTitle');
+  const renderGroup = functionBody(app, 'renderCodexAccountGroup', 'renderClaudeAccountGroup');
 
   assert.match(renderLimits, /providersByLimitProviderId\(state\.stats\?\.limits\?\.providers \|\| \[\]\)/);
   assert.match(renderLimits, /renderCodexAccountGroup\(/);
@@ -496,10 +496,10 @@ test('Codex limits render as one provider group with account subrows', () => {
 test('Claude limits render as one provider group with account subrows', () => {
   const app = readRendererFile('app.js');
   const renderLimits = functionBody(app, 'renderLimits', 'serviceStatusLabel');
-  const renderGroup = functionBody(app, 'renderClaudeAccountGroup', 'mimoAccountTitle');
+  const renderGroup = functionBody(app, 'renderClaudeAccountGroup', 'mimoSettingsAccountTitle');
 
   assert.match(renderLimits, /renderClaudeAccountGroup\(/);
-  assert.match(renderGroup, /claudeAccountTitle\(provider, index\)/);
+  assert.match(renderGroup, /limitAccountTitle\('claude', provider, index, providers\)/);
   assert.match(renderGroup, /planText: t\('settings\.claude\.nAccounts', \{ count: providers\.length \}\)/);
   assert.match(renderGroup, /accountRow: true/);
   assert.match(renderGroup, /showIcon: false/);

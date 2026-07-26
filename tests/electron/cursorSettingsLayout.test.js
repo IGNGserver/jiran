@@ -7,10 +7,6 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const rendererDir = path.join(__dirname, '..', '..', 'src', 'electron', 'renderer');
-const {
-  codexAccountDisplayLabel,
-  maskEmailAddress
-} = require('../../src/electron/renderer/accountIdentity');
 
 function readRendererFile(name) {
   return fs.readFileSync(path.join(rendererDir, name), 'utf8');
@@ -206,7 +202,7 @@ test('OpenCode multi-account rows separate profile identity from plan label', ()
 
   assert.match(titleBody, /provider\?\.accountName/);
   assert.match(titleBody, /legacyName !== 'Go' && legacyName !== 'Zen'/);
-  assert.match(groupBody, /opencodeAccountTitle\(provider, index\)/);
+  assert.match(groupBody, /limitAccountTitle\('opencode', provider, index, providers\)/);
   assert.match(groupBody, /legacyProfileLabel/);
   assert.match(groupBody, /planText: ''/);
   assert.match(app, /provider\?\.planLabel \|\| provider\?\.accountLabel/);
@@ -326,102 +322,7 @@ test('Codex account email masking is an opt-in display-only setting', () => {
   assert.match(app, /saveSettings\(\{ maskLimitAccountEmails: els\.maskLimitAccountEmailsInput\.checked \}\)/);
   assert.match(app, /renderLimits\(\);/);
 
-  assert.equal(
-    maskEmailAddress('primary.user@example.com')
-    , 'p***r@example.com'
-  );
-  assert.equal(
-    maskEmailAddress('secondary.user@example.com')
-    , 's***r@example.com'
-  );
-  assert.equal(
-    maskEmailAddress('ab@example.com')
-    , 'a***b@example.com'
-  );
-
-  assert.equal(
-    runRendererFunctions(
-      app,
-      ['codexAccountTitle'],
-      "codexAccountTitle({ accountEmail: 'primary.user@example.com' }, 0)",
-      {
-        accountIdentityApi: { codexAccountDisplayLabel },
-        state: { settings: { maskLimitAccountEmails: false } },
-        t: (key) => key === 'settings.codex.personalWorkspace' ? 'Personal' : key
-      }
-    ),
-    'primary.user@example.com'
-  );
-  assert.equal(
-    runRendererFunctions(
-      app,
-      ['codexAccountTitle'],
-      "codexAccountTitle({ accountEmail: 'primary.user@example.com' }, 0)",
-      {
-        accountIdentityApi: { codexAccountDisplayLabel },
-        state: { settings: { maskLimitAccountEmails: true } },
-        t: (key) => key === 'settings.codex.personalWorkspace' ? 'Personal' : key
-      }
-    ),
-    'p***r@example.com'
-  );
-  assert.equal(
-    runRendererFunctions(
-      app,
-      ['codexAccountTitle'],
-      `codexAccountTitle(
-        { accountEmail: 'member@example.com', workspaceKind: 'personal' },
-        0,
-        [
-          { accountEmail: 'member@example.com', workspaceKind: 'personal' },
-          { accountEmail: 'member@example.com', accountName: 'Acme Team' }
-        ]
-      )`,
-      {
-        accountIdentityApi: { codexAccountDisplayLabel },
-        state: { settings: { maskLimitAccountEmails: false } },
-        t: (key) => key === 'settings.codex.personalWorkspace' ? '個人' : key
-      }
-    ),
-    'member@example.com · Personal'
-  );
-});
-
-test('Home applies account email masking to Claude and generic multi-account rows', () => {
-  const app = readRendererFile('app.js');
-  const functions = ['claudeAccountTitle', 'homeLimitAccountTitle'];
-  const context = (maskLimitAccountEmails) => ({
-    accountIdentityApi: { maskEmailAddress },
-    state: { settings: { maskLimitAccountEmails } }
-  });
-
-  assert.equal(
-    runRendererFunctions(
-      app,
-      functions,
-      "homeLimitAccountTitle('claude', { accountEmail: 'primary.user@example.com' }, 0)",
-      context(false)
-    ),
-    'primary.user@example.com'
-  );
-  assert.equal(
-    runRendererFunctions(
-      app,
-      functions,
-      "homeLimitAccountTitle('claude', { accountEmail: 'primary.user@example.com' }, 0)",
-      context(true)
-    ),
-    'p***r@example.com'
-  );
-  assert.equal(
-    runRendererFunctions(
-      app,
-      functions,
-      "homeLimitAccountTitle('future-provider', { accountEmail: 'secondary.user@example.com' }, 0)",
-      context(true)
-    ),
-    's***r@example.com'
-  );
+  // Title rendering for every provider lives in limitAccountTitles.test.js.
 });
 
 test('Codex system account switching is exposed from limits account rows', () => {
@@ -1024,7 +925,8 @@ test('MiMo account panel matches the manual Cookie provider layout', () => {
   assert.match(preload, /openConsole: \(\) => ipcRenderer\.invoke\('mimo:openConsole'\)/);
   assert.match(main, /ipcMain\.handle\('mimo:openConsole'/);
   assert.match(main, /ipcMain\.handle\('mimo:addAccount', \(_event, cookieHeader\) => addMimoManagedAccount\(cookieHeader\)\)/);
-  assert.match(app, /accountIdentityApi\.maskEmailAddress\(email\)/);
+  // Limits rows mask through the shared resolver; the settings list stays readable.
+  assert.match(app, /maskEmail: limitAccountEmailsMasked\(\)/);
   assert.match(app, /function mimoSettingsAccountTitle\(account, index\) \{[\s\S]*account\?\.accountEmail[\s\S]*`Account \$\{index \+ 1\}`/);
   assert.match(app, /const accountName = mimoSettingsAccountTitle\(account, index\);/);
   const addBody = functionBody(main, 'addMimoManagedAccount', 'removeMimoManagedAccount');
@@ -1349,7 +1251,7 @@ test('Home limits groups multiple MiMo accounts like Codex', () => {
   const renderLimitsBody = functionBody(app, 'renderLimits', 'serviceStatusLabel');
   assert.match(groupBody, /const groupProvider = \{ provider: 'mimo', status: 'ok', windows: \[\] \};/);
   assert.match(groupBody, /planText: t\('settings\.mimo\.nAccounts', \{ count: providers\.length \}\)/);
-  assert.match(groupBody, /renderLimitProviderRow\('mimo', mimoAccountTitle\(provider, index\), provider, color/);
+  assert.match(groupBody, /renderLimitProviderRow\('mimo', limitAccountTitle\('mimo', provider, index, providers\), provider, color/);
   assert.match(renderLimitsBody, /if \(id === 'mimo' && Array\.isArray\(visibleProviders\) && visibleProviders\.length > 1\) \{/);
   assert.match(renderLimitsBody, /nodes\.push\(renderMimoAccountGroup\(label, visibleProviders, color\)\);/);
 });

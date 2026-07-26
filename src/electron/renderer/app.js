@@ -3175,9 +3175,42 @@ function renderLimitProviderRow(id, label, provider, color, options = {}) {
   return row;
 }
 
+// Every limits surface (the limits panel and the Home cards) resolves account
+// titles here. One table keeps a provider from masking its email on one surface
+// while leaking it on the other, and from rendering two different titles for the
+// same account. Providers identified by email need no entry — the default below
+// already masks them.
+const LIMIT_ACCOUNT_TITLES = {
+  codex: codexAccountTitle,
+  opencode: opencodeAccountTitle,
+  openrouter: (provider, index) => namedApiAccountTitle(provider, index, 'openrouter'),
+  thirdparty: (provider, index) => namedApiAccountTitle(provider, index, 'thirdparty')
+};
+
+function limitAccountTitle(id, provider, index, providerEntries = [provider]) {
+  const resolve = LIMIT_ACCOUNT_TITLES[String(id || '').trim().toLowerCase()];
+  return resolve
+    ? resolve(provider, index, providerEntries)
+    : limitAccountDefaultTitle(provider, index, providerEntries);
+}
+
+// maskLimitAccountEmails is display-only: it hides the address on the limits
+// surfaces without changing what is collected, synced, or stored.
+function limitAccountEmailsMasked() {
+  return state.settings?.maskLimitAccountEmails === true;
+}
+
+function limitAccountDefaultTitle(provider, index, providerEntries = [provider]) {
+  return accountIdentityApi.accountTitleLabel(provider, providerEntries, {
+    maskEmail: limitAccountEmailsMasked(),
+    index
+  }) || `Account ${index + 1}`;
+}
+
 function codexAccountTitle(provider, index, providers = [provider]) {
   const label = accountIdentityApi.codexAccountDisplayLabel(provider, providers, {
-    maskEmail: state.settings?.maskLimitAccountEmails,
+    maskEmail: limitAccountEmailsMasked(),
+    index,
     // Limits presents raw account data such as email and Plus/Pro labels, so
     // keep the provider's canonical English workspace name on this surface.
     personalWorkspaceLabel: 'Personal'
@@ -3199,7 +3232,7 @@ function renderCodexAccountGroup(label, providers, color) {
   const accountList = document.createElement('div');
   accountList.className = 'limit-account-list';
   providers.forEach((provider, index) => {
-    accountList.append(renderLimitProviderRow('codex', codexAccountTitle(provider, index, providers), provider, color, {
+    accountList.append(renderLimitProviderRow('codex', limitAccountTitle('codex', provider, index, providers), provider, color, {
       accountRow: true,
       accountTitle: true,
       allowSystemSwitch: true,
@@ -3209,13 +3242,6 @@ function renderCodexAccountGroup(label, providers, color) {
   });
   row.append(head, accountList);
   return row;
-}
-
-function claudeAccountTitle(provider, index) {
-  const email = String(provider?.accountEmail || '').trim();
-  if (email) return state.settings?.maskLimitAccountEmails ? accountIdentityApi.maskEmailAddress(email) : email;
-  const name = String(provider?.accountName || '').trim();
-  return name || `Account ${index + 1}`;
 }
 
 function renderClaudeAccountGroup(label, providers, color) {
@@ -3229,7 +3255,7 @@ function renderClaudeAccountGroup(label, providers, color) {
   const accountList = document.createElement('div');
   accountList.className = 'limit-account-list';
   providers.forEach((provider, index) => {
-    accountList.append(renderLimitProviderRow('claude', claudeAccountTitle(provider, index), provider, color, {
+    accountList.append(renderLimitProviderRow('claude', limitAccountTitle('claude', provider, index, providers), provider, color, {
       accountRow: true,
       accountTitle: true,
       showIcon: false
@@ -3237,12 +3263,6 @@ function renderClaudeAccountGroup(label, providers, color) {
   });
   row.append(head, accountList);
   return row;
-}
-
-function mimoAccountTitle(provider, index) {
-  const email = String(provider?.accountEmail || '').trim();
-  if (email) return state.settings?.maskLimitAccountEmails ? accountIdentityApi.maskEmailAddress(email) : email;
-  return `Account ${index + 1}`;
 }
 
 function mimoSettingsAccountTitle(account, index) {
@@ -3260,7 +3280,7 @@ function renderMimoAccountGroup(label, providers, color) {
   const accountList = document.createElement('div');
   accountList.className = 'limit-account-list';
   providers.forEach((provider, index) => {
-    accountList.append(renderLimitProviderRow('mimo', mimoAccountTitle(provider, index), provider, color, {
+    accountList.append(renderLimitProviderRow('mimo', limitAccountTitle('mimo', provider, index, providers), provider, color, {
       accountRow: true,
       accountTitle: true,
       showIcon: false
@@ -3297,7 +3317,7 @@ function renderOpenCodeAccountGroup(label, providers, color) {
       && provider?.accountLabel
       && provider.accountLabel !== 'Go'
       && provider.accountLabel !== 'Zen';
-    accountList.append(renderLimitProviderRow('opencode', opencodeAccountTitle(provider, index), provider, color, {
+    accountList.append(renderLimitProviderRow('opencode', limitAccountTitle('opencode', provider, index, providers), provider, color, {
       accountRow: true,
       showIcon: false,
       ...(legacyProfileLabel ? { planText: '' } : {})
@@ -3335,7 +3355,7 @@ function renderNamedApiAccountGroup(providerId, label, providers, color, options
   providers.forEach((provider, index) => {
     accountList.append(renderLimitProviderRow(
       providerId,
-      namedApiAccountTitle(provider, index, providerId),
+      limitAccountTitle(providerId, provider, index, providers),
       provider,
       color,
       {
@@ -4141,16 +4161,6 @@ function homeModuleShell(kind, title, viewId, meta = '') {
   return { module, body };
 }
 
-function homeLimitAccountTitle(id, provider, index, providerEntries = [provider]) {
-  if (id === 'codex') return codexAccountTitle(provider, index, providerEntries);
-  if (id === 'claude') return claudeAccountTitle(provider, index);
-  if (id === 'mimo') return mimoAccountTitle(provider, index);
-  if (id === 'opencode') return opencodeAccountTitle(provider, index);
-  const email = String(provider?.accountEmail || '').trim();
-  if (email) return state.settings?.maskLimitAccountEmails ? accountIdentityApi.maskEmailAddress(email) : email;
-  return String(provider?.accountName || '').trim() || `Account ${index + 1}`;
-}
-
 function homeLimitRows() {
   const enabled = enabledLimitProviderSet();
   const providerOrder = state.settings?.homeLimitProviderOrder || state.settings?.limitProviderOrder;
@@ -4172,7 +4182,7 @@ function homeLimitRows() {
       const option = providerOptions.find((entry) => entry.id === id);
       const providerTitle = option?.label || id;
       if (providerEntries.length > 1) {
-        const accountTitle = homeLimitAccountTitle(id, provider, index, providerEntries);
+        const accountTitle = limitAccountTitle(id, provider, index, providerEntries);
         return state.settings?.showHomeLimitProviderNames === true || state.settings?.showToolIcons === false
           ? `${providerTitle} · ${accountTitle}`
           : accountTitle;
@@ -8715,7 +8725,7 @@ function renderCustomTrayLayout(stats, layout, height = 44, colors = {}, options
   const items = resolved.items.map((item) => (
     item.type === 'text'
       && item.metric === 'account'
-      && state.settings?.maskLimitAccountEmails
+      && limitAccountEmailsMasked()
       ? { ...item, text: accountIdentityApi.maskEmailAddress(item.text) }
       : item
   ));
