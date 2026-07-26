@@ -237,6 +237,52 @@ test('main section holds views; appearance is its own section; window holds beha
   );
 });
 
+test('settings mode choices use inline options and compact home limit rows', () => {
+  const html = readRendererFile('index.html');
+  // Each mode choice is a labelled radiogroup, not a bare cluster of inputs.
+  assert.match(html, /<div id="floatingBubbleTriggerRow" class="settings-item">/);
+  assert.match(html, /<span id="floatingBubbleTriggerLabel" class="settings-item-text">/);
+  assert.match(html, /role="radiogroup" aria-labelledby="floatingBubbleTriggerLabel"/);
+  for (const value of ['click', 'hover']) {
+    assert.match(html, new RegExp(`<input type="radio" name="floatingBubbleTrigger" value="${value}"`));
+  }
+  assert.match(html, /<span id="showLimitUsedLabel" class="settings-item-text">/);
+  assert.match(html, /role="radiogroup" aria-labelledby="showLimitUsedLabel"/);
+  for (const value of ['remaining', 'used']) {
+    assert.match(html, new RegExp(`<input type="radio" name="showLimitUsed" value="${value}"`));
+  }
+  assert.doesNotMatch(html, /id="floatingBubbleTriggerInput"/);
+  assert.doesNotMatch(html, /id="showLimitUsedInput"/);
+
+  const app = readRendererFile('app.js');
+  assert.match(app, /floatingBubbleTriggerInputs: Array\.from\(document\.querySelectorAll\('input\[name="floatingBubbleTrigger"\]'\)\)/);
+  assert.match(app, /showLimitUsedInputs: Array\.from\(document\.querySelectorAll\('input\[name="showLimitUsed"\]'\)\)/);
+  assert.match(app, /for \(const input of els\.showLimitUsedInputs \|\| \[\]\)/);
+  assert.match(app, /for \(const input of els\.floatingBubbleTriggerInputs \|\| \[\]\)/);
+
+  // Bound every declaration match to the body of the rule it names: an
+  // unbounded [\s\S]* happily matches the same property in an unrelated rule
+  // further down the file, so the assertion would survive deleting the rule.
+  const css = readRendererFile('styles.css');
+  assert.match(css, /\.settings-panel \.status-provider-interval\s*\{[^}]*display:\s*flex/);
+  assert.match(css, /\.settings-panel \.status-provider-interval select\s*\{[^}]*width:\s*auto/);
+  assert.match(css, /\.settings-panel \.home-limit-provider-list > \.home-limit-status-setting\s*,[^{}]*\{[^}]*min-height:\s*24px/);
+  assert.match(css, /\.settings-panel \.home-limit-account-count-setting > input\[type="number"\]\s*\{[^}]*height:\s*20px[^}]*padding:\s*2px 8px/);
+  assert.match(css, /\.settings-panel \.home-limit-provider-list > \.home-limit-status-setting \+ \.home-limit-status-setting,[^{}]*\{[^}]*margin-top:\s*0/);
+});
+
+test('checkbox labels keep semantics without making the whole row a hit target', () => {
+  const css = readRendererFile('styles.css');
+  assert.match(css, /\.settings-panel \.checkbox-label,\s*\.settings-panel label\.client-checkbox\s*\{[^}]*pointer-events:\s*none/);
+  assert.match(css, /\.settings-panel \.checkbox-label > input\[type="checkbox"\],[^{}]*\.settings-panel label\.client-checkbox > input\[type="checkbox"\]\s*\{[^}]*pointer-events:\s*auto/);
+  assert.match(css, /\.settings-panel \.client-checkboxes label\.client-checkbox input\[type="checkbox"\]\s*\{[^}]*cursor:\s*pointer/);
+});
+
+test('AI Tool Limits provider rows remain whole-row clickable', () => {
+  const css = readRendererFile('styles.css');
+  assert.match(css, /\.settings-panel \.limit-provider-list label\.client-checkbox\s*\{[^}]*pointer-events:\s*auto/);
+});
+
 test('theme code feedback clears when the displayed code changes', () => {
   const app = readRendererFile('app.js');
   const build = functionBody(app, 'buildAppearanceColorControls', 'renderThemePresetChips');

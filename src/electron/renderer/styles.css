@@ -429,6 +429,22 @@ body.is-windows.floating-bubble-collapsed-right .floating-bubble-tab {
 }
 .settings-panel label, .settings-field { display: grid; min-width: 0; gap: 4px; color: var(--muted); font-size: 11px; }
 .settings-field-label { min-width: 0; }
+/* Keep checkbox labels semantic for assistive technology, but make the visual
+   switch itself the only pointer hit target. Row whitespace and copy should not
+   toggle settings accidentally in the compact desktop panel. */
+.settings-panel .checkbox-label,
+.settings-panel label.client-checkbox {
+  pointer-events: none;
+}
+.settings-panel .checkbox-label > input[type="checkbox"],
+.settings-panel label.client-checkbox > input[type="checkbox"] {
+  pointer-events: auto;
+}
+/* The AI Tool Limits provider matrix is intentionally row-clickable: its
+   compact provider rows are easier to scan and select as a whole. */
+.settings-panel .limit-provider-list label.client-checkbox {
+  pointer-events: auto;
+}
 .settings-panel .checkbox-label {
   display: flex;
   align-items: center;
@@ -1375,6 +1391,7 @@ span.settings-note.settings-item-desc {
   flex: 0 0 auto;
   width: auto;
   margin: 0;
+  cursor: pointer;
   accent-color: var(--accent);
 }
 .settings-panel .client-checkboxes label.client-checkbox > span {
@@ -4186,6 +4203,21 @@ html.is-windows .limit-live-badge {
   padding: 0 0 0 8px;
   border-left: 1px solid rgba(var(--line-rgb), 0.14);
 }
+.settings-panel .home-limit-provider-list > .home-limit-status-setting,
+.settings-panel .home-limit-provider-list > .home-limit-account-count-setting {
+  min-height: 24px;
+  padding: 2px 0;
+}
+.settings-panel .home-limit-account-count-setting > input[type="number"] {
+  height: 20px;
+  min-height: 20px;
+  padding: 2px 8px;
+  line-height: 15px;
+}
+.settings-panel .home-limit-provider-list > .home-limit-status-setting + .home-limit-status-setting,
+.settings-panel .home-limit-provider-list > .home-limit-status-setting + .home-limit-account-count-setting {
+  margin-top: 0;
+}
 .home-activity-settings {
   display: flex;
   min-width: 0;
@@ -4231,16 +4263,22 @@ html.is-windows .limit-live-badge {
   color: var(--muted);
   font-size: 11px;
 }
-.status-provider-interval {
+.settings-panel .status-provider-interval {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
   margin-bottom: 4px;
   color: var(--muted);
   font-size: 11px;
 }
-.status-provider-interval select { font-size: 11px; }
+.settings-panel .status-provider-interval select {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 58%;
+  font-size: 11px;
+}
 .status-provider-interval.hidden { display: none; }
 
 .trends-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; overflow: hidden; }
