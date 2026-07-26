@@ -839,13 +839,14 @@ test('DeepSeek main Limits row preserves the intentional month-spend balance met
   assert.match(styles, /\.limit-window-no-reset \.limit-reset\s*\{/);
 });
 
-test('Balance values omit the redundant left suffix without changing quota copy', () => {
+test('Balance and token quota values omit the redundant left suffix', () => {
   const app = readRendererFile('app.js');
   const renderProviderWindows = functionBody(app, 'renderProviderWindows', 'renderLimitProviderRow');
 
   assert.match(renderProviderWindows, /'Balance',\s*\{ \.\.\.balanceWindow, label: 'Balance' \},\s*color,\s*0\.95,\s*formatMoney\(balanceAmount, currency\)/);
-  assert.match(renderProviderWindows, /String\(balanceLabel\)\.trim\(\)\.toLowerCase\(\) === 'balance'\s*\? balanceValue\s*: `\$\{balanceValue\} left`/);
+  assert.match(renderProviderWindows, /\{ \.\.\.\(quotaWindow \|\| \{ showMeter: false \}\), label: balanceLabel \},\s*color,\s*0\.95,\s*balanceValue/);
   assert.doesNotMatch(renderProviderWindows, /`\$\{formatMoney\(balanceAmount, currency\)\} left`/);
+  assert.doesNotMatch(renderProviderWindows, /`\$\{balanceValue\} left`/);
 });
 
 test('MiMo main Limits row falls back to balance plan fields for Token Plan', () => {

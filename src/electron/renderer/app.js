@@ -2935,9 +2935,7 @@ function renderProviderWindows(provider, color) {
         { ...(quotaWindow || { showMeter: false }), label: balanceLabel },
         color,
         0.95,
-        String(balanceLabel).trim().toLowerCase() === 'balance'
-          ? balanceValue
-          : `${balanceValue} left`
+        balanceValue
       );
       balanceNode.classList.add('limit-window-wide', 'limit-window-no-reset');
       windows.append(balanceNode);
