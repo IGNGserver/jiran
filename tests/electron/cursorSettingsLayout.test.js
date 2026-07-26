@@ -387,6 +387,43 @@ test('Codex account email masking is an opt-in display-only setting', () => {
   );
 });
 
+test('Home applies account email masking to Claude and generic multi-account rows', () => {
+  const app = readRendererFile('app.js');
+  const functions = ['claudeAccountTitle', 'homeLimitAccountTitle'];
+  const context = (maskLimitAccountEmails) => ({
+    accountIdentityApi: { maskEmailAddress },
+    state: { settings: { maskLimitAccountEmails } }
+  });
+
+  assert.equal(
+    runRendererFunctions(
+      app,
+      functions,
+      "homeLimitAccountTitle('claude', { accountEmail: 'primary.user@example.com' }, 0)",
+      context(false)
+    ),
+    'primary.user@example.com'
+  );
+  assert.equal(
+    runRendererFunctions(
+      app,
+      functions,
+      "homeLimitAccountTitle('claude', { accountEmail: 'primary.user@example.com' }, 0)",
+      context(true)
+    ),
+    'p***r@example.com'
+  );
+  assert.equal(
+    runRendererFunctions(
+      app,
+      functions,
+      "homeLimitAccountTitle('future-provider', { accountEmail: 'secondary.user@example.com' }, 0)",
+      context(true)
+    ),
+    's***r@example.com'
+  );
+});
+
 test('Codex system account switching is exposed from limits account rows', () => {
   const app = readRendererFile('app.js');
   const renderHead = functionBody(app, 'renderLimitProviderHead', 'renderProviderWindows');

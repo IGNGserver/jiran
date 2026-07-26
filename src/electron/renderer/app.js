@@ -4143,9 +4143,12 @@ function homeModuleShell(kind, title, viewId, meta = '') {
 
 function homeLimitAccountTitle(id, provider, index, providerEntries = [provider]) {
   if (id === 'codex') return codexAccountTitle(provider, index, providerEntries);
+  if (id === 'claude') return claudeAccountTitle(provider, index);
   if (id === 'mimo') return mimoAccountTitle(provider, index);
   if (id === 'opencode') return opencodeAccountTitle(provider, index);
-  return String(provider?.accountEmail || provider?.accountName || '').trim() || `Account ${index + 1}`;
+  const email = String(provider?.accountEmail || '').trim();
+  if (email) return state.settings?.maskLimitAccountEmails ? accountIdentityApi.maskEmailAddress(email) : email;
+  return String(provider?.accountName || '').trim() || `Account ${index + 1}`;
 }
 
 function homeLimitRows() {
