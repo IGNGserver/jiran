@@ -1,6 +1,6 @@
 'use strict';
 
-const clientLabels = { claude: 'Claude Code', codex: 'Codex', hermes: 'Hermes', gemini: 'Gemini', cursor: 'Cursor', opencode: 'OpenCode', openclaw: 'OpenClaw', antigravity: 'Antigravity', cline: 'Cline', kimi: 'Kimi', qwen: 'Qwen', grok: 'Grok Build', copilot: 'GitHub Copilot', pi: 'Pi', zed: 'Zed', kilocode: 'Kilo Code', micode: 'MiMo Code', zcode: 'ZCode', kiro: 'Kiro', codebuddy: 'CodeBuddy', workbuddy: 'WorkBuddy', proma: 'Proma' };
+const clientLabels = { claude: 'Claude Code', codex: 'Codex', hermes: 'Hermes Agent', gemini: 'Gemini', cursor: 'Cursor', opencode: 'OpenCode', openclaw: 'OpenClaw', antigravity: 'Antigravity', cline: 'Cline', kimi: 'Kimi', qwen: 'Qwen', grok: 'Grok Build', copilot: 'GitHub Copilot', pi: 'Pi', zed: 'Zed', kilocode: 'Kilo Code', micode: 'MiMo Code', zcode: 'ZCode', kiro: 'Kiro', codebuddy: 'CodeBuddy', workbuddy: 'WorkBuddy', proma: 'Proma' };
 const { clientColors, fallbackModelColors, modelVendorFor, modelColor } = window.TokenMonitorUsageCharts;
 const motionPreferenceApi = window.TokenMonitorMotionPreference;
 const windowsGlassApi = window.TokenMonitorWindowsGlass;
@@ -46,8 +46,8 @@ function iconKindFor(rowData, breakdown) {
 const KNOWN_CLIENTS = [
   { id: 'claude', label: 'Claude Code' },
   { id: 'codex', label: 'Codex' },
-  { id: 'hermes', label: 'Hermes' },
   { id: 'opencode', label: 'OpenCode' },
+  { id: 'hermes', label: 'Hermes Agent' },
   { id: 'openclaw', label: 'OpenClaw' },
   { id: 'cursor', label: 'Cursor' },
   { id: 'antigravity', label: 'Antigravity' },
@@ -69,21 +69,21 @@ const KNOWN_CLIENTS = [
 const LIMIT_PROVIDERS = [
   { id: 'claude', label: 'Claude', settingsLabel: 'Claude Code' },
   { id: 'codex', label: 'Codex' },
+  { id: 'opencode', label: 'OpenCode' },
   { id: 'cursor', label: 'Cursor' },
   { id: 'antigravity', label: 'Antigravity' },
-  { id: 'opencode', label: 'OpenCode' },
-  { id: 'openrouter', label: 'OpenRouter' },
-  { id: 'deepseek', label: 'DeepSeek' },
-  { id: 'minimax', label: 'Minimax' },
-  { id: 'mimo', label: 'MiMo' },
+  { id: 'kimi', label: 'Kimi' },
   { id: 'grok', label: 'Grok' },
   { id: 'copilot', label: 'GitHub Copilot' },
-  { id: 'kiro', label: 'Kiro' },
+  { id: 'mimo', label: 'MiMo' },
   { id: 'zai', label: 'GLM' },
   { id: 'zaiteam', label: 'GLM Team' },
+  { id: 'kiro', label: 'Kiro' },
+  { id: 'deepseek', label: 'DeepSeek' },
+  { id: 'openrouter', label: 'OpenRouter' },
+  { id: 'minimax', label: 'Minimax' },
   { id: 'volcengine', label: 'Volcengine' },
   { id: 'qoder', label: 'Qoder' },
-  { id: 'kimi', label: 'Kimi' },
   { id: 'ollama', label: 'Ollama' },
   { id: 'thirdparty', label: 'Third-party APIs' }
 ];
@@ -526,6 +526,18 @@ function setupSettingsSections() {
   els.settingsPanel?.addEventListener('pointerdown', cancelSettingsScrollAnchor, { passive: true });
   els.settingsPanel?.addEventListener('wheel', cancelSettingsScrollAnchor, { passive: true });
   els.settingsPanel?.addEventListener('keydown', cancelSettingsScrollAnchorOnKeydown);
+}
+
+function orderAccountProviderGroups() {
+  const container = document.getElementById('accountsSettingsDetails');
+  if (!container) return;
+  for (const provider of LIMIT_PROVIDERS) {
+    const groupId = provider.id === 'opencode'
+      ? 'opencodeCookieGroup'
+      : `${provider.id}AccountGroup`;
+    const group = document.getElementById(groupId);
+    if (group?.parentElement === container) container.append(group);
+  }
 }
 
 function refreshIntervalLabel(value) {
@@ -9967,11 +9979,13 @@ async function updateOpenCodeProfilesStatus() {
   }
 }
 
-function openrouterProfileStatusText(provider, enabled = true) {
-  if (!enabled) return t('settings.profiles.disabled');
-  if (!provider) return t('settings.openrouter.checking');
-  if (provider.status === 'unauthorized') return t('settings.openrouter.invalidKey');
-  if (provider.status !== 'ok') return t('settings.openrouter.unavailable');
+function openrouterProfileStatusText(provider, options = {}) {
+  const status = limitProviderPresentationApi.namedApiProfileStatus(provider, options);
+  if (status === 'disabled') return t('settings.profiles.disabled');
+  if (status === 'hidden') return '';
+  if (status === 'checking') return t('settings.openrouter.checking');
+  if (status === 'invalid') return t('settings.openrouter.invalidKey');
+  if (status !== 'linked') return t('settings.openrouter.unavailable');
   const balance = optionalFiniteNumber(provider.balance?.amount);
   if (balance !== null) return `✓ ${formatMoney(balance, 'USD')}`;
   const quota = (provider.windows || []).find((window) => window?.showMeter !== false);
@@ -9980,11 +9994,13 @@ function openrouterProfileStatusText(provider, enabled = true) {
   return '✓';
 }
 
-function thirdPartyProfileStatusText(provider, enabled = true) {
-  if (!enabled) return t('settings.profiles.disabled');
-  if (!provider) return t('settings.thirdparty.checking');
-  if (provider.status === 'unauthorized') return t('settings.thirdparty.invalidKey');
-  if (provider.status !== 'ok') return t('settings.thirdparty.unavailable');
+function thirdPartyProfileStatusText(provider, options = {}) {
+  const status = limitProviderPresentationApi.namedApiProfileStatus(provider, options);
+  if (status === 'disabled') return t('settings.profiles.disabled');
+  if (status === 'hidden') return '';
+  if (status === 'checking') return t('settings.thirdparty.checking');
+  if (status === 'invalid') return t('settings.thirdparty.invalidKey');
+  if (status !== 'linked') return t('settings.thirdparty.unavailable');
   const balance = optionalFiniteNumber(provider.balance?.amount);
   if (balance !== null) return `✓ ${formatCompactMoney(balance, provider.balance?.currency || 'USD')}`;
   const unlimited = (provider.windows || []).some((window) => (
@@ -9999,6 +10015,7 @@ function updateNamedApiProfilesStatus({
   profileCountStateKey,
   statusText
 }) {
+  const providerEnabled = limitProviderEnabled(providerId);
   const providers = localProviderStatuses(providerId);
   const byName = new Map(providers.map((provider) => [
     String(provider.accountName || provider.accountLabel || ''),
@@ -10007,19 +10024,24 @@ function updateNamedApiProfilesStatus({
   for (const infoEl of document.querySelectorAll(`[data-managed-profile-provider="${providerId}"][data-managed-profile-name]`)) {
     const name = infoEl.dataset.managedProfileName || '';
     const profile = state.settings?.[profileSettingsKey]?.[name];
-    infoEl.textContent = statusText(byName.get(name), profile?.enabled !== false);
+    infoEl.textContent = statusText(byName.get(name), {
+      providerEnabled,
+      profileEnabled: profile?.enabled !== false
+    });
   }
   const envInfo = document.querySelector(
     `[data-managed-profile-provider="${providerId}"][data-managed-profile-environment]`
   );
-  if (envInfo) envInfo.textContent = statusText(byName.get('environment'));
+  if (envInfo) envInfo.textContent = statusText(byName.get('environment'), { providerEnabled });
   const statusEl = document.getElementById(`${providerId}Status`);
   if (!statusEl) return;
   const total = state[profileCountStateKey] || 0;
   const linked = providers.filter((provider) => provider.status === 'ok').length;
-  statusEl.textContent = total > 0
-    ? t(`settings.${providerId}.connected`, { linked, total })
-    : t(`settings.${providerId}.statusNotSet`);
+  statusEl.textContent = total === 0
+    ? t(`settings.${providerId}.statusNotSet`)
+    : !providerEnabled
+      ? t(`settings.${providerId}.nAccounts`, { count: total })
+      : t(`settings.${providerId}.connected`, { linked, total });
 }
 
 function updateOpenRouterProfilesStatus() {
@@ -10083,10 +10105,25 @@ function appendNamedApiProfileRow(listEl, config) {
     toggle.checked = profile.enabled !== false;
     toggle.setAttribute('aria-label', name);
     toggle.addEventListener('change', async () => {
-      const result = await api.setProfileEnabled(name, toggle.checked);
-      if (!result?.ok) toggle.checked = !toggle.checked;
+      const previousEnabled = profile.enabled !== false;
+      profile.enabled = toggle.checked;
+      toggle.disabled = true;
       updateStatus();
-      renderSettingsSummaries();
+      try {
+        const result = await api.setProfileEnabled(name, toggle.checked);
+        if (!result?.ok) {
+          toggle.checked = previousEnabled;
+          profile.enabled = previousEnabled;
+          updateStatus();
+        }
+      } catch (_) {
+        toggle.checked = previousEnabled;
+        profile.enabled = previousEnabled;
+        updateStatus();
+      } finally {
+        toggle.disabled = false;
+        renderSettingsSummaries();
+      }
     });
     item.append(toggle);
   } else {
@@ -11612,6 +11649,7 @@ function initSettingsAnimationWrappers() {
   });
 }
 
+orderAccountProviderGroups();
 initSettingsAnimationWrappers();
 setupSettingsSections();
 setupCursorAccountUI();
