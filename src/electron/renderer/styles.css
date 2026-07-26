@@ -3123,9 +3123,11 @@ html.is-windows .settings-panel select option {
 .limit-row-group {
   gap: 8px;
 }
+/* Spacing lives on the rows, not here, so each account can carry its own
+   separator rule in the gap it opens above itself. */
 .limit-account-list {
   display: grid;
-  gap: 10px;
+  gap: 0;
 }
 .limit-live-badge {
   flex: 0 0 auto;
@@ -3273,12 +3275,47 @@ html.is-windows .limit-live-badge {
   padding: 0;
   border-bottom: 0;
 }
+/* Accounts sit one tier below providers, so they get their own separator that
+   reads as weaker than the provider rule: half its alpha, and feathered at both
+   ends instead of hard full-bleed. The feathering is what actually carries the
+   tier — halved alpha on a 1px line is barely perceptible on the dark gradient,
+   whereas "no hard edge" is unmistakable next to the provider rule. 0.06 is
+   this stylesheet's floor for a hairline that survives the light theme, so the
+   weight can't go lower. Twice the within-account gap (.limit-row) carries the
+   grouping on its own; the rule just pins it. `+` keeps it strictly between
+   accounts. */
+.limit-account-row + .limit-account-row {
+  position: relative;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+.limit-account-row + .limit-account-row::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1px;
+  /* Percentage stops, not px: the window is resizable, and a fixed feather
+     collapses into a near-hard edge once the panel is wide. Fade stops use
+     rgba(…, 0) rather than `transparent` so only alpha ramps — `transparent`
+     is rgba(0, 0, 0, 0) and would drag the hue toward black. */
+  background: linear-gradient(
+    to right,
+    rgba(var(--line-rgb), 0) 0,
+    rgba(var(--line-rgb), 0.075) 22%,
+    rgba(var(--line-rgb), 0.075) 78%,
+    rgba(var(--line-rgb), 0) 100%
+  );
+  content: '';
+}
 .limit-account-row .limit-head {
   gap: 10px;
 }
+/* The account title heads its own block, so it must not be dimmer than the
+   numbers underneath it — the meta line below stays muted to rank under it. */
 .limit-account-row .limit-name {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--text);
 }
 .limit-account-row .limit-windows {
   gap: 8px;
