@@ -64,6 +64,7 @@ const limitsOptions = {
   limitsEnabled,
   limitProviders,
   limitsRefreshMs,
+  claudeWebCookie: '',
   opencodeCookie
 };
 let sessionUsageArchive;

@@ -242,7 +242,7 @@ function normalizeInitialViewValue(value, allowed, fallback) {
   return allowed.has(raw) ? raw : fallback;
 }
 
-const state = { period: normalizeInitialViewValue(initialViewState.period, viewPeriodValues, 'today'), appUpdate: null, breakdown: normalizeInitialViewValue(initialViewState.breakdown, viewBreakdownValues, 'home'), viewSwitcherOpen: false, viewSwitcherHasOpened: false, limitDetailTooltipHasOpened: false, limitDetailTooltipActive: false, limitDetailTooltipRenderPending: false, settings: null, stats: null, homeHistory: null, homeHistoryBusy: false, homeHistoryRequested: false, homeHistorySignature: '', homeHistoryRetries: 0, homeHistoryRetryTimer: null, homeActivityScrollLeft: null, homeActivityFollowEnd: true, homeActivityResizeObserver: null, serviceStatus: null, serviceStatusBusy: false, serviceProvidersExpanded: false, trendSettingsExpanded: false, trendsActivating: false, homeSettingsExpanded: false, homeLimitSettingsExpanded: false, serviceStatusTicker: null, refreshTimer: null, refreshBusy: false, refreshFeedbackTimer: null, currentTotal: 0, rowSignature: '', streamConnected: false, streamFailure: null, mode: 'idle', appInfo: null, tokscaleStatus: null, tokscaleCheck: null, tokscaleBusy: false, hubInfo: null, cursorAccount: { status: null, error: '' }, cursorAccountExpanded: false, codexAccountExpanded: false, codexAccountError: '', codexSignInBusy: false, codexSignInFlowId: '', codexLoginUrl: '', codexLoginStatus: '', codexLoginOutput: '', codexWorkspaceChoices: [], codexWorkspaceId: '', codexActiveAccount: null, codexPendingActiveAccount: null, codexPendingActiveAccountUntil: 0, codexPendingActiveAccountTimer: null, codexSystemSwitchingAccountId: '', codexSystemSwitchErrorAccountId: '', codexSystemSwitchError: '', codexSwitchPopoverHasOpened: false, codexSwitchPopoverActive: false, codexSwitchPopoverRenderPending: false, customPricingExpanded: false, opencodeProfileCount: 0, opencodeCookieExpanded: false, openrouterProfileCount: 0, openrouterAccountExpanded: false, thirdPartyProfileCount: 0, thirdPartyAccountExpanded: false, deepseekAccountExpanded: false, deepseekPendingCheckSince: 0, minimaxAccountExpanded: false, minimaxPendingCheckSince: 0, zaiAccountExpanded: false, zaiPendingCheckSince: 0, zaiteamAccountExpanded: false, zaiteamPendingCheckSince: 0, volcengineAccountExpanded: false, volcenginePendingCheckSince: 0, qoderAccountExpanded: false, qoderPendingCheckSince: 0, kimiAccountExpanded: false, kimiPendingCheckSince: 0, ollamaAccountExpanded: false, ollamaPendingCheckSince: 0, mimoAccountExpanded: false, mimoAccountError: '', copilotAccountExpanded: false, copilotManualExpanded: false, copilotPendingCheckSince: 0, copilotSignInBusy: false, copilotSignInCancelable: false, copilotSignInFlowId: '', copilotAuthorizeMessage: '', copilotLoginStatus: '', copilotErrorMessage: '', floatingBubble: initialFloatingBubble, suppressInitialNumberAnimation: window.__TOKEN_MONITOR_SUPPRESS_INITIAL_NUMBER_ANIMATION__ === true, openSession: null, detailSort: 'time', recordingWindowShortcut: false, windowShortcutInvalid: false };
+const state = { period: normalizeInitialViewValue(initialViewState.period, viewPeriodValues, 'today'), appUpdate: null, breakdown: normalizeInitialViewValue(initialViewState.breakdown, viewBreakdownValues, 'home'), viewSwitcherOpen: false, viewSwitcherHasOpened: false, limitDetailTooltipHasOpened: false, limitDetailTooltipActive: false, limitDetailTooltipRenderPending: false, settings: null, stats: null, homeHistory: null, homeHistoryBusy: false, homeHistoryRequested: false, homeHistorySignature: '', homeHistoryRetries: 0, homeHistoryRetryTimer: null, homeActivityScrollLeft: null, homeActivityFollowEnd: true, homeActivityResizeObserver: null, serviceStatus: null, serviceStatusBusy: false, serviceProvidersExpanded: false, trendSettingsExpanded: false, trendsActivating: false, homeSettingsExpanded: false, homeLimitSettingsExpanded: false, serviceStatusTicker: null, refreshTimer: null, refreshBusy: false, refreshFeedbackTimer: null, currentTotal: 0, rowSignature: '', streamConnected: false, streamFailure: null, mode: 'idle', appInfo: null, tokscaleStatus: null, tokscaleCheck: null, tokscaleBusy: false, hubInfo: null, cursorAccount: { status: null, error: '' }, cursorAccountExpanded: false, codexAccountExpanded: false, codexAccountError: '', codexSignInBusy: false, codexSignInFlowId: '', codexLoginUrl: '', codexLoginStatus: '', codexLoginOutput: '', codexWorkspaceChoices: [], codexWorkspaceId: '', codexActiveAccount: null, codexPendingActiveAccount: null, codexPendingActiveAccountUntil: 0, codexPendingActiveAccountTimer: null, codexSystemSwitchingAccountId: '', codexSystemSwitchErrorAccountId: '', codexSystemSwitchError: '', codexSwitchPopoverHasOpened: false, codexSwitchPopoverActive: false, codexSwitchPopoverRenderPending: false, customPricingExpanded: false, claudeAccountExpanded: false, claudePendingCheckSince: 0, opencodeProfileCount: 0, opencodeCookieExpanded: false, openrouterProfileCount: 0, openrouterAccountExpanded: false, thirdPartyProfileCount: 0, thirdPartyAccountExpanded: false, deepseekAccountExpanded: false, deepseekPendingCheckSince: 0, minimaxAccountExpanded: false, minimaxPendingCheckSince: 0, zaiAccountExpanded: false, zaiPendingCheckSince: 0, zaiteamAccountExpanded: false, zaiteamPendingCheckSince: 0, volcengineAccountExpanded: false, volcenginePendingCheckSince: 0, qoderAccountExpanded: false, qoderPendingCheckSince: 0, kimiAccountExpanded: false, kimiPendingCheckSince: 0, ollamaAccountExpanded: false, ollamaPendingCheckSince: 0, mimoAccountExpanded: false, mimoAccountError: '', copilotAccountExpanded: false, copilotManualExpanded: false, copilotPendingCheckSince: 0, copilotSignInBusy: false, copilotSignInCancelable: false, copilotSignInFlowId: '', copilotAuthorizeMessage: '', copilotLoginStatus: '', copilotErrorMessage: '', floatingBubble: initialFloatingBubble, suppressInitialNumberAnimation: window.__TOKEN_MONITOR_SUPPRESS_INITIAL_NUMBER_ANIMATION__ === true, openSession: null, detailSort: 'time', recordingWindowShortcut: false, windowShortcutInvalid: false };
 state.homeHistoryLoadedSignature = '';
 state.homeHistoryRetrySignature = '';
 state.homeReturnVisible = false;
@@ -567,6 +567,7 @@ function settingsSectionSummary(section) {
     });
   }
   if (section === 'accounts') {
+    const claudeLinked = externalProviderAccountLinked('claude');
     const cursorLinked = Boolean(state.cursorAccount.status?.loggedIn) && !state.cursorAccount.status?.expired;
     const opencodeCount = state.opencodeProfileCount || 0;
     const openrouterCount = state.openrouterProfileCount || 0;
@@ -583,8 +584,8 @@ function settingsSectionSummary(section) {
     const copilotLinked = copilotAccountLinked();
     const codexLinked = (state.settings?.codexManagedAccounts || []).length > 0;
     return t('settings.summary.accounts', {
-      linked: (codexLinked ? 1 : 0) + (cursorLinked ? 1 : 0) + (opencodeCount > 0 ? 1 : 0) + (openrouterCount > 0 ? 1 : 0) + (thirdpartyCount > 0 ? 1 : 0) + (deepseekLinked ? 1 : 0) + (minimaxLinked ? 1 : 0) + (zaiLinked ? 1 : 0) + (zaiteamLinked ? 1 : 0) + (volcengineLinked ? 1 : 0) + (qoderLinked ? 1 : 0) + (kimiLinked ? 1 : 0) + (ollamaLinked ? 1 : 0) + (mimoLinked ? 1 : 0) + (copilotLinked ? 1 : 0),
-      total: 15
+      linked: (claudeLinked ? 1 : 0) + (codexLinked ? 1 : 0) + (cursorLinked ? 1 : 0) + (opencodeCount > 0 ? 1 : 0) + (openrouterCount > 0 ? 1 : 0) + (thirdpartyCount > 0 ? 1 : 0) + (deepseekLinked ? 1 : 0) + (minimaxLinked ? 1 : 0) + (zaiLinked ? 1 : 0) + (zaiteamLinked ? 1 : 0) + (volcengineLinked ? 1 : 0) + (qoderLinked ? 1 : 0) + (kimiLinked ? 1 : 0) + (ollamaLinked ? 1 : 0) + (mimoLinked ? 1 : 0) + (copilotLinked ? 1 : 0),
+      total: 16
     });
   }
   if (section === 'limits') {
@@ -3210,6 +3211,34 @@ function renderCodexAccountGroup(label, providers, color) {
   return row;
 }
 
+function claudeAccountTitle(provider, index) {
+  const email = String(provider?.accountEmail || '').trim();
+  if (email) return state.settings?.maskLimitAccountEmails ? accountIdentityApi.maskEmailAddress(email) : email;
+  const name = String(provider?.accountName || '').trim();
+  return name || `Account ${index + 1}`;
+}
+
+function renderClaudeAccountGroup(label, providers, color) {
+  const row = document.createElement('div');
+  row.className = `limit-row limit-row-group${providers.some((provider) => provider.stale) ? ' stale' : ''}`;
+  const groupProvider = { provider: 'claude', status: 'ok', windows: [] };
+  const head = renderLimitProviderHead('claude', label, groupProvider, color, {
+    planText: t('settings.limits.nAccounts', { count: providers.length }),
+    hideMeta: true
+  });
+  const accountList = document.createElement('div');
+  accountList.className = 'limit-account-list';
+  providers.forEach((provider, index) => {
+    accountList.append(renderLimitProviderRow('claude', claudeAccountTitle(provider, index), provider, color, {
+      accountRow: true,
+      accountTitle: true,
+      showIcon: false
+    }));
+  });
+  row.append(head, accountList);
+  return row;
+}
+
 function mimoAccountTitle(provider, index) {
   const email = String(provider?.accountEmail || '').trim();
   if (email) return state.settings?.maskLimitAccountEmails ? accountIdentityApi.maskEmailAddress(email) : email;
@@ -3366,6 +3395,10 @@ function renderLimits() {
       ? providerEntries
       : { provider: id, status: 'disabled', windows: [] };
     const color = id === 'mimo' ? clientColors.xiaomi : (clientColors[id] || clientColors.default);
+    if (id === 'claude' && Array.isArray(visibleProviders) && visibleProviders.length > 1) {
+      nodes.push(renderClaudeAccountGroup(label, visibleProviders, color));
+      continue;
+    }
     if (id === 'codex' && Array.isArray(visibleProviders) && visibleProviders.length > 1) {
       nodes.push(renderCodexAccountGroup(label, visibleProviders, color));
       continue;
@@ -4963,6 +4996,7 @@ async function refreshStats(options = {}) {
     updateThirdPartyProfilesStatus();
     renderDeepseekStatus();
     renderMinimaxStatus();
+    renderExternalProviderStatus('claude');
     renderExternalProviderStatus('zai');
     renderExternalProviderStatus('zaiteam');
     renderExternalProviderStatus('volcengine');
@@ -5994,6 +6028,7 @@ function syncSettingsForm() {
   syncSliderRows();
   renderDeepseekStatus();
   renderMinimaxStatus();
+  renderExternalProviderStatus('claude');
   renderExternalProviderStatus('zai');
   renderExternalProviderStatus('zaiteam');
   renderExternalProviderStatus('volcengine');
@@ -8001,6 +8036,7 @@ window.tokenMonitor.onStatsPush?.((payload) => {
     updateThirdPartyProfilesStatus();
     renderDeepseekStatus();
     renderMinimaxStatus();
+    renderExternalProviderStatus('claude');
     renderExternalProviderStatus('zai');
     renderExternalProviderStatus('zaiteam');
     renderExternalProviderStatus('volcengine');
@@ -9483,6 +9519,11 @@ function clearCopilotProviderStatus() {
 }
 
 const externalLimitAccountConfig = {
+  claude: {
+    configuredKey: 'claudeWebCookieConfigured',
+    sourceKey: 'claudeWebCookieSource',
+    pendingKey: 'claudePendingCheckSince'
+  },
   zai: {
     configuredKey: 'zaiApiKeyConfigured',
     sourceKey: 'zaiApiKeySource',
@@ -9651,6 +9692,10 @@ function volcenginePlatformUrl() {
   return 'https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe';
 }
 
+function claudePlatformUrl() {
+  return 'https://claude.ai/settings/usage';
+}
+
 function selectedQoderSite() {
   const selectedSite = document.getElementById('qoderSiteInput')?.value;
   return selectedSite || (state.settings?.qoderSite === 'cn' ? 'cn' : 'global');
@@ -9723,7 +9768,8 @@ function renderExternalProviderStatus(providerName) {
   );
   manualPanel.classList.toggle('hidden', linked);
   openBtn.classList.toggle('hidden', linked);
-  logoutBtn.classList.toggle('hidden', !linked || source !== 'settings');
+  const canClearConfiguredClaude = providerName === 'claude' && configured;
+  logoutBtn.classList.toggle('hidden', source !== 'settings' || (!linked && !canClearConfiguredClaude));
   refreshBtn.classList.toggle('hidden', !configured);
   renderSettingsSummaries();
 }
@@ -11211,6 +11257,83 @@ function setupCursorAccountUI() {
     });
   }
 
+  const claudeToggle = document.getElementById('claudeSettingsToggle');
+  if (claudeToggle) {
+    claudeToggle.addEventListener('click', () => setExternalAccountExpanded('claude', !state.claudeAccountExpanded));
+    setExternalAccountExpanded('claude', false);
+    renderExternalProviderStatus('claude');
+
+    document.getElementById('claudeOpenBrowser').addEventListener('click', () => {
+      window.tokenMonitor.openExternal(claudePlatformUrl());
+    });
+
+    document.getElementById('claudeLogoutButton').addEventListener('click', async () => {
+      await saveSettings({ claudeWebCookie: '' });
+      clearExternalProviderCheckPending('claude');
+      clearExternalProviderPendingStatus('claude');
+      renderExternalProviderStatus('claude');
+      await refreshStats({ force: true });
+    });
+
+    document.getElementById('claudeRefreshButton').addEventListener('click', async () => {
+      await refreshStats({ force: true });
+    });
+
+    document.getElementById('claudeWebCookieSubmit').addEventListener('click', async () => {
+      const input = document.getElementById('claudeWebCookieInput');
+      const submitButton = document.getElementById('claudeWebCookieSubmit');
+      const errorEl = document.getElementById('claudeErrorMessage');
+      errorEl.classList.add('hidden');
+      if (!String(input.value || '').trim()) {
+        errorEl.textContent = t('settings.claude.cookieRequired');
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      if (/[\r\n]/.test(input.value)) {
+        errorEl.textContent = t('settings.claude.cookieInvalidFormat');
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      if (submitButton.disabled) return;
+      submitButton.disabled = true;
+      submitButton.textContent = t('settings.common.checking');
+      try {
+        const result = await window.tokenMonitor.claude.saveCookie(input.value);
+        if (result?.superseded) return;
+        if (!result?.ok) {
+          if (result?.errorCode === 'INVALID_CLAUDE_WEB_SESSION_KEY') {
+            errorEl.textContent = t('settings.claude.cookieInvalidFormat');
+          } else if (result?.errorCode === 'CLAUDE_WEB_SOURCE_CHALLENGE') {
+            errorEl.textContent = t('settings.claude.sourceChallenge');
+          } else if (result?.status === 'unauthorized') {
+            errorEl.textContent = t('settings.claude.cookieRejected');
+          } else {
+            errorEl.textContent = t('settings.claude.cookieCheckFailed');
+          }
+          errorEl.classList.remove('hidden');
+          return;
+        }
+        markExternalProviderCheckPending('claude');
+        await saveSettings({
+          limitProviders: limitProviderSelectionIncluding('claude'),
+          limitsEnabled: true
+        });
+        input.value = '';
+        renderExternalProviderStatus('claude');
+        await refreshStats({ force: true });
+        setExternalAccountExpanded('claude', !externalProviderAccountLinked('claude'));
+        renderExternalProviderStatus('claude');
+      } catch (err) {
+        clearExternalProviderCheckPending('claude');
+        errorEl.textContent = t('settings.claude.saveFailed', { message: err.message });
+        errorEl.classList.remove('hidden');
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = t('settings.claude.saveCookie');
+      }
+    });
+  }
+
   const qoderToggle = document.getElementById('qoderSettingsToggle');
   if (qoderToggle) {
     qoderToggle.addEventListener('click', () => setExternalAccountExpanded('qoder', !state.qoderAccountExpanded));
@@ -11617,6 +11740,7 @@ function initSettingsAnimationWrappers() {
     '.cursor-settings-details',
     '.hub-mode-fields',
     '.presence-feature-body',
+    '#claudeManualPanel',
     '#cursorManualPanel',
     '#opencodeManualPanel',
     '#deepseekManualPanel',

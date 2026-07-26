@@ -23,6 +23,16 @@ function cssRule(source, selector) {
   return match[1];
 }
 
+function cssRulesForSelector(source, selector) {
+  const rules = [];
+  for (const match of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selectors = match[1].split(',').map(candidate => candidate.trim());
+    if (selectors.includes(selector)) rules.push(match[2]);
+  }
+  assert.ok(rules.length > 0, `${selector} rule should exist`);
+  return rules;
+}
+
 function declaration(rule, property) {
   const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = rule.match(new RegExp(`${escaped}\\s*:\\s*([^;]+);`));
@@ -735,6 +745,117 @@ test('Kimi account panel stores web access separately and opens the allowlisted 
   assert.match(allowlist, /parsed\.pathname\.startsWith\('\/code'\)/);
 });
 
+test('Claude Web account panel stores a redacted cookie and opens only the usage page', () => {
+  const html = readRendererFile('index.html');
+  const details = html.match(
+    /<div id="claudeAccountGroup"[\s\S]*?<div id="claudeErrorMessage" class="settings-note error hidden"><\/div>/
+  )?.[0] || '';
+  assert.match(details, /data-i18n="settings\.claude\.title">Claude Account<\/span>/);
+  assert.match(details, /data-i18n="settings\.claude\.openBrowser">Open Claude usage in browser<\/button>/);
+  assert.match(details, /settings\.claude\.note[\s\S]*detected automatically when Web login is not configured/);
+  assert.match(details, /settings\.claude\.step2[\s\S]*Application\/Storage[\s\S]*Cookies[\s\S]*https:\/\/claude\.ai/);
+  assert.match(details, /settings\.claude\.step3[\s\S]*Copy the sessionKey value/);
+  assert.match(details, /<textarea id="claudeWebCookieInput" rows="3" autocomplete="off"[\s\S]*placeholder="sessionKey=\.\.\."/);
+  assert.match(details, /<button id="claudeWebCookieSubmit"[\s\S]*data-i18n="settings\.claude\.saveCookie">/);
+  assert.ok(
+    html.indexOf('id="claudeAccountGroup"') < html.indexOf('id="codexAccountGroup"'),
+    'Claude should follow the AI Limits provider order and appear before Codex'
+  );
+
+  const app = readRendererFile('app.js');
+  const queriedDocument = {
+    selectors: '',
+    querySelectorAll(selectors) {
+      this.selectors = selectors;
+      return [];
+    }
+  };
+  runRendererFunctions(
+    app,
+    ['initSettingsAnimationWrappers'],
+    'initSettingsAnimationWrappers();',
+    { document: queriedDocument }
+  );
+  assert.ok(
+    queriedDocument.selectors.split(',').map(selector => selector.trim()).includes('#claudeManualPanel'),
+    'Claude manual panel should receive the shared accordion wrapper'
+  );
+
+  const css = readRendererFile('styles.css');
+  const hiddenPanelRules = cssRulesForSelector(css, '#claudeManualPanel.hidden');
+  assert.ok(hiddenPanelRules.some(rule => declaration(rule, 'display') === 'none'));
+  const panelRules = cssRulesForSelector(css, '#claudeManualPanel');
+  assert.ok(panelRules.some(rule => declaration(rule, 'min-width') === '0'));
+  const innerRules = cssRulesForSelector(css, '#claudeManualPanel > .accordion-animation-inner');
+  assert.ok(innerRules.some(rule => (
+    declaration(rule, 'display') === 'grid'
+      && declaration(rule, 'gap') === '8px'
+  )));
+  const textareaRules = cssRulesForSelector(css, '#claudeManualPanel textarea');
+  assert.ok(textareaRules.some(rule => (
+    declaration(rule, 'width') === '100%'
+      && declaration(rule, 'font-size') === '12px'
+  )));
+  assert.ok(textareaRules.some(rule => declaration(rule, 'font-family') === 'monospace'));
+  const collapsedRules = cssRulesForSelector(css, '.accordion-animated-container.hidden');
+  assert.ok(collapsedRules.some(rule => (
+    declaration(rule, 'grid-template-rows') === '0fr'
+      && declaration(rule, 'pointer-events') === 'none'
+  )));
+  const collapsedInnerRules = cssRulesForSelector(
+    css,
+    '.accordion-animated-container.hidden > .accordion-animation-inner'
+  );
+  assert.ok(collapsedInnerRules.some(rule => declaration(rule, 'opacity') === '0'));
+
+  const setupBody = functionBodyBeforeMarker(app, 'setupCursorAccountUI', '\nsetupCursorAccountUI();');
+  assert.match(setupBody, /if \(\/\[\\r\\n\]\/\.test\(input\.value\)\)[\s\S]*settings\.claude\.cookieInvalidFormat/);
+  assert.match(setupBody, /window\.tokenMonitor\.claude\.saveCookie\(input\.value\)/);
+  assert.match(setupBody, /if \(result\?\.superseded\) return;/);
+  assert.ok(
+    setupBody.indexOf('window.tokenMonitor.claude.saveCookie(input.value)')
+      < setupBody.indexOf("limitProviders: limitProviderSelectionIncluding('claude')"),
+    'Claude Web cookies must be validated before they are persisted'
+  );
+  assert.match(setupBody, /INVALID_CLAUDE_WEB_SESSION_KEY[\s\S]*settings\.claude\.cookieInvalidFormat/);
+  assert.match(setupBody, /CLAUDE_WEB_SOURCE_CHALLENGE[\s\S]*settings\.claude\.sourceChallenge/);
+  assert.match(setupBody, /result\?\.status === 'unauthorized'[\s\S]*settings\.claude\.cookieRejected/);
+  assert.match(setupBody, /saveSettings\(\{\s*limitProviders: limitProviderSelectionIncluding\('claude'\),[\s\S]*?limitsEnabled: true/);
+  assert.doesNotMatch(setupBody, /saveSettings\(\{\s*claudeWebCookie: input\.value/);
+  assert.match(setupBody, /saveSettings\(\{ claudeWebCookie: '' \}\)/);
+  assert.match(setupBody, /window\.tokenMonitor\.openExternal\(claudePlatformUrl\(\)\)/);
+  const statusBody = functionBody(app, 'renderExternalProviderStatus', 'setMinimaxAccountExpanded');
+  assert.match(statusBody, /const canClearConfiguredClaude = providerName === 'claude' && configured;/);
+  assert.match(statusBody, /manualPanel\.classList\.toggle\('hidden', linked\)/);
+  assert.match(statusBody, /source !== 'settings' \|\| \(!linked && !canClearConfiguredClaude\)/);
+  const urlBody = functionBody(app, 'claudePlatformUrl', 'selectedQoderSite');
+  assert.match(urlBody, /return 'https:\/\/claude\.ai\/settings\/usage';/);
+
+  const main = fs.readFileSync(path.join(rendererDir, '..', 'main.js'), 'utf8');
+  assert.match(main, /function normalizeClaudeWebCookie\(value\) \{\s*return normalizeClaudeWebCookieInput\(value\);\s*\}/);
+  assert.match(main, /ipcMain\.handle\('claude:saveCookie'[\s\S]*fetchClaudeLimits\([\s\S]*providerRuntimeState: new Map\(\)/);
+  assert.match(main, /const requestRevision = \+\+claudeWebCookieMutationRevision;/);
+  assert.match(main, /claudeWebCookieMutationRevision !== requestRevision[\s\S]*superseded: true/);
+  assert.match(main, /settings\.claudeWebCookie = cookieToPersist;[\s\S]*saveSettings\(\{ throwOnError: true \}\)/);
+  const preload = fs.readFileSync(path.join(rendererDir, '..', 'preload.js'), 'utf8');
+  assert.match(preload, /claude: \{\s*saveCookie: \(cookie\) => ipcRenderer\.invoke\('claude:saveCookie', cookie\)/);
+  const updateHandler = main.slice(
+    main.indexOf("ipcMain.handle('settings:update'"),
+    main.indexOf("ipcMain.handle('appearance:preview'")
+  );
+  assert.ok(
+    updateHandler.indexOf('normalizeClaudeWebCookie(patch.claudeWebCookie)')
+      < updateHandler.indexOf('saveSettings({ throwOnError: true })'),
+    'invalid Claude cookies must be rejected before the existing credential can be persisted over'
+  );
+  const rendererSettings = functionBody(main, 'settingsForRenderer', 'pushSettingsToRenderer');
+  assert.match(rendererSettings, /claudeWebCookie: settings\?\.claudeWebCookie \? 'set' : ''/);
+  assert.match(rendererSettings, /claudeWebCookieConfigured: Boolean\(currentClaudeWebCookie\(\)\)/);
+  assert.match(rendererSettings, /claudeWebCookieSource/);
+  const allowlist = functionBody(main, 'isAllowedExternalUrl', 'revealWindow');
+  assert.match(allowlist, /parsed\.hostname === 'claude\.ai' && parsed\.pathname\.startsWith\('\/settings'\)/);
+});
+
 test('DeepSeek account linked state requires a validated API key', () => {
   const app = readRendererFile('app.js');
   const summaryBody = functionBody(app, 'settingsSectionSummary', 'renderSettingsSummaries');
@@ -1159,10 +1280,21 @@ test('main collectors share one live GUI limit credential resolver in every widg
   ];
   for (const collector of collectors) {
     assert.match(collector, /limitsOptions: electronLimitsConfig\(\)/);
-    assert.match(collector, /resolveConfigSnapshot: \(\) => electronLimitsConfig\(\)/);
+    assert.match(collector, /limitsDeps: electronLimitsDeps\(\)/);
   }
+  const limitsDeps = functionBody(main, 'electronLimitsDeps', 'normalizeDeepSeekApiKey');
+  assert.match(limitsDeps, /resolveConfigSnapshot: \(\) => electronLimitsConfig\(\)/);
+  assert.match(limitsDeps, /onClaudeWebCookieRenewed: persistClaudeWebCookieRenewal/);
+  const renewalPersistence = functionBody(
+    main,
+    'persistClaudeWebCookieRenewal',
+    'electronLimitsDeps'
+  );
+  assert.match(renewalPersistence, /settings\.claudeWebCookie === renewed\) return true/);
+  assert.match(renewalPersistence, /saveSettings\(\{ throwOnError: true \}\)/);
+  assert.doesNotMatch(renewalPersistence, /queueLimitInvalidation|classifySettingsChange/);
   for (const key of [
-    'zaiApiKey', 'zaiApiRegion', 'volcengineAccessKeyId', 'volcengineSecretAccessKey',
+    'claudeWebCookie', 'zaiApiKey', 'zaiApiRegion', 'volcengineAccessKeyId', 'volcengineSecretAccessKey',
     'volcengineRegion', 'qoderCookie', 'qoderSite', 'kimiApiKey', 'kimiWebAccessToken', 'ollamaCookie'
   ]) assert.match(runtimeConfig, new RegExp(`${key}: settings\\.${key}`));
 });
