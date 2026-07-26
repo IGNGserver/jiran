@@ -195,7 +195,7 @@ test('tray context menu switches between enabled Codex accounts', () => {
     onSwitchCodexAccount: (id) => calls.push(id)
   });
 
-  assert.equal(template[2].label, 'Codex Account · p***r@example.com · Personal');
+  assert.equal(template[2].label, 'Codex · p***r@example.com · Personal');
   assert.deepEqual(template[2].submenu.map((item) => [item.label, item.checked]), [
     ['p***r@example.com · Personal', true],
     ['p***r@example.com · Team', false]
