@@ -4,26 +4,30 @@
 
 <!-- app-update-notes:en:start -->
 ### Added
-- **Menu bar layout composer:** The menu bar and the Floating Bubble can now use a layout you build yourself. Pick **Custom…** under **Settings → Window**, then add AI tool icons, quota bars, percentages, reset times, tokens, cost, account names, or custom text; drag to reorder against a live preview; and give each item its own AI tool, account, quota window, and typeface. Items set to Automatic follow a condition you choose — lowest remaining quota, highest tokens, or highest cost — over a selected period. The built-in presets stay available. (#251, #256)
-- **OpenRouter Accounts:** Track one or more OpenRouter accounts under **Settings → Accounts** using an API key that stays on this device. Available balance, key limit, credits, and provider-reported spend appear in a compact meter with hover detail, and Free, Pay-as-you-go, and Management keys are distinguished. (#247)
-- **Automatic update downloads:** Enable **Download updates automatically** under **Settings → General → App Updates** to fetch new versions in the background after startup, scheduled, and manual checks. Installing stays under your control through a dedicated **Restart** action, release notes remain available after the download, and on Windows the update now installs without flashing an installer window. (#239, #253)
-- **Active days range:** The Home activity module can count active days over **All time** or the **Last 12 months**. (#210)
-- **Back to Home:** Views opened from a Home module now show a return control; switching views from the footer stays direct navigation. (#238)
+- **Third-party API Accounts:** Track balances from a compatible relay or balance API under **Settings → Accounts**. Pick the **New API-compatible** account preset (compatible One API forks included), the **New API** API-key preset for one key's configured quota and lifetime usage, or **Custom** to map numeric JSON fields from a single GET balance endpoint with Bearer or x-api-key authentication. Several named accounts are supported, and credentials stay on this device and are sent only to the Base URL you configure. (#261)
+- **Claude Web login:** Add a Claude Web session under **Settings → Accounts → Claude Account** by pasting the `sessionKey` cookie from your browser; it then becomes the local Claude source. Claude Code OAuth and CLI are still detected automatically when Web login is not configured, and the cookie stays on this device. (#259)
+- **Balance accounts in the menu bar:** DeepSeek, MiMo, OpenRouter, and Third-party API accounts can now drive the menu bar and the Floating Bubble, and their remaining balance reads as money on **Home**, in **AI Tool Limits**, and in the menu bar instead of being derived differently on each surface. (#266)
+- **Live display preview:** The built-in menu bar and Floating Bubble displays now preview live under **Settings → Window**, not only **Custom…** layouts, with a **Custom…** button to start editing from what you see.
+
+### Improved
+- **Multiple accounts in AI Tool Limits:** Accounts inside one provider are separated instead of running together as a single stream, account emails are masked on **Home** the way they already were in **AI Tool Limits**, OpenRouter and Third-party accounts show their profile name on Home, and accounts whose addresses would read alike stay distinguishable. Redundant balance and quota suffixes were dropped from the rows.
+- **Provider order on new installs:** **AI Tool Limits** and **Settings → Accounts** start in the same order as the supported-tools list; an order you already customized is left untouched. (#262)
+- **Settings layout:** Display modes and quota indicators use compact inline controls, the nested Trends and Status lists match the spacing, row height, and label styling of the other settings lists, and switch rows respond to their own control rather than the whole row.
 
 ### Fixed
-- **Codex Team and Personal accounts:** Two Codex workspaces that share one email — a Personal and a Team workspace, for example — no longer collapse into a single account. Each keeps its own identity across Settings, AI Tool Limits, the menu bar, and Hub aggregation. (#254, #257)
-- **macOS menu bar popover:** Clicking the menu bar icon no longer occasionally switches to the Space the window was last shown on before appearing. (#250)
-- **Settings across windows:** Changing a setting in the **Usage Dashboard** window — switching **Token Activity** between Tokens and Cost, for example — now updates the main window immediately. (#210)
-- **DeepSeek spend history:** Month-to-date spend is preserved as older balance observations are pruned, and existing history migrates automatically. (#246)
+- **Claude accounts:** Different Claude accounts no longer collapse into one, and the account email and name are filled in instead of staying empty. (#259)
+- **Empty balances:** An account with no funds left no longer shows a full meter or sorts as healthy on **Home**. (#266)
+- **OpenRouter and Third-party API accounts:** Turning off a provider or a single account now settles immediately instead of staying on **Checking…**. (#262)
+- **Hidden view count:** A view whose feature is switched off — Trends without history, Projects when project collection is off — counted as visible under **Settings → Main**, so the summary was wrong and the guard that keeps one view reachable released too early, letting every remaining view be hidden and leaving the main screen empty.
 <!-- app-update-notes:en:end -->
 
 ## Download
 
-- **macOS Apple Silicon** — [Token-Monitor-0.35.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0-arm64.dmg)
-- **macOS Intel** — [Token-Monitor-0.35.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0-x64.dmg)
-- **Windows Installer** — [Token-Monitor-Setup-0.35.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-Setup-0.35.0.exe) (recommended)
-- **Windows Portable** — [Token-Monitor-0.35.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0.exe) (no install required)
-- **Linux x64** — [Token-Monitor-0.35.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.36.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.36.0/Token-Monitor-0.36.0-arm64.dmg)
+- **macOS Intel** — [Token-Monitor-0.36.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.36.0/Token-Monitor-0.36.0-x64.dmg)
+- **Windows Installer** — [Token-Monitor-Setup-0.36.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.36.0/Token-Monitor-Setup-0.36.0.exe) (recommended)
+- **Windows Portable** — [Token-Monitor-0.36.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.36.0/Token-Monitor-0.36.0.exe) (no install required)
+- **Linux x64** — [Token-Monitor-0.36.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.36.0/Token-Monitor-0.36.0.AppImage)
 
 <details>
 <summary><strong>First launch and other notes</strong></summary>
@@ -32,7 +36,7 @@
 
 **macOS:** the app is Developer ID-signed and notarized by Apple. Open the `.dmg`, then drag Token Monitor to Applications.
 
-**Windows:** both executables are signed ([how to verify](https://github.com/Javis603/token-monitor/blob/main/docs/code-signing.md#verify-a-download)), but you may still see a brief SmartScreen prompt on the first few releases while the certificate builds reputation with Microsoft — More info → Run anyway.
+**Windows:** both executables are signed ([how to verify](https://github.com/Javis603/token-monitor/blob/main/docs/code-signing.md#verify-a-download)).
 
 **Linux:** mark the AppImage executable, then run it:
 
@@ -61,26 +65,30 @@ open-source: https://github.com/junhoyeo/tokscale
 
 <!-- app-update-notes:zh:start -->
 ### 新增
-- **菜单栏布局编辑器：** 菜单栏与悬浮小窗现在可以使用你自己搭建的布局。在 **设置 → 窗口** 中选择 **自定义…**，即可加入 AI 工具图标、额度条、百分比、重置时间、Tokens、费用、账号或自定义文字，拖动排序并实时预览，还能为每个项目单独指定 AI 工具、账号、额度窗口与字体。设为「自动」的项目会按你选择的条件跟随——剩余额度最少、Tokens 最多或费用最高——并可指定统计周期。内置预设仍然保留。（#251、#256）
-- **OpenRouter 账号：** 在 **设置 → 账号** 中用只保存在本机的 API 密钥追踪一个或多个 OpenRouter 账号；可用余额、密钥上限、credits 与服务商上报的花费会以紧凑的额度条呈现，悬停可查看明细，并区分 Free、Pay-as-you-go 与 Management 密钥。（#247）
-- **自动下载更新：** 在 **设置 → 常规 → 应用更新** 中打开 **自动下载更新**，启动后、定时与手动检查时都会在后台下载新版本；安装仍由你决定，通过专门的 **重新启动** 操作完成，下载完成后仍可查看发布说明，Windows 上安装时也不再闪出安装程序窗口。（#239、#253）
-- **活跃天数范围：** 主页活动模块的活跃天数可在 **全部时间** 与 **近 12 个月** 之间切换。（#210）
-- **返回主页：** 从主页模块打开的视图现在会显示返回控件；从底部切换视图仍是直接跳转。（#238）
+- **Third-party APIs 账号：** 在 **设置 → 账号** 中连接兼容的中转站或余额 API。可选择 **New API 兼容** 账号预设方案（也支持兼容的 One API 分支）、**New API** 密钥预设方案（显示单把 API 密钥的设置额度与累计用量），或 **自定义** 方案——调用一个 GET 余额端点并映射数值 JSON 字段，支持 Bearer Token 或 x-api-key 认证。支持添加多个命名账号；凭证只保存在本机，并只会发送到你配置的 Base URL。（#261）
+- **Claude Web 登录：** 在 **设置 → 账号 → Claude 账号** 中粘贴浏览器里的 `sessionKey` cookie 即可添加 Claude Web 会话，本机 Claude 会改用此来源；未设置 Web 登录时仍会自动检测 Claude Code OAuth 与 CLI，Cookie 只会保存在本机。（#259）
+- **余额账号可用于菜单栏：** DeepSeek、MiMo、OpenRouter 与 Third-party APIs 账号现在可以驱动菜单栏与悬浮小窗；剩余余额在 **主页**、**AI 工具额度** 与菜单栏统一显示为金额，不再各处各自推算。（#266）
+- **显示实时预览：** 在 **设置 → 窗口** 中，内置的菜单栏与悬浮小窗显示方案现在也会实时预览，不再只有 **自定义…** 布局才有；预览旁的 **自定义…** 按钮可以直接以当前效果开始编辑。
+
+### 改进
+- **AI 工具额度的多账号呈现：** 同一提供方下的各个账号现在彼此分隔，不再连成一片；**主页** 的账号邮箱会像 **AI 工具额度** 中一样打码；OpenRouter 与 Third-party APIs 账号会在主页显示账号名称；邮箱看起来相近的账号也能区分开。余额与额度行中多余的后缀已移除。
+- **新安装的提供方顺序：** **AI 工具额度** 与 **设置 → 账号** 的初始顺序与支持的工具列表一致；你已经自定义过的顺序不受影响。（#262）
+- **设置布局：** 显示方案与额度指示器改用紧凑的内联控件，嵌套的趋势与状态列表在间距、行高与标签样式上与其他设置列表保持一致，开关行的点击范围也限定在控件本身。
 
 ### 修复
-- **Codex 团队与个人账号：** 共用同一邮箱的两个 Codex 工作区（例如个人与团队）不再被合并成一个账号，在设置、AI 工具额度、菜单栏与 Hub 汇总中都保留各自的身份。（#254、#257）
-- **macOS 菜单栏弹窗：** 点击菜单栏图标时，不再偶尔先切换到窗口上次显示所在的 Space 才出现。（#250）
-- **多窗口设置同步：** 在 **使用仪表板** 窗口修改设置（例如把 **Token 活动** 从 Tokens 切换到成本）后，主窗口会立即同步更新。（#210）
-- **DeepSeek 花费历史：** 清理较早的余额记录时不再丢失当月累计花费，已有历史会自动迁移。（#246）
+- **Claude 账号：** 不同的 Claude 账号不再被合并成一个，账号邮箱与名称也不再为空。（#259）
+- **余额耗尽：** 余额已用尽的账号不再显示为满格额度条，也不会在 **主页** 排到健康状态。（#266）
+- **OpenRouter 与 Third-party APIs 账号：** 关闭整个提供方或单个账号后会立即生效，不再停留在 **检查中…**。（#262）
+- **隐藏视图计数：** 功能被关闭的视图（未开启历史时的趋势、未开启项目收集时的项目）在 **设置 → 主画面** 中仍被算作可见，导致摘要数字错误，并让「至少保留一个视图」的保护提前失效，可能把剩下的视图全部隐藏、主画面变成空白。
 <!-- app-update-notes:zh:end -->
 
 ## 下载
 
-- **macOS Apple Silicon** — [Token-Monitor-0.35.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0-arm64.dmg)
-- **macOS Intel** — [Token-Monitor-0.35.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0-x64.dmg)
-- **Windows 安装版** — [Token-Monitor-Setup-0.35.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-Setup-0.35.0.exe)（推荐）
-- **Windows 便携版** — [Token-Monitor-0.35.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0.exe)（免安装）
-- **Linux x64** — [Token-Monitor-0.35.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.35.0/Token-Monitor-0.35.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.36.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.36.0/Token-Monitor-0.36.0-arm64.dmg)
+- **macOS Intel** — [Token-Monitor-0.36.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.36.0/Token-Monitor-0.36.0-x64.dmg)
+- **Windows 安装版** — [Token-Monitor-Setup-0.36.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.36.0/Token-Monitor-Setup-0.36.0.exe)（推荐）
+- **Windows 便携版** — [Token-Monitor-0.36.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.36.0/Token-Monitor-0.36.0.exe)（免安装）
+- **Linux x64** — [Token-Monitor-0.36.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.36.0/Token-Monitor-0.36.0.AppImage)
 
 <details>
 <summary><strong>首次启动与其他说明</strong></summary>
@@ -89,7 +97,7 @@ open-source: https://github.com/junhoyeo/tokscale
 
 **macOS：** 应用已使用 Developer ID 签名并通过 Apple 公证。打开 `.dmg`，然后把 Token Monitor 拖到 Applications。
 
-**Windows：** 两个可执行文件均已签名（[查看验证方法](https://github.com/Javis603/token-monitor/blob/main/docs/code-signing.md#verify-a-download)），但在证书刚建立信誉的最初几个版本，仍可能短暂出现 SmartScreen 提示 → 更多信息 → 仍要运行。
+**Windows：** 两个可执行文件均已签名（[查看验证方法](https://github.com/Javis603/token-monitor/blob/main/docs/code-signing.md#verify-a-download)）。
 
 **Linux：** 先给 AppImage 执行权限，然后运行：
 
