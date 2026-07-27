@@ -22,6 +22,13 @@
     return contentMode === 'limitsAllSessions' || contentMode === 'custom' || isBarsTrayIconMode(contentMode);
   }
 
+  // Only macOS renders a title next to the tray icon; elsewhere the text lives
+  // in the tooltip. Both the tray itself and the settings preview read this so
+  // the preview cannot promise text the platform will never draw.
+  function trayShowsTitle(platform) {
+    return platform === 'darwin';
+  }
+
   function formatCompactNumber(value) {
     const n = Math.round(Number(value) || 0);
     if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
@@ -293,6 +300,7 @@
     pickLimitProviderByKindPriority,
     pickUsageProviderId,
     pickWorstLimit,
-    pickWorstLimitProvider
+    pickWorstLimitProvider,
+    trayShowsTitle
   };
 });

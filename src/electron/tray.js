@@ -6,7 +6,8 @@ const {
   isBarsTrayIconMode,
   isGeneratedTrayIconMode,
   pickUsageProviderId,
-  pickWorstLimit
+  pickWorstLimit,
+  trayShowsTitle
 } = require('../shared/trayText');
 const { codexAccountDisplayLabel } = require('./renderer/accountIdentity');
 const { translate: translateMessage } = require('./renderer/i18n');
@@ -243,5 +244,6 @@ module.exports = {
   popoverBounds,
   reconcileCodexAccountSelection,
   shouldUseTemplateTrayIcon,
-  sortCodexAccountsForDisplay
+  sortCodexAccountsForDisplay,
+  trayShowsTitle
 };

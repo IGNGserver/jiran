@@ -137,7 +137,8 @@ const {
   popoverBounds,
   reconcileCodexAccountSelection,
   sortCodexAccountsForDisplay,
-  shouldUseTemplateTrayIcon
+  shouldUseTemplateTrayIcon,
+  trayShowsTitle
 } = require('./tray');
 const {
   macActivationPolicyMode,
@@ -2631,7 +2632,7 @@ function updateTrayDisplay() {
   const trayImageMode = mode === 'limitsAllSessions' && Boolean(limitText) && providerTrayIcons[mode];
   const customImageMode = mode === 'custom' && providerTrayIcons.custom;
   const text = trayImageMode || customImageMode ? '' : limitText;
-  if (process.platform === 'darwin') tray.setTitle(text);
+  if (trayShowsTitle(process.platform)) tray.setTitle(text);
   // Tooltip always shows a useful summary, even in icon-only mode where setTitle is blank.
   const tip = formatTrayText(latestStats, 'both', currency);
   tray.setToolTip(`Token Monitor - ${tip}`);

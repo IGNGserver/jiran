@@ -6007,7 +6007,7 @@ function syncSettingsForm() {
   els.showTrayProviderBadgeInput.disabled = !showTrayIcon;
   els.trayIconOptions?.classList.toggle('hidden', !showTrayIcon);
   els.trayOptions?.classList.toggle('hidden', !showTrayIcon || !state.settings.trayMode);
-  syncTrayComposerVisibility();
+  refreshTrayComposers();
   syncWindowShortcutStatus();
   if (els.startAtLoginInput) {
     els.startAtLoginInput.disabled = !state.appInfo?.loginItemSupported;
@@ -7784,7 +7784,9 @@ els.swapSettingsRefreshInput.addEventListener('change', () => {
 els.discordRpcInput.addEventListener('change', saveAppearanceFromControls);
 els.windowBehaviorInput.addEventListener('change', () => saveSettings({ windowBehavior: els.windowBehaviorInput.value }));
 els.floatingBubbleInput.addEventListener('change', () => {
+  state.settings.floatingBubbleEnabled = els.floatingBubbleInput.checked;
   els.floatingBubbleOptions?.classList.toggle('hidden', !els.floatingBubbleInput.checked);
+  refreshTrayComposers();
   saveSettings({ floatingBubbleEnabled: els.floatingBubbleInput.checked });
 });
 for (const input of els.floatingBubbleTriggerInputs || []) {
@@ -7794,18 +7796,20 @@ for (const input of els.floatingBubbleTriggerInputs || []) {
 }
 els.floatingBubbleContentInput?.addEventListener('change', async () => {
   state.settings.floatingBubbleContent = els.floatingBubbleContentInput.value;
-  syncTrayComposerVisibility();
+  refreshTrayComposers();
   await saveSettings({ floatingBubbleContent: els.floatingBubbleContentInput.value });
   renderFloatingBubbleContent();
 });
 els.showTrayIconInput?.addEventListener('change', () => {
   const showTrayIcon = els.showTrayIconInput.checked;
+  state.settings.showTrayIcon = showTrayIcon;
   els.trayModeInput.disabled = !showTrayIcon;
   if (!showTrayIcon) els.trayModeInput.checked = false;
   els.trayContentInput.disabled = !showTrayIcon;
   els.showTrayProviderBadgeInput.disabled = !showTrayIcon;
   els.trayIconOptions?.classList.toggle('hidden', !showTrayIcon);
   els.trayOptions?.classList.toggle('hidden', !showTrayIcon || !els.trayModeInput.checked);
+  refreshTrayComposers();
   saveSettings({ showTrayIcon, trayMode: showTrayIcon ? els.trayModeInput.checked : false });
 });
 els.trayModeInput.addEventListener('change', () => {
@@ -7814,10 +7818,14 @@ els.trayModeInput.addEventListener('change', () => {
 });
 els.trayContentInput.addEventListener('change', () => {
   state.settings.trayContent = els.trayContentInput.value;
-  syncTrayComposerVisibility();
+  refreshTrayComposers();
   saveSettings({ trayContent: els.trayContentInput.value });
 });
-els.showTrayProviderBadgeInput.addEventListener('change', () => saveSettings({ showTrayProviderBadge: els.showTrayProviderBadgeInput.checked }));
+els.showTrayProviderBadgeInput.addEventListener('change', () => {
+  state.settings.showTrayProviderBadge = els.showTrayProviderBadgeInput.checked;
+  void maybeUpdateBarsIcon();
+  saveSettings({ showTrayProviderBadge: els.showTrayProviderBadgeInput.checked });
+});
 els.windowToggleShortcutValue?.addEventListener('click', startWindowShortcutRecording);
 els.windowToggleShortcutClearButton?.addEventListener('click', () => setWindowToggleShortcut('').catch(() => {}));
 els.startAtLoginInput?.addEventListener('change', () => saveSettings({ startAtLogin: els.startAtLoginInput.checked }));
@@ -8188,7 +8196,15 @@ function renderBarsIcon(stats, height = 44, picker = pickWorstProvider, colors =
   ctx.clearRect(0, 0, layout.width, layout.height);
 
   if (providerImage) {
-    drawProviderImage(ctx, providerImage, layout.padX, layout.iconY, layout.iconSize, options.providerContrastHalo === true);
+    drawProviderImage(
+      ctx,
+      providerImage,
+      layout.padX,
+      layout.iconY,
+      layout.iconSize,
+      options.providerContrastHalo === true,
+      options.templateIconColor || ''
+    );
   }
 
   function drawBar(y, percent) {
@@ -8321,7 +8337,10 @@ function renderLimitSessionsIcon(stats, height = 44, configOrder, colors = {}, o
   const centerY = height / 2;
   entries.forEach((entry, index) => {
     if (entry.image) {
-      drawProviderImage(ctx, entry.image, x, layout.iconY, iconSize, options.providerContrastHalo === true);
+      drawProviderImage(ctx, entry.image, x, layout.iconY, iconSize,
+        options.providerContrastHalo === true,
+        options.templateIconColor || ''
+      );
       x += iconSize + gap;
     }
     ctx.fillText(entry.text, x, centerY + 1);
@@ -8742,9 +8761,10 @@ function renderCustomTrayLayout(stats, layout, height = 44, colors = {}, options
 }
 
 function barsDataUrlForMode(mode, size = 44, colors, options = {}) {
-  if (mode === 'barsAllSessions') return renderAllSessionsIcon(state.stats, size, configuredLimitProviderOrder(), colors, options);
+  const stats = options.stats || state.stats;
+  if (mode === 'barsAllSessions') return renderAllSessionsIcon(stats, size, configuredLimitProviderOrder(), colors, options);
   const pickers = { barsSession: pickWorstSessionProvider, barsWeekly: pickWorstWeeklyProvider };
-  return renderBarsIcon(state.stats, size, pickers[mode] || pickWorstProvider, colors, options);
+  return renderBarsIcon(stats, size, pickers[mode] || pickWorstProvider, colors, options);
 }
 
 function trayDataUrlForMode(mode, size = 44, colors, options = {}) {
@@ -8760,7 +8780,9 @@ function trayDataUrlForMode(mode, size = 44, colors, options = {}) {
       }
     );
   }
-  if (mode === 'limitsAllSessions') return renderLimitSessionsIcon(state.stats, size, configuredLimitProviderOrder(), colors, options);
+  if (mode === 'limitsAllSessions') {
+    return renderLimitSessionsIcon(options.stats || state.stats, size, configuredLimitProviderOrder(), colors, options);
+  }
   return barsDataUrlForMode(mode, size, colors, options);
 }
 
@@ -8888,10 +8910,127 @@ function renderTrayComposerFontPreview(item, fontStyle, options = {}) {
   return renderTrayComposerItem({ ...item, fontStyle }, options);
 }
 
+function trayPreviewUsageIconId(stats, mode) {
+  if (mode === 'icon') return 'app';
+  const period = ['tokensAll', 'costAll', 'bothAll'].includes(mode) ? 'allTime' : 'today';
+  const metric = ['cost', 'costAll'].includes(mode) ? 'cost' : 'tokens';
+  return window.TokenMonitorTrayText.pickUsageProviderId(
+    stats,
+    metric,
+    period,
+    Object.keys(trayProviderImages)
+  ) || 'app';
+}
+
+function joinTrayPreviewCanvases(segments, height = 44, gap = Math.max(1, Math.round(height * 0.03))) {
+  const visible = segments.filter(Boolean);
+  if (!visible.length) return '';
+  const canvas = document.createElement('canvas');
+  canvas.width = visible.reduce((width, segment) => width + segment.width, 0) + gap * Math.max(0, visible.length - 1);
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  let x = 0;
+  for (const segment of visible) {
+    ctx.drawImage(segment, x, 0);
+    x += segment.width + gap;
+  }
+  return canvas.toDataURL('image/png');
+}
+
+function renderStandardUsageTrayPreview(mode, stats) {
+  const height = 44;
+  const colors = floatingBubbleGeneratedColors();
+  const showProviderBadge = state.settings?.showTrayProviderBadge === true;
+  const icon = renderCustomTrayItemCanvas(
+    { type: 'icon', provider: trayPreviewUsageIconId(stats, mode) },
+    height,
+    colors,
+    {
+      showProviderBadge,
+      templateIconColor: showProviderBadge ? '' : colors.text
+    }
+  );
+  // Windows and Linux only get the icon; their text lives in the tooltip, so
+  // previewing a title there would advertise something the tray never draws.
+  if (mode === 'icon' || !window.TokenMonitorTrayText.trayShowsTitle(state.appInfo?.platform)) {
+    return joinTrayPreviewCanvases([icon], height);
+  }
+
+  const text = window.TokenMonitorTrayText.formatTrayText(
+    stats,
+    mode,
+    currentCurrency(),
+    state.settings
+  );
+  const title = text
+    ? renderCustomTrayItemCanvas({ type: 'text', text, fontStyle: 'normal' }, height, colors)
+    : null;
+  return joinTrayPreviewCanvases([icon, title], height);
+}
+
+function renderStandardTrayPreview(mode, stats) {
+  if (window.TokenMonitorTrayText.isGeneratedTrayIconMode(mode)) {
+    const colors = floatingBubbleGeneratedColors();
+    return {
+      // Match the same high-resolution source that main resizes to the tray's 20 px height.
+      generatedSrc: trayDataUrlForMode(mode, 44, colors, {
+        stats,
+        templateIconColor: colors.text
+      })
+    };
+  }
+  return { src: renderStandardUsageTrayPreview(mode, stats) };
+}
+
+function trayComposerPreview(surface) {
+  const isTray = surface === 'tray';
+  const contentKey = isTray ? 'trayContent' : 'floatingBubbleContent';
+  const layoutKey = isTray ? 'trayCustomLayout' : 'floatingBubbleCustomLayout';
+  const mode = state.settings?.[contentKey] || (isTray ? 'tokens' : 'icon');
+  const stats = statsForTrayComposer();
+  if (isTray) return renderStandardTrayPreview(mode, stats);
+  if (window.TokenMonitorTrayText.isGeneratedTrayIconMode(mode)) {
+    // Mirror renderFloatingBubbleContent exactly: the bubble draws provider
+    // icons in colour, so no templateIconColor here — that is a menu-bar-only
+    // requirement and would preview the bubble as monochrome.
+    return {
+      src: trayDataUrlForMode(mode, 44, floatingBubbleGeneratedColors(), {
+        stats,
+        layout: state.settings?.[layoutKey],
+        contentOnly: mode === 'barsAllSessions' || mode === 'limitsAllSessions',
+        providerContrastHalo: true,
+        showProviderBadge: false
+      })
+    };
+  }
+  if (mode === 'icon') return { text: 'Σ' };
+  return {
+    text: window.TokenMonitorTrayText.formatTrayText(
+      stats,
+      mode,
+      currentCurrency(),
+      state.settings
+    ) || '—'
+  };
+}
+
+function activateTrayComposer(surface) {
+  const isTray = surface === 'tray';
+  const contentKey = isTray ? 'trayContent' : 'floatingBubbleContent';
+  const input = isTray ? els.trayContentInput : els.floatingBubbleContentInput;
+  state.settings[contentKey] = 'custom';
+  if (input) input.value = 'custom';
+  if (isTray) void maybeUpdateBarsIcon();
+  else renderFloatingBubbleContent();
+  refreshTrayComposers();
+  void saveSettings({ [contentKey]: 'custom' });
+}
+
 function createTrayComposer(surface) {
   const isTray = surface === 'tray';
   const root = isTray ? els.trayComposer : els.floatingBubbleComposer;
   const layoutKey = isTray ? 'trayCustomLayout' : 'floatingBubbleCustomLayout';
+  const contentKey = isTray ? 'trayContent' : 'floatingBubbleContent';
   return window.TokenMonitorTrayComposer.createTrayComposer({
     root,
     surface,
@@ -8910,6 +9049,9 @@ function createTrayComposer(surface) {
     renderItem: (item) => renderTrayComposerItem(item, {
       showProviderBadge: isTray && state.settings?.showTrayProviderBadge === true
     }),
+    getPreview: () => trayComposerPreview(surface),
+    isEditable: () => state.settings?.[contentKey] === 'custom',
+    onCustomize: () => activateTrayComposer(surface),
     providerChoices: trayComposerProviderChoices,
     accountChoices: trayComposerAccountChoices,
     windowChoices: trayComposerWindowChoices,
@@ -8919,23 +9061,24 @@ function createTrayComposer(surface) {
       if (isTray) void maybeUpdateBarsIcon({ refreshComposers: commit });
       else {
         renderFloatingBubbleContent();
-        if (commit) syncTrayComposerVisibility();
+        if (commit) refreshTrayComposers();
       }
       if (commit) void saveSettings({ [layoutKey]: state.settings[layoutKey] });
     }
   });
 }
 
-function syncTrayComposerVisibility() {
+function refreshTrayComposers() {
   const surfaces = [
-    { id: 'tray', root: els.trayComposer, visible: state.settings?.trayContent === 'custom' },
-    { id: 'floatingBubble', root: els.floatingBubbleComposer, visible: state.settings?.floatingBubbleContent === 'custom' }
+    { id: 'tray', root: els.trayComposer, visible: state.settings?.showTrayIcon !== false },
+    { id: 'floatingBubble', root: els.floatingBubbleComposer, visible: state.settings?.floatingBubbleEnabled === true }
   ];
   window.TokenMonitorTrayComposer.syncTrayComposerSurfaces(
     surfaces,
     trayComposers,
     createTrayComposer
   );
+  Object.values(trayComposers).forEach((composer) => composer?.refresh());
   const clockNeeded = (
     state.settings?.trayContent === 'custom'
       && trayLayoutApi.trayLayoutNeedsClock(state.settings?.trayCustomLayout)
@@ -8952,11 +9095,6 @@ function syncTrayComposerVisibility() {
     clearInterval(customTrayClockTimer);
     customTrayClockTimer = null;
   }
-}
-
-function refreshTrayComposers() {
-  syncTrayComposerVisibility();
-  Object.values(trayComposers).forEach((composer) => composer?.refresh());
 }
 
 function loadImage(src) {

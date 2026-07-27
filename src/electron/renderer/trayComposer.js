@@ -112,6 +112,9 @@
       getStylePreview,
       getFontStylePreview,
       renderItem,
+      getPreview,
+      isEditable,
+      onCustomize,
       onLayoutChange,
       providerChoices,
       accountChoices,
@@ -136,6 +139,10 @@
 
     function layout() {
       return layoutApi.normalizeTrayLayout(getLayout());
+    }
+
+    function editing() {
+      return isEditable?.() !== false;
     }
 
     function emit(nextLayout, commit = true) {
@@ -1122,20 +1129,40 @@
     }
 
     function render() {
+      const editable = editing();
       const current = layout();
       const heading = document.createElement('div');
       heading.className = 'tray-composer-heading';
       const title = document.createElement('span');
-      title.textContent = l('trayComposer.preview', 'Live menu bar preview');
-      const hint = document.createElement('span');
-      hint.textContent = l('trayComposer.dragHint', 'Drag to reorder · Click to configure');
-      heading.append(title, hint);
+      title.textContent = l('trayComposer.preview', 'Live preview');
+      if (editable) {
+        const hint = document.createElement('span');
+        hint.textContent = l('trayComposer.dragHint', 'Drag to reorder · Click to configure');
+        heading.append(title, hint);
+      } else {
+        const customize = button('tray-composer-customize', l('settings.tray.custom', 'Customize…'), onCustomize);
+        heading.append(title, customize);
+      }
 
       const strip = document.createElement('div');
       strip.className = 'tray-composer-strip';
       const items = document.createElement('div');
       items.className = 'tray-composer-items';
-      if (!current.items.length) {
+      if (!editable) {
+        const preview = getPreview?.() || {};
+        const content = document.createElement('span');
+        content.className = 'tray-composer-live-preview';
+        if (preview.generatedSrc) {
+          content.classList.add('is-menubar');
+          content.append(image(preview.generatedSrc, 'tray-composer-menubar-generated'));
+        } else if (preview.src) {
+          content.append(image(preview.src, 'tray-composer-preview-image'));
+        } else {
+          content.classList.add('is-text');
+          content.textContent = preview.text || 'Σ';
+        }
+        items.append(content);
+      } else if (!current.items.length) {
         const empty = document.createElement('span');
         empty.className = 'tray-composer-empty';
         empty.textContent = l('trayComposer.empty', 'Add your first item');
@@ -1158,11 +1185,15 @@
           items.append(itemEl);
         });
       }
-      const add = button('tray-composer-add', '+', () => openAddPopover(add));
-      add.setAttribute('aria-label', l('trayComposer.add', 'Add display item'));
-      strip.append(items, add);
+      strip.append(items);
+      if (editable) {
+        const add = button('tray-composer-add', '+', () => openAddPopover(add));
+        add.setAttribute('aria-label', l('trayComposer.add', 'Add display item'));
+        strip.append(add);
+      }
       root.replaceChildren(heading, strip);
-      root.classList.toggle('is-empty', current.items.length === 0);
+      root.classList.toggle('is-editing', editable);
+      root.classList.toggle('is-empty', editable && current.items.length === 0);
     }
 
     function refresh() {

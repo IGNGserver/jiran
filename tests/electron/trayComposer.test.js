@@ -6,6 +6,7 @@ const test = require('node:test');
 const trayLayoutApi = require('../../src/shared/trayLayout');
 const {
   accountModeSourcePatch,
+  createTrayComposer,
   duplicateTrayLayoutItem,
   moveTrayLayoutItemByKey,
   periodItemPatch,
@@ -216,4 +217,115 @@ test('a balance selection carries resolved percentages so tray icons never fabri
 
   const [pick] = pickConfiguredLimitProviders(balanceStats, {});
   assert.equal(pick.percent, 40);
+});
+
+// The read-only preview path of render() only touches a handful of DOM APIs, so
+// a shim covers it without pulling in a headless-browser dependency.
+function fakeElement(tag) {
+  const el = {
+    tagName: String(tag).toUpperCase(),
+    className: '',
+    textContent: '',
+    src: '',
+    style: {},
+    dataset: {},
+    children: [],
+    attributes: {},
+    clickHandlers: []
+  };
+  const classes = () => el.className.split(' ').filter(Boolean);
+  el.classList = {
+    add: (...names) => { el.className = [...new Set([...classes(), ...names])].join(' '); },
+    remove: (...names) => { el.className = classes().filter((name) => !names.includes(name)).join(' '); },
+    contains: (name) => classes().includes(name),
+    toggle: (name, force) => {
+      const on = force === undefined ? !el.classList.contains(name) : Boolean(force);
+      if (on) el.classList.add(name);
+      else el.classList.remove(name);
+    }
+  };
+  el.append = (...nodes) => { el.children.push(...nodes); };
+  el.replaceChildren = (...nodes) => { el.children = [...nodes]; };
+  el.setAttribute = (name, value) => { el.attributes[name] = value; };
+  el.addEventListener = (type, handler) => { if (type === 'click') el.clickHandlers.push(handler); };
+  el.querySelector = () => null;
+  return el;
+}
+
+function renderComposer({ preview = {}, editable = false, onCustomize = () => {} }) {
+  const saved = { document: global.document, window: global.window, Image: global.Image };
+  global.document = { createElement: (tag) => fakeElement(tag) };
+  global.window = { addEventListener() {}, removeEventListener() {} };
+  global.Image = function FakeImage() { return fakeElement('img'); };
+  const root = fakeElement('div');
+  try {
+    createTrayComposer({
+      root,
+      surface: 'tray',
+      layoutApi: trayLayoutApi,
+      getLayout: () => layoutWithIds(),
+      getPreview: () => preview,
+      isEditable: () => editable,
+      onCustomize,
+      onLayoutChange() {},
+      label: (key) => key
+    });
+  } finally {
+    global.document = saved.document;
+    global.window = saved.window;
+    global.Image = saved.Image;
+  }
+  const [heading, strip] = root.children;
+  return { root, heading, strip, content: strip.children[0].children[0] };
+}
+
+test('a non-custom surface previews the real tray image behind a Customize button', () => {
+  const { root, heading, strip, content } = renderComposer({
+    preview: { generatedSrc: 'data:image/png;base64,GENERATED' }
+  });
+
+  assert.equal(heading.children[0].textContent, 'Live preview');
+  assert.equal(heading.children[1].tagName, 'BUTTON');
+  assert.equal(heading.children[1].textContent, 'Customize…');
+  assert.equal(root.classList.contains('is-editing'), false);
+  // No add button: nothing on this surface is editable yet.
+  assert.equal(strip.children.length, 1);
+
+  assert.equal(content.classList.contains('is-menubar'), true);
+  assert.equal(content.children[0].className, 'tray-composer-menubar-generated');
+  assert.equal(content.children[0].src, 'data:image/png;base64,GENERATED');
+});
+
+test('the preview falls back from a rendered image to text to the app mark', () => {
+  const image = renderComposer({ preview: { src: 'data:image/png;base64,PLAIN' } });
+  assert.equal(image.content.classList.contains('is-menubar'), false);
+  assert.equal(image.content.children[0].className, 'tray-composer-preview-image');
+  assert.equal(image.content.children[0].src, 'data:image/png;base64,PLAIN');
+
+  const text = renderComposer({ preview: { text: '24.9M' } });
+  assert.equal(text.content.classList.contains('is-text'), true);
+  assert.equal(text.content.textContent, '24.9M');
+
+  const empty = renderComposer({ preview: {} });
+  assert.equal(empty.content.textContent, 'Σ');
+});
+
+test('Customize hands the surface back to the editor', () => {
+  let customized = 0;
+  const { heading } = renderComposer({ onCustomize: () => { customized += 1; } });
+
+  heading.children[1].clickHandlers.forEach((handler) => handler());
+  assert.equal(customized, 1);
+});
+
+test('a custom surface keeps the editor affordances instead of a preview', () => {
+  const { root, heading, strip } = renderComposer({
+    editable: true,
+    preview: { generatedSrc: 'data:image/png;base64,GENERATED' }
+  });
+
+  assert.equal(heading.children[1].textContent, 'Drag to reorder · Click to configure');
+  assert.equal(root.classList.contains('is-editing'), true);
+  assert.equal(strip.children.at(-1).className, 'tray-composer-add');
+  assert.equal(strip.children[0].children[0].textContent, 'Add your first item');
 });

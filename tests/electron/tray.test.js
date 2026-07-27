@@ -23,7 +23,8 @@ const {
   pickConfiguredLimitProviders,
   pickConfiguredSessionLimits,
   pickLimitProviderByKindPriority,
-  pickWorstLimitProvider
+  pickWorstLimitProvider,
+  trayShowsTitle
 } = require('../../src/shared/trayText');
 
 const stats = {
@@ -724,4 +725,36 @@ test('tray cost text uses the selected display currency', () => {
   assert.equal(formatTrayText({ periods: { today: { costUsd: 1, totalTokens: 12_000 } } }, 'cost'), '$1.0000');
   assert.equal(formatTrayText({ periods: { today: { costUsd: 1, totalTokens: 12_000 } } }, 'cost', 'TWD'), 'NT$31.50');
   assert.equal(formatTrayText({ periods: { today: { costUsd: 1, totalTokens: 12_000 } } }, 'both', 'HKD'), '12.0K · HK$7.80');
+});
+
+test('only macOS draws a tray title beside the icon', () => {
+  // main.js gates tray.setTitle() on darwin; Windows and Linux show the icon
+  // alone and put the text in the tooltip. The settings Live preview reads the
+  // same helper so it cannot promise text the platform will never render.
+  assert.equal(trayShowsTitle('darwin'), true);
+  assert.equal(trayShowsTitle('win32'), false);
+  assert.equal(trayShowsTitle('linux'), false);
+  assert.equal(trayShowsTitle(undefined), false);
+});
+
+test('every tray helper main.js destructures is actually exported', () => {
+  // main.js pulls its tray helpers off ./tray, which re-exports a chosen subset
+  // of ../shared/trayText. Adding a helper to the shared module and to main.js
+  // without widening that re-export leaves main.js holding undefined, and no
+  // test drives updateTrayDisplay(), so the suite stays green while the real
+  // tray throws on every refresh.
+  const trayModule = require('../../src/electron/tray');
+  const mainSource = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'src', 'electron', 'main.js'),
+    'utf8'
+  );
+  const block = mainSource.match(/const \{([^}]+)\} = require\('\.\/tray'\);/);
+  assert.ok(block, 'main.js should destructure its tray helpers from ./tray');
+  const names = block[1]
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  assert.ok(names.length > 0);
+  const missing = names.filter((name) => typeof trayModule[name] === 'undefined');
+  assert.deepEqual(missing, []);
 });
