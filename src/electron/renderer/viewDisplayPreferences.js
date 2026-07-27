@@ -97,6 +97,16 @@
     return ordered.filter((id) => available.has(id)).slice(0, 1);
   }
 
+  // A disabled view (Trends without history, Projects when off) is drawn with the
+  // eye-off icon and dropped from the runtime rotation, so it must not count as
+  // visible — neither in the settings summary nor in the guard that keeps the
+  // last visible view from being hidden.
+  function visibleViewCount({ views, hiddenValue, disabledIds } = {}) {
+    const hidden = new Set(normalizeHiddenViews(hiddenValue, views).split(',').filter(Boolean));
+    const disabled = new Set(viewIds(disabledIds));
+    return viewIds(views).filter((id) => !hidden.has(id) && !disabled.has(id)).length;
+  }
+
   function preferredViewId({ views, orderValue, hiddenValue, availableIds, currentId, preferFirst = false, fallback = 'tool' } = {}) {
     const order = visibleViewOrder({ views, orderValue, hiddenValue, availableIds });
     const current = normalizeId(currentId);
@@ -120,6 +130,7 @@
     orderedViews,
     preferredViewId,
     reorderViewDisplayOrder,
+    visibleViewCount,
     visibleViewOrder
   };
 });

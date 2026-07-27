@@ -547,8 +547,11 @@ function refreshIntervalLabel(value) {
 }
 
 function viewsSummary() {
-  const hidden = hiddenViewSet();
-  const visible = VIEW_DISPLAY_OPTIONS.length - hidden.size;
+  const visible = viewDisplayPreferencesApi.visibleViewCount({
+    views: VIEW_DISPLAY_OPTIONS,
+    hiddenValue: state.settings?.hiddenViews,
+    disabledIds: disabledViewIds()
+  });
   return t('settings.summary.views', { visible, total: VIEW_DISPLAY_OPTIONS.length });
 }
 
@@ -6067,6 +6070,16 @@ function hiddenViewSet() {
   return new Set(viewDisplayPreferencesApi.normalizeHiddenViews(state.settings?.hiddenViews, VIEW_DISPLAY_OPTIONS).split(',').filter(Boolean));
 }
 
+// Views the user cannot reach because the feature behind them is switched off.
+// The settings rows, the summary count and the last-visible-view guard all read
+// this one list so they cannot disagree about what is on screen.
+function disabledViewIds() {
+  const ids = [];
+  if (state.settings?.historyEnabled === false) ids.push('trends');
+  if (state.settings?.projectsEnabled === false) ids.push('project');
+  return ids;
+}
+
 function hiddenHomeModuleSet() {
   return new Set(homeModulePreferencesApi.normalizeHiddenHomeModules(state.settings?.hiddenHomeModules, HOME_MODULE_OPTIONS).split(',').filter(Boolean));
 }
@@ -6277,14 +6290,17 @@ function renderViewPreferences() {
   if (els.resetViewDisplayOrderButton) els.resetViewDisplayOrderButton.disabled = !hasCustomOrder;
   if (els.showAllViewsButton) els.showAllViewsButton.disabled = !hasHiddenViews;
   els.viewDisplayList.replaceChildren();
-  const visibleCount = views.filter((view) => !hidden.has(view.id)).length;
+  const disabled = new Set(disabledViewIds());
+  const visibleCount = viewDisplayPreferencesApi.visibleViewCount({
+    views,
+    hiddenValue: state.settings?.hiddenViews,
+    disabledIds: [...disabled]
+  });
   for (const view of views) {
     const id = view.id;
     const label = viewLabel(view);
     const isHidden = hidden.has(id);
-    const historyEnabled = state.settings?.historyEnabled !== false;
-    const projectsEnabled = state.settings?.projectsEnabled !== false;
-    const isDisabled = (id === 'trends' && !historyEnabled) || (id === 'project' && !projectsEnabled);
+    const isDisabled = disabled.has(id);
     const isEffectivelyHidden = isHidden || isDisabled;
     const row = document.createElement('div');
     row.className = 'view-preference-row';

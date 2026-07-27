@@ -14,6 +14,7 @@ const {
   orderedViews,
   preferredViewId,
   reorderViewDisplayOrder,
+  visibleViewCount,
   visibleViewOrder
 } = require('../../src/electron/renderer/viewDisplayPreferences');
 
@@ -190,4 +191,24 @@ test('hasViewDisplayPreferences detects custom order or hidden views', () => {
   assert.equal(hasViewDisplayPreferences('', 'unknown', views), false);
   assert.equal(hasViewDisplayPreferences('session,tool', '', views), true);
   assert.equal(hasViewDisplayPreferences('', 'model', views), true);
+});
+
+test('visible count treats a disabled view as hidden, not as visible', () => {
+  // A disabled view (Trends without history, Projects when off) renders with the
+  // eye-off icon and is filtered out of the runtime rotation, so counting it as
+  // visible both overstates the settings summary and weakens the guard that
+  // stops the last visible view from being hidden.
+  assert.equal(visibleViewCount({ views, hiddenValue: '' }), 5);
+  assert.equal(visibleViewCount({ views, hiddenValue: 'device' }), 4);
+  assert.equal(visibleViewCount({ views, hiddenValue: 'device', disabledIds: ['model'] }), 3);
+  // A view that is both hidden and disabled must only be discounted once.
+  assert.equal(visibleViewCount({ views, hiddenValue: 'device', disabledIds: ['device'] }), 4);
+});
+
+test('the last remaining view cannot be hidden once disabled views are discounted', () => {
+  // Everything hidden except Tools, with Limits disabled: one view is left, so
+  // the guard (count <= 1) has to fire. Counting Limits as visible would report
+  // two and let the user reach a main screen with nothing on it.
+  const hiddenValue = 'device,model,session';
+  assert.equal(visibleViewCount({ views, hiddenValue, disabledIds: ['limits'] }), 1);
 });

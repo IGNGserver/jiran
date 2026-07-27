@@ -353,7 +353,7 @@ test('Home-launched secondary views expose an accessible return action', () => {
 test('Projects view separates visibility from metadata collection', () => {
   const app = readRendererFile('app.js');
   assert.match(app, /state\.projectSettingsExpanded = false/);
-  assert.match(app, /id === 'project' && !projectsEnabled/);
+  assert.match(app, /projectsEnabled === false\) ids\.push\('project'\)/);
   assert.match(app, /projectSettingsContainer/);
   assert.match(app, /function renderProjectSettingsList/);
   assert.match(app, /settings\.views\.enableProjects/);
