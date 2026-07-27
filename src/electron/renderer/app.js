@@ -6440,7 +6440,7 @@ function renderViewPreferences() {
 function renderHomeLimitProviderList() {
   const wrap = document.createElement('div');
   wrap.id = 'homeLimitProviderList';
-  wrap.className = 'home-limit-provider-list';
+  wrap.className = 'settings-nested-list home-limit-provider-list';
   const hidden = hiddenHomeLimitProviderSet();
   const enabled = enabledLimitProviderSet();
   const providers = limitProviderOrderApi
@@ -6565,7 +6565,7 @@ function renderHomeLimitProviderList() {
 function renderHomeSettingsList() {
   const wrap = document.createElement('div');
   wrap.id = 'homeSettingsList';
-  wrap.className = 'home-settings-list';
+  wrap.className = 'settings-nested-list home-settings-list';
   const hidden = hiddenHomeModuleSet();
   const modules = homeModulePreferencesApi.orderedHomeModules(HOME_MODULE_OPTIONS, state.settings?.homeModuleOrder);
   const hasCustomOrder = homeModulePreferencesApi.normalizeHomeModuleOrder(state.settings?.homeModuleOrder, HOME_MODULE_OPTIONS).join(',') !== homeModulePreferencesApi.DEFAULT_HOME_MODULE_ORDER;
@@ -6741,7 +6741,7 @@ function renderHomeActivitySettings() {
 function renderTrendSettingsList() {
   const wrap = document.createElement('div');
   wrap.id = 'trendSettingsList';
-  wrap.className = 'trend-settings-list';
+  wrap.className = 'settings-nested-list trend-settings-list';
   const label = document.createElement('label');
   label.className = 'checkbox-label trend-settings-row';
   const input = document.createElement('input');
@@ -6786,7 +6786,7 @@ function renderTrendSettingsList() {
 function renderProjectSettingsList() {
   const wrap = document.createElement('div');
   wrap.id = 'projectSettingsList';
-  wrap.className = 'trend-settings-list';
+  wrap.className = 'settings-nested-list trend-settings-list';
   const label = document.createElement('label');
   label.className = 'checkbox-label trend-settings-row';
   const input = document.createElement('input');
@@ -6827,7 +6827,7 @@ async function setProjectsEnabled(enabled) {
 function renderServiceProviderList() {
   const wrap = document.createElement('div');
   wrap.id = 'serviceProviderList';
-  wrap.className = 'status-provider-list';
+  wrap.className = 'settings-nested-list status-provider-list';
   const hidden = hiddenServiceProviderSet();
   const providers = serviceStatusProviderPreferencesApi.orderedOptions(SERVICE_PROVIDER_OPTIONS, state.settings?.serviceProviderDisplayOrder);
   const hasCustomOrder = serviceStatusProviderPreferencesApi.hasCustomOrder(state.settings?.serviceProviderDisplayOrder);

@@ -785,23 +785,18 @@ span.settings-note.settings-item-desc {
 }
 
 /* Convert Grid Gaps to animatable margins for accordion containers */
-.settings-group, .settings-subgroup, .presence-feature, .tool-preference-list, .home-settings-list, .home-limit-provider-list, .cursor-settings-details-inner, .hub-mode-fields > .accordion-animation-inner {
+.settings-group, .settings-subgroup, .presence-feature, .tool-preference-list, .settings-nested-list, .cursor-settings-details-inner, .hub-mode-fields > .accordion-animation-inner {
   gap: 0 !important;
 }
 .settings-group > * + *,
 .settings-subgroup > * + *,
 .presence-feature > * + *,
-.home-settings-list > * + *,
-.home-limit-provider-list > * + *,
 .cursor-settings-details-inner > * + *,
 .hub-mode-fields > .accordion-animation-inner > * + * {
   margin-top: 8px;
 }
-.tool-preference-list > * + * {
-  margin-top: 6px;
-}
-.home-settings-list > * + *,
-.home-limit-provider-list > * + * {
+.tool-preference-list > * + *,
+.settings-nested-list > * + * {
   margin-top: 6px;
 }
 .accordion-animation-inner {
@@ -4156,26 +4151,33 @@ html.is-windows .limit-live-badge {
   outline: 2px solid rgba(var(--accent-rgb), 0.35);
   outline-offset: 1px;
 }
-.status-provider-list {
-  display: grid;
-  gap: 6px;
-  margin: 2px 0 6px 14px;
-  padding-left: 8px;
-  border-left: 1px solid rgba(var(--line-rgb), 0.14);
-}
-.trend-settings-list {
-  display: grid;
-  gap: 6px;
-  margin: 2px 0 6px 14px;
-  padding-left: 8px;
-  border-left: 1px solid rgba(var(--line-rgb), 0.14);
-}
-.home-settings-list {
+/* Every list nested under a view row (Home modules, Home limit providers,
+   Trends, Status) shares one rhythm: 24 px rows sitting flush, matching the
+   density of the view list they hang off. Rows carry their own padding, so the
+   container must not add a gap on top of it. */
+.settings-nested-list {
   display: grid;
   min-width: 0;
   margin: 2px 0 6px 14px;
-  padding-left: 8px;
+  padding: 0 0 0 8px;
   border-left: 1px solid rgba(var(--line-rgb), 0.14);
+}
+.settings-panel .settings-nested-list > .checkbox-label,
+.settings-panel .settings-nested-list > .settings-item,
+.settings-panel .settings-nested-list > .status-provider-interval,
+.settings-panel .settings-nested-list > .status-provider-row {
+  min-height: 24px;
+  margin-top: 0;
+}
+/* .settings-item ships a roomier 5 px padding for top-level rows; nested rows
+   trade it for the compact rhythm. */
+.settings-panel .settings-nested-list > .settings-item {
+  padding: 2px 0;
+}
+/* The interval pill is as tall as the base row, so at 24 px it would touch the
+   control above it. Give it the same ~2 px of air the switches and inputs get. */
+.settings-panel .settings-nested-list > .status-provider-interval {
+  min-height: 28px;
 }
 .home-settings-note {
   margin: 0;
@@ -4196,27 +4198,11 @@ html.is-windows .limit-live-badge {
 .home-module-preference-row:has(.view-subgroup-toggle) {
   grid-template-columns: minmax(0, 1fr) repeat(3, 22px);
 }
-.home-limit-provider-list {
-  display: grid;
-  min-width: 0;
-  margin: 2px 0 4px 14px;
-  padding: 0 0 0 8px;
-  border-left: 1px solid rgba(var(--line-rgb), 0.14);
-}
-.settings-panel .home-limit-provider-list > .home-limit-status-setting,
-.settings-panel .home-limit-provider-list > .home-limit-account-count-setting {
-  min-height: 24px;
-  padding: 2px 0;
-}
 .settings-panel .home-limit-account-count-setting > input[type="number"] {
   height: 20px;
   min-height: 20px;
   padding: 2px 8px;
   line-height: 15px;
-}
-.settings-panel .home-limit-provider-list > .home-limit-status-setting + .home-limit-status-setting,
-.settings-panel .home-limit-provider-list > .home-limit-status-setting + .home-limit-account-count-setting {
-  margin-top: 0;
 }
 .home-activity-settings {
   display: flex;
@@ -4227,13 +4213,10 @@ html.is-windows .limit-live-badge {
   margin: 2px 0 4px 14px;
   padding: 2px 0 2px 8px;
   border-left: 1px solid rgba(var(--line-rgb), 0.14);
-  color: var(--muted);
+  color: var(--text);
   font-size: 11px;
 }
 .home-limit-provider-header { margin-bottom: 1px; }
-.home-limit-status-setting {
-  min-height: 24px;
-}
 .home-limit-provider-names-copy {
   display: grid;
   gap: 2px;
@@ -4246,9 +4229,6 @@ html.is-windows .limit-live-badge {
 }
 .home-limit-provider-row {
   grid-template-columns: minmax(0, 1fr) repeat(2, 22px);
-}
-.trend-settings-row {
-  padding: 2px 0;
 }
 .status-provider-header { margin-bottom: 2px; }
 .status-provider-row {
@@ -4269,8 +4249,7 @@ html.is-windows .limit-live-badge {
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
-  margin-bottom: 4px;
-  color: var(--muted);
+  color: var(--text);
   font-size: 11px;
 }
 .settings-panel .status-provider-interval select {
