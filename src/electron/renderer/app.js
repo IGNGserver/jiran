@@ -242,7 +242,7 @@ function normalizeInitialViewValue(value, allowed, fallback) {
   return allowed.has(raw) ? raw : fallback;
 }
 
-const state = { period: normalizeInitialViewValue(initialViewState.period, viewPeriodValues, 'today'), appUpdate: null, breakdown: normalizeInitialViewValue(initialViewState.breakdown, viewBreakdownValues, 'home'), viewSwitcherOpen: false, viewSwitcherHasOpened: false, limitDetailTooltipHasOpened: false, limitDetailTooltipActive: false, limitDetailTooltipRenderPending: false, settings: null, stats: null, homeHistory: null, homeHistoryBusy: false, homeHistoryRequested: false, homeHistorySignature: '', homeHistoryRetries: 0, homeHistoryRetryTimer: null, homeActivityScrollLeft: null, homeActivityFollowEnd: true, homeActivityResizeObserver: null, serviceStatus: null, serviceStatusBusy: false, serviceProvidersExpanded: false, trendSettingsExpanded: false, trendsActivating: false, homeSettingsExpanded: false, homeLimitSettingsExpanded: false, serviceStatusTicker: null, refreshTimer: null, refreshBusy: false, refreshFeedbackTimer: null, currentTotal: 0, rowSignature: '', streamConnected: false, streamFailure: null, mode: 'idle', appInfo: null, tokscaleStatus: null, tokscaleCheck: null, tokscaleBusy: false, hubInfo: null, cursorAccount: { status: null, error: '' }, cursorAccountExpanded: false, codexAccountExpanded: false, codexAccountError: '', codexSignInBusy: false, codexSignInFlowId: '', codexLoginUrl: '', codexLoginStatus: '', codexLoginOutput: '', codexWorkspaceChoices: [], codexWorkspaceId: '', codexActiveAccount: null, codexPendingActiveAccount: null, codexPendingActiveAccountUntil: 0, codexPendingActiveAccountTimer: null, codexSystemSwitchingAccountId: '', codexSystemSwitchErrorAccountId: '', codexSystemSwitchError: '', codexSwitchPopoverHasOpened: false, codexSwitchPopoverActive: false, codexSwitchPopoverRenderPending: false, customPricingExpanded: false, claudeAccountExpanded: false, claudePendingCheckSince: 0, opencodeProfileCount: 0, opencodeCookieExpanded: false, openrouterProfileCount: 0, openrouterAccountExpanded: false, thirdPartyProfileCount: 0, thirdPartyAccountExpanded: false, deepseekAccountExpanded: false, deepseekPendingCheckSince: 0, minimaxAccountExpanded: false, minimaxPendingCheckSince: 0, zaiAccountExpanded: false, zaiPendingCheckSince: 0, zaiteamAccountExpanded: false, zaiteamPendingCheckSince: 0, volcengineAccountExpanded: false, volcenginePendingCheckSince: 0, qoderAccountExpanded: false, qoderPendingCheckSince: 0, kimiAccountExpanded: false, kimiPendingCheckSince: 0, ollamaAccountExpanded: false, ollamaPendingCheckSince: 0, mimoAccountExpanded: false, mimoAccountError: '', copilotAccountExpanded: false, copilotManualExpanded: false, copilotPendingCheckSince: 0, copilotSignInBusy: false, copilotSignInCancelable: false, copilotSignInFlowId: '', copilotAuthorizeMessage: '', copilotLoginStatus: '', copilotErrorMessage: '', floatingBubble: initialFloatingBubble, suppressInitialNumberAnimation: window.__TOKEN_MONITOR_SUPPRESS_INITIAL_NUMBER_ANIMATION__ === true, openSession: null, detailSort: 'time', recordingWindowShortcut: false, windowShortcutInvalid: false };
+const state = { period: normalizeInitialViewValue(initialViewState.period, viewPeriodValues, 'today'), appUpdate: null, breakdown: normalizeInitialViewValue(initialViewState.breakdown, viewBreakdownValues, 'home'), viewSwitcherOpen: false, viewSwitcherHasOpened: false, limitDetailTooltipHasOpened: false, limitDetailTooltipActive: false, limitDetailTooltipRenderPending: false, settings: null, stats: null, homeHistory: null, homeHistoryBusy: false, homeHistoryRequested: false, homeHistorySignature: '', homeHistoryRetries: 0, homeHistoryRetryTimer: null, homeActivityScrollLeft: null, homeActivityFollowEnd: true, homeActivityResizeObserver: null, serviceStatus: null, serviceStatusBusy: false, serviceProvidersExpanded: false, trendSettingsExpanded: false, trendsActivating: false, homeSettingsExpanded: false, homeLimitSettingsExpanded: false, limitProviderSettingsExpanded: '', serviceStatusTicker: null, refreshTimer: null, refreshBusy: false, refreshFeedbackTimer: null, currentTotal: 0, rowSignature: '', streamConnected: false, streamFailure: null, mode: 'idle', appInfo: null, tokscaleStatus: null, tokscaleCheck: null, tokscaleBusy: false, hubInfo: null, cursorAccount: { status: null, error: '' }, cursorAccountExpanded: false, codexAccountExpanded: false, codexAccountError: '', codexSignInBusy: false, codexSignInFlowId: '', codexLoginUrl: '', codexLoginStatus: '', codexLoginOutput: '', codexWorkspaceChoices: [], codexWorkspaceId: '', codexActiveAccount: null, codexPendingActiveAccount: null, codexPendingActiveAccountUntil: 0, codexPendingActiveAccountTimer: null, codexSystemSwitchingAccountId: '', codexSystemSwitchErrorAccountId: '', codexSystemSwitchError: '', codexSwitchPopoverHasOpened: false, codexSwitchPopoverActive: false, codexSwitchPopoverRenderPending: false, customPricingExpanded: false, claudeAccountExpanded: false, claudePendingCheckSince: 0, opencodeProfileCount: 0, opencodeCookieExpanded: false, openrouterProfileCount: 0, openrouterAccountExpanded: false, thirdPartyProfileCount: 0, thirdPartyAccountExpanded: false, deepseekAccountExpanded: false, deepseekPendingCheckSince: 0, minimaxAccountExpanded: false, minimaxPendingCheckSince: 0, zaiAccountExpanded: false, zaiPendingCheckSince: 0, zaiteamAccountExpanded: false, zaiteamPendingCheckSince: 0, volcengineAccountExpanded: false, volcenginePendingCheckSince: 0, qoderAccountExpanded: false, qoderPendingCheckSince: 0, kimiAccountExpanded: false, kimiPendingCheckSince: 0, ollamaAccountExpanded: false, ollamaPendingCheckSince: 0, mimoAccountExpanded: false, mimoAccountError: '', copilotAccountExpanded: false, copilotManualExpanded: false, copilotPendingCheckSince: 0, copilotSignInBusy: false, copilotSignInCancelable: false, copilotSignInFlowId: '', copilotAuthorizeMessage: '', copilotLoginStatus: '', copilotErrorMessage: '', floatingBubble: initialFloatingBubble, suppressInitialNumberAnimation: window.__TOKEN_MONITOR_SUPPRESS_INITIAL_NUMBER_ANIMATION__ === true, openSession: null, detailSort: 'time', recordingWindowShortcut: false, windowShortcutInvalid: false };
 state.homeHistoryLoadedSignature = '';
 state.homeHistoryRetrySignature = '';
 state.homeReturnVisible = false;
@@ -2316,10 +2316,60 @@ function thirdPartySpendNode(provider, quotaWindow) {
   return item;
 }
 
+// Claude's prepaid credits. Deliberately meter-less: the headline is a sum of
+// grants whose expiries belong to its parts, so a bar would need a denominator
+// this pool doesn't report. Expiries live in the tooltip instead.
+function claudeBalanceNode(provider) {
+  // Also checked here, not just in the collector: a record collected before the
+  // setting was switched off is still in state, and the row should disappear on
+  // the toggle rather than on the next refresh.
+  if (state.settings?.claudePrepaidBalanceEnabled === false) return null;
+  const balance = provider?.balance || null;
+  const amount = optionalFiniteNumber(balance?.amount);
+  if (amount === null) return null;
+  const currency = balance?.currency || 'USD';
+  const tranches = Array.isArray(balance.tranches) ? balance.tranches : [];
+  const entries = tranches
+    .filter((tranche) => optionalFiniteNumber(tranche?.amount) !== null)
+    .map((tranche) => {
+      const expiresAt = tranche.expiresAt ? new Date(tranche.expiresAt) : null;
+      const valid = expiresAt && !Number.isNaN(expiresAt.getTime());
+      const diffMs = valid ? expiresAt.getTime() - Date.now() : 0;
+      return [
+        formatMoney(tranche.amount, tranche.currency || currency),
+        !valid ? 'No expiry' : diffMs <= 0 ? 'Expired' : `Expires in ${formatDuration(diffMs)}`
+      ];
+    });
+
+  const item = document.createElement('div');
+  item.className = 'limit-window limit-window-wide limit-window-note limit-spend';
+  const line = document.createElement('div');
+  line.className = 'limit-window-text limit-spend-line';
+  const label = document.createElement('span');
+  label.textContent = 'Balance';
+  const right = document.createElement('span');
+  right.className = 'limit-spend-right';
+  const summary = document.createElement('span');
+  summary.className = 'limit-spend-summary';
+  summary.textContent = formatMoney(amount, currency);
+  right.append(summary);
+  const infoNode = limitDetailInfoNode(entries, 'limit-spend-info-wrap');
+  if (infoNode) right.append(infoNode);
+  line.append(label, right);
+  item.append(line);
+  item.setAttribute('aria-label', [
+    'Balance',
+    formatMoney(amount, currency),
+    ...entries.map(([entryLabel, value]) => `${entryLabel} ${value}`)
+  ].join(', '));
+  return item;
+}
+
 const {
   creditsMeterPercent,
   formatCompactMoney,
-  formatMoney
+  formatMoney,
+  spendWindow
 } = window.TokenMonitorLimitBalanceDisplay;
 
 function optionalFiniteNumber(value) {
@@ -3134,6 +3184,19 @@ function renderProviderWindows(provider, color) {
       if (weekly.label) node.classList.add('limit-window-wide');
       windows.append(node);
     }
+    // Usage credits: "$2.35 / $20.00" with a meter when a monthly spend limit is
+    // set, "$2.35 spent" without one. Absent entirely when credits are off.
+    const usageCredits = spendWindow(provider);
+    if (usageCredits) {
+      const value = usageCredits.limit === null
+        ? `${formatMoney(usageCredits.used, usageCredits.currency)} spent`
+        : `${formatMoney(usageCredits.used, usageCredits.currency)} / ${formatMoney(usageCredits.limit, usageCredits.currency)}`;
+      const node = limitWindowNode('Usage credits', usageCredits, color, 0.5, value);
+      node.classList.add('limit-window-wide', 'limit-window-no-reset');
+      windows.append(node);
+    }
+    const balanceNode = claudeBalanceNode(provider);
+    if (balanceNode) windows.append(balanceNode);
   } else {
     // Default: render only the windows the provider actually has. Providers
     // that only expose a single window shouldn't leave a half-empty bar next to
@@ -7115,9 +7178,94 @@ function renderLimitProviderCheckboxes() {
       label: settingsLabel || label,
       count: providers.length
     });
-    row.append(wrap, handle);
+    // The chevron and the drag handle share one grid cell so rows without
+    // provider settings keep their handle aligned with the rest of the list.
+    const actions = document.createElement('span');
+    actions.className = 'limit-provider-actions';
+    const settings = LIMIT_PROVIDER_SETTINGS[id];
+    let optionsContainer = null;
+    if (settings) {
+      const expanded = state.limitProviderSettingsExpanded === id;
+      const disclosure = document.createElement('button');
+      disclosure.type = 'button';
+      disclosure.className = `view-subgroup-toggle${expanded ? ' is-expanded' : ''}`;
+      disclosure.title = t('settings.limits.providerOptions', { provider: settingsLabel || label });
+      disclosure.setAttribute('aria-label', disclosure.title);
+      disclosure.setAttribute('aria-expanded', String(expanded));
+      const icon = document.createElement('span');
+      icon.className = 'view-subgroup-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      disclosure.append(icon);
+      // Built once and toggled by class, never added and removed: an element
+      // that leaves the DOM cannot animate. Same shape the Home view rows use.
+      optionsContainer = document.createElement('div');
+      optionsContainer.className = `accordion-animated-container${expanded ? '' : ' hidden'}`;
+      const inner = document.createElement('div');
+      inner.className = 'accordion-animation-inner';
+      inner.append(limitProviderSettingsList(id, settings));
+      optionsContainer.append(inner);
+      disclosure.addEventListener('click', () => {
+        const open = state.limitProviderSettingsExpanded !== id;
+        state.limitProviderSettingsExpanded = open ? id : '';
+        disclosure.classList.toggle('is-expanded', open);
+        disclosure.setAttribute('aria-expanded', String(open));
+        optionsContainer.classList.toggle('hidden', !open);
+      });
+      actions.append(disclosure);
+    }
+    actions.append(handle);
+    row.append(wrap, actions);
+    // Kept inside the row rather than as a sibling: reordering moves only
+    // `.limit-provider-row` nodes, so a sibling panel would be stranded when the
+    // list is dragged.
+    if (optionsContainer) row.append(optionsContainer);
     els.limitProviderCheckboxes.appendChild(row);
   }
+}
+
+// Provider-scoped options, rendered under their own row rather than in the
+// section footer, which is reserved for settings that apply to every provider.
+const LIMIT_PROVIDER_SETTINGS = {
+  claude: [{
+    key: 'claudePrepaidBalanceEnabled',
+    titleKey: 'settings.limits.prepaidBalance',
+    descKey: 'settings.limits.prepaidBalanceDesc',
+    defaultValue: true
+  }]
+};
+
+function limitProviderSettingsList(providerId, settings) {
+  const list = document.createElement('div');
+  list.className = 'settings-nested-list limit-provider-settings-list';
+  for (const setting of settings) {
+    // Same shape as Start at login: the description is a sibling of the input,
+    // not part of the title cell, so the switch stays on the title's line and
+    // the note wraps full-width underneath instead of squeezing it onto its own
+    // row.
+    const item = document.createElement('label');
+    item.className = 'checkbox-label settings-item';
+    const copy = document.createElement('span');
+    copy.className = 'settings-item-text';
+    const title = document.createElement('span');
+    title.className = 'settings-item-title';
+    title.textContent = t(setting.titleKey);
+    copy.append(title);
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = state.settings?.[setting.key] !== false;
+    input.addEventListener('change', async () => {
+      await saveSettings({ [setting.key]: input.checked });
+      // Switching this off hides the row immediately; the request it also stops
+      // would otherwise only be skipped on the next refresh.
+      renderLimits();
+    });
+    const desc = document.createElement('span');
+    desc.className = 'settings-note settings-item-desc';
+    desc.textContent = t(setting.descKey);
+    item.append(copy, input, desc);
+    list.append(item);
+  }
+  return list;
 }
 
 async function onToolTrackingToggle() {
