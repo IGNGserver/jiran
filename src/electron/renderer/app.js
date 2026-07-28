@@ -2064,7 +2064,8 @@ function codexResetCreditExpiryDetailLabel(date) {
   return diffMs <= 0 ? 'Expires now' : `Expires in ${formatDuration(diffMs)}`;
 }
 
-function codexResetCreditExpiryDateLabel(date) {
+// Shared by Codex reset credits and Claude prepaid grants.
+function expiryDateLabel(date) {
   return new Intl.DateTimeFormat(currentLocale(), { month: 'numeric', day: 'numeric' }).format(date);
 }
 
@@ -2142,7 +2143,7 @@ function codexResetCreditsNode(resetCredits) {
         const row = document.createElement('span');
         row.className = 'limit-detail-tooltip-row';
         const label = document.createElement('span');
-        label.textContent = codexResetCreditExpiryDateLabel(date);
+        label.textContent = expiryDateLabel(date);
         const tooltipExpiry = document.createElement('span');
         tooltipExpiry.textContent = codexResetCreditExpiryLabel(date);
         row.append(label, tooltipExpiry);
@@ -2183,8 +2184,13 @@ function openrouterSpendEntries(balance) {
   ].filter(([, value]) => value !== null);
 }
 
+// Entries are rows of cells: `[label, value]`, or `[label, middle, value]` when
+// a row carries an extra field. Rows are grid cells (`display: contents`), so a
+// short row would slide into the next row's columns — pad every row to the
+// widest one and widen the grid to match.
 function limitDetailInfoNode(entries, extraClass = '') {
   if (!Array.isArray(entries) || entries.length === 0) return null;
+  const columns = entries.reduce((widest, entry) => Math.max(widest, entry.length), 0);
   const infoWrap = document.createElement('span');
   infoWrap.className = ['limit-detail-tooltip-wrap', extraClass].filter(Boolean).join(' ');
   infoWrap.classList.toggle('has-opened', state.limitDetailTooltipHasOpened);
@@ -2194,19 +2200,20 @@ function limitDetailInfoNode(entries, extraClass = '') {
   info.tabIndex = 0;
   info.setAttribute(
     'aria-label',
-    entries.map(([entryLabel, value]) => `${entryLabel}: ${value}`).join(', ')
+    entries.map(([entryLabel, ...rest]) => `${entryLabel}: ${rest.filter(Boolean).join(' ')}`).join(', ')
   );
   const tooltip = document.createElement('span');
-  tooltip.className = 'limit-detail-tooltip';
+  tooltip.className = ['limit-detail-tooltip', columns > 2 ? 'limit-detail-tooltip-triple' : '']
+    .filter(Boolean).join(' ');
   tooltip.setAttribute('role', 'tooltip');
-  entries.forEach(([entryLabel, value]) => {
+  entries.forEach((entry) => {
     const row = document.createElement('span');
     row.className = 'limit-detail-tooltip-row';
-    const tooltipLabel = document.createElement('span');
-    tooltipLabel.textContent = entryLabel;
-    const tooltipValue = document.createElement('span');
-    tooltipValue.textContent = value;
-    row.append(tooltipLabel, tooltipValue);
+    for (let column = 0; column < columns; column += 1) {
+      const cell = document.createElement('span');
+      cell.textContent = entry[column] ?? '';
+      row.append(cell);
+    }
     tooltip.append(row);
   });
   const markOpened = () => {
@@ -2316,6 +2323,27 @@ function thirdPartySpendNode(provider, quotaWindow) {
   return item;
 }
 
+// One tooltip row per prepaid grant: amount, expiry date, time left, the same
+// shape Codex's reset credits use. `aria` spells the expiry out, since the
+// terse columns no longer say what the date and duration mean.
+function claudePrepaidGrantRows(tranches, currency) {
+  return tranches
+    .filter((tranche) => optionalFiniteNumber(tranche?.amount) !== null)
+    .map((tranche) => {
+      const money = formatMoney(tranche.amount, tranche.currency || currency);
+      const expiresAt = tranche.expiresAt ? new Date(tranche.expiresAt) : null;
+      if (!expiresAt || Number.isNaN(expiresAt.getTime())) {
+        return { cells: [money, '', 'No expiry'], aria: `${money} no expiry` };
+      }
+      const diffMs = expiresAt.getTime() - Date.now();
+      const remaining = diffMs <= 0 ? 'Expired' : formatDuration(diffMs);
+      return {
+        cells: [money, expiryDateLabel(expiresAt), remaining],
+        aria: diffMs <= 0 ? `${money} expired` : `${money} expires in ${remaining}`
+      };
+    });
+}
+
 // Claude's prepaid credits. Deliberately meter-less: the headline is a sum of
 // grants whose expiries belong to its parts, so a bar would need a denominator
 // this pool doesn't report. Expiries live in the tooltip instead.
@@ -2329,17 +2357,8 @@ function claudeBalanceNode(provider) {
   if (amount === null) return null;
   const currency = balance?.currency || 'USD';
   const tranches = Array.isArray(balance.tranches) ? balance.tranches : [];
-  const entries = tranches
-    .filter((tranche) => optionalFiniteNumber(tranche?.amount) !== null)
-    .map((tranche) => {
-      const expiresAt = tranche.expiresAt ? new Date(tranche.expiresAt) : null;
-      const valid = expiresAt && !Number.isNaN(expiresAt.getTime());
-      const diffMs = valid ? expiresAt.getTime() - Date.now() : 0;
-      return [
-        formatMoney(tranche.amount, tranche.currency || currency),
-        !valid ? 'No expiry' : diffMs <= 0 ? 'Expired' : `Expires in ${formatDuration(diffMs)}`
-      ];
-    });
+  const grants = claudePrepaidGrantRows(tranches, currency);
+  const entries = grants.map((grant) => grant.cells);
 
   const item = document.createElement('div');
   item.className = 'limit-window limit-window-wide limit-window-note limit-spend';
@@ -2360,7 +2379,7 @@ function claudeBalanceNode(provider) {
   item.setAttribute('aria-label', [
     'Balance',
     formatMoney(amount, currency),
-    ...entries.map(([entryLabel, value]) => `${entryLabel} ${value}`)
+    ...grants.map((grant) => grant.aria)
   ].join(', '));
   return item;
 }

@@ -93,7 +93,7 @@ test('OpenRouter Limits presentation shows a real balance meter and compact spen
   assert.match(app, /\['All time', optionalFiniteNumber\(balance\?\.allTimeSpend\)\]/);
   assert.match(app, /summary\.className = 'limit-spend-summary'/);
   assert.match(app, /function limitDetailInfoNode\(entries, extraClass = ''\)/);
-  assert.match(app, /tooltip\.className = 'limit-detail-tooltip'/);
+  assert.match(app, /tooltip\.className = \['limit-detail-tooltip', columns > 2 \? 'limit-detail-tooltip-triple' : ''\]/);
   assert.match(app, /info\.tabIndex = 0/);
   assert.match(app, /const release = \(\) => \{\s*requestAnimationFrame\(\(\) => \{\s*if \(limitDetailTooltipShouldHoldRender\(\)\) return;/);
   assert.match(app, /entries\.map\(\(\[entryLabel, value\]\) => \[entryLabel, formatMoney\(value, currency\)\]\)/);

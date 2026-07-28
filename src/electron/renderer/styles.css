@@ -3529,6 +3529,9 @@ html.is-windows .limit-live-badge {
   -webkit-backdrop-filter: blur(28px) saturate(115%);
   backdrop-filter: blur(28px) saturate(115%);
 }
+.limit-detail-tooltip-triple {
+  grid-template-columns: max-content max-content max-content;
+}
 .limit-detail-tooltip::after {
   position: absolute;
   right: 6px;
@@ -3561,6 +3564,13 @@ html.is-windows .limit-live-badge {
 }
 .limit-detail-tooltip-row span:last-child {
   flex: 0 0 auto;
+  color: var(--text);
+  opacity: 0.54;
+  text-align: right;
+  white-space: nowrap;
+}
+/* Middle cell of a three-column row: secondary, like the trailing one. */
+.limit-detail-tooltip-row span:nth-child(2):not(:last-child) {
   color: var(--text);
   opacity: 0.54;
   text-align: right;

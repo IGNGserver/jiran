@@ -741,8 +741,8 @@ test('Codex renders manual reset credits below session and weekly windows', () =
   const resetCreditsValue = functionBody(app, 'formatCodexResetCreditsValue', 'codexResetCreditExpirationDates');
   const resetCreditExpirationDates = functionBody(app, 'codexResetCreditExpirationDates', 'codexResetCreditExpiryLabel');
   const resetCreditExpiryLabel = functionBody(app, 'codexResetCreditExpiryLabel', 'codexResetCreditExpiryDetailLabel');
-  const resetCreditExpiryDetailLabel = functionBody(app, 'codexResetCreditExpiryDetailLabel', 'codexResetCreditExpiryDateLabel');
-  const resetCreditExpiryDateLabel = functionBody(app, 'codexResetCreditExpiryDateLabel', 'limitDetailTooltipShouldHoldRender');
+  const resetCreditExpiryDetailLabel = functionBody(app, 'codexResetCreditExpiryDetailLabel', 'expiryDateLabel');
+  const resetCreditExpiryDateLabel = functionBody(app, 'expiryDateLabel', 'limitDetailTooltipShouldHoldRender');
   const codexResetCreditsNode = functionBody(app, 'codexResetCreditsNode', 'renderLimitProviderHead');
   const limitDetailTooltipShouldHoldRender = functionBody(app, 'limitDetailTooltipShouldHoldRender', 'flushPendingLimitDetailTooltipRender');
   const renderLimits = functionBody(app, 'renderLimits', 'serviceStatusLabel');
@@ -773,7 +773,7 @@ test('Codex renders manual reset credits below session and weekly windows', () =
   assert.match(codexResetCreditsNode, /hiddenExpirationCount = expirationDates\.length - summaryParts\.length/);
   assert.match(codexResetCreditsNode, /summaryParts\.push\(`\+\$\{hiddenExpirationCount\}`\)/);
   assert.match(codexResetCreditsNode, /expirationDates\.forEach/);
-  assert.match(codexResetCreditsNode, /label\.textContent = codexResetCreditExpiryDateLabel\(date\)/);
+  assert.match(codexResetCreditsNode, /label\.textContent = expiryDateLabel\(date\)/);
   assert.match(codexResetCreditsNode, /tooltipExpiry\.textContent = codexResetCreditExpiryLabel\(date\)/);
   assert.match(codexResetCreditsNode, /state\.limitDetailTooltipActive = true/);
   assert.match(codexResetCreditsNode, /addEventListener\('pointerenter', markResetCreditsTooltipOpened\)/);
@@ -793,6 +793,96 @@ test('Codex renders manual reset credits below session and weekly windows', () =
   assert.match(styles, /\.limit-detail-tooltip-row\s*\{[^}]*display: contents;/s);
   assert.match(styles, /\.limit-detail-tooltip-row span:last-child\s*\{[^}]*text-align: right;/s);
   assert.doesNotMatch(styles, /\.limit-reset-credits-clock/);
+});
+
+function runClaudePrepaidGrantRows(app, tranches, currency, now) {
+  const optionalNumber = functionBody(app, 'optionalFiniteNumber', 'formatLimitWindowValue');
+  const duration = functionBody(app, 'formatDuration', 'formatActiveDuration');
+  const dateLabel = functionBody(app, 'expiryDateLabel', 'limitDetailTooltipShouldHoldRender');
+  const grantRows = functionBody(app, 'claudePrepaidGrantRows', 'claudeBalanceNode');
+  const context = {
+    Date: class FrozenDate extends Date {
+      constructor(...args) {
+        super(...(args.length === 0 ? [now] : args));
+      }
+
+      static now() {
+        return now;
+      }
+    },
+    Intl,
+    currentLocale: () => 'en-US',
+    formatMoney: (value, code) => `${code === 'USD' ? '$' : `${code} `}${Number(value).toFixed(2)}`
+  };
+  vm.runInNewContext(
+    `${optionalNumber}\n${duration}\n${dateLabel}\n${grantRows}\n`
+      + `result = claudePrepaidGrantRows(${JSON.stringify(tranches)}, ${JSON.stringify(currency)});`,
+    context
+  );
+  // The rows come back with the sandbox's own prototypes, which deepEqual rejects.
+  return JSON.parse(JSON.stringify(context.result));
+}
+
+// Expiries are rendered in local time, so the fixtures are built from local
+// dates rather than fixed UTC instants. Both land in August, which no time zone
+// splits with a DST transition from late July.
+function localIso(year, month, day, hour = 0) {
+  return new Date(year, month - 1, day, hour, 0, 0, 0).toISOString();
+}
+
+test('Claude prepaid grants list amount, expiry date and time left in separate columns', () => {
+  const app = readRendererFile('app.js');
+  const now = new Date(2026, 6, 28, 0, 0, 0, 0).getTime();
+  const rows = runClaudePrepaidGrantRows(app, [
+    { amount: 13.43, currency: 'USD', expiresAt: localIso(2026, 8, 8, 17) },
+    { amount: 100, currency: 'USD', expiresAt: localIso(2026, 8, 20, 17) }
+  ], 'USD', now);
+
+  assert.deepEqual(rows.map((row) => row.cells), [
+    ['$13.43', '8/8', '11d 17h'],
+    ['$100.00', '8/20', '23d 17h']
+  ]);
+  // The columns dropped the wording, so only the spoken label still carries it.
+  assert.deepEqual(rows.map((row) => row.aria), [
+    '$13.43 expires in 11d 17h',
+    '$100.00 expires in 23d 17h'
+  ]);
+});
+
+test('Claude prepaid grants keep three cells when a grant has no usable expiry', () => {
+  const app = readRendererFile('app.js');
+  const now = new Date(2026, 6, 28, 0, 0, 0, 0).getTime();
+  const rows = runClaudePrepaidGrantRows(app, [
+    { amount: 5, currency: 'USD', expiresAt: null },
+    { amount: 6, currency: 'USD', expiresAt: 'not-a-date' },
+    { amount: 7, currency: 'USD', expiresAt: localIso(2026, 7, 1, 12) },
+    { amount: null, currency: 'USD', expiresAt: localIso(2026, 8, 8, 17) }
+  ], 'USD', now);
+
+  // Rows are grid cells, so a short row would slide into the next row's columns.
+  assert.deepEqual(rows.map((row) => row.cells.length), [3, 3, 3]);
+  assert.deepEqual(rows.map((row) => row.cells[2]), ['No expiry', 'No expiry', 'Expired']);
+  assert.deepEqual(rows.map((row) => row.cells[1]), ['', '', '7/1']);
+});
+
+test('The detail tooltip widens its grid and pads short rows for three-column entries', () => {
+  const app = readRendererFile('app.js');
+  const styles = readRendererFile('styles.css');
+  const infoNode = functionBody(app, 'limitDetailInfoNode', 'openrouterSpendNode');
+  const grantRows = functionBody(app, 'claudePrepaidGrantRows', 'claudeBalanceNode');
+  const balanceNode = functionBody(app, 'claudeBalanceNode', 'optionalFiniteNumber');
+
+  assert.match(infoNode, /const columns = entries\.reduce\(\(widest, entry\) => Math\.max\(widest, entry\.length\), 0\);/);
+  assert.match(infoNode, /columns > 2 \? 'limit-detail-tooltip-triple' : ''/);
+  assert.match(infoNode, /for \(let column = 0; column < columns; column \+= 1\)/);
+  assert.match(infoNode, /cell\.textContent = entry\[column\] \?\? '';/);
+  assert.match(infoNode, /entries\.map\(\(\[entryLabel, \.\.\.rest\]\) => `\$\{entryLabel\}: \$\{rest\.filter\(Boolean\)\.join\(' '\)\}`\)/);
+  assert.match(balanceNode, /const grants = claudePrepaidGrantRows\(tranches, currency\);/);
+  assert.match(balanceNode, /\.\.\.grants\.map\(\(grant\) => grant\.aria\)/);
+  // The wording belongs to the spoken label now, never to a rendered cell.
+  assert.doesNotMatch(grantRows, /cells: \[[^\]]*Expires in/);
+  assert.match(styles, /\.limit-detail-tooltip-triple\s*\{[^}]*grid-template-columns: max-content max-content max-content;/s);
+  assert.match(styles, /\.limit-detail-tooltip-row span:nth-child\(2\):not\(:last-child\)\s*\{[^}]*text-align: right;/s);
 });
 
 test('Home uses explicit billing labels so Copilot Premium and Chat stay distinct', () => {
