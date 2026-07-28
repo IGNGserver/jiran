@@ -61,10 +61,16 @@
             </div>
             <div class="settings-subgroup">
               <div class="settings-group-header"><span data-i18n="settings.integrations.title">Integrations</span></div>
-              <label class="checkbox-label settings-item"><span class="settings-item-text"><span class="settings-item-title" data-i18n="settings.integrations.discord">Discord Rich Presence</span></span><input id="discordRpcInput" type="checkbox" /></label>
+              <label class="checkbox-label settings-item">
+                <span class="settings-item-text">
+                  <span class="settings-item-title" data-i18n="settings.integrations.discord">Discord Rich Presence</span>
+                </span>
+                <input id="discordRpcInput" type="checkbox" aria-describedby="discordRpcDescription" />
+                <span id="discordRpcDescription" class="settings-item-desc" data-i18n="settings.integrations.discordDescription">Show today's tokens, cost, and most-used AI tool in your Discord activity.</span>
+              </label>
             </div>
-            <div class="settings-subgroup">
-              <div class="settings-group-header"><span data-i18n="settings.appUpdate.title">App Updates</span><span data-i18n="settings.appUpdate.source">GitHub releases</span></div>
+            <div class="settings-subgroup maintenance-section app-update-settings">
+              <div class="settings-group-header maintenance-header"><span data-i18n="settings.appUpdate.title">App Updates</span><span data-i18n="settings.appUpdate.source">GitHub releases</span></div>
               <label id="automaticAppUpdatesRow" class="checkbox-label settings-item">
                 <span class="settings-item-text">
                   <span class="settings-item-title" data-i18n="settings.appUpdate.automatic">Download updates automatically</span>
@@ -72,41 +78,60 @@
                 <input id="automaticAppUpdatesInput" type="checkbox" aria-describedby="automaticAppUpdatesNote" />
                 <span id="automaticAppUpdatesNote" class="settings-note settings-item-desc" data-i18n="settings.appUpdate.automaticDescription">Download new versions in the background. You'll be prompted to restart when ready.</span>
               </label>
-              <div class="tokscale-lines">
-                <div><span data-i18n="settings.appUpdate.installed">Installed</span><strong id="appUpdateInstalled">—</strong></div>
-                <div><span data-i18n="settings.appUpdate.latest">Latest</span><strong id="appUpdateLatest" data-i18n="settings.common.notChecked">Not checked</strong></div>
+              <div class="maintenance-version-grid app-update-version-grid">
+                <div class="maintenance-version-item"><span data-i18n="settings.appUpdate.installed">Installed</span><strong id="appUpdateInstalled">—</strong></div>
+                <div class="maintenance-version-item"><span data-i18n="settings.appUpdate.latest">Latest</span><strong id="appUpdateLatest" data-i18n="settings.common.notChecked">Not checked</strong></div>
               </div>
-              <div class="settings-actions">
+              <div class="settings-actions maintenance-actions">
                 <button id="appUpdateCheckButton" type="button" data-i18n="settings.appUpdate.check">Check for updates</button>
                 <button id="appUpdateViewReleaseButton" type="button" class="hidden" data-i18n="settings.appUpdate.viewRelease">View release</button>
               </div>
-              <details id="appUpdateNotes" class="app-update-notes hidden">
-                <summary id="appUpdateNotesTitle">What's new</summary>
-                <div id="appUpdateNotesBody" class="app-update-notes-body"></div>
-                <button id="appUpdateReleaseNotesButton" type="button" class="inline-link" data-i18n="settings.appUpdate.viewFullRelease">View full release</button>
-              </details>
+              <div id="appUpdateNotes" class="app-update-notes hidden">
+                <button id="appUpdateNotesToggle" class="app-update-notes-toggle" type="button" aria-expanded="false" aria-controls="appUpdateNotesDetails">
+                  <span class="settings-section-disclosure app-update-notes-disclosure" aria-hidden="true"></span>
+                  <span id="appUpdateNotesTitle">What's new</span>
+                </button>
+                <div id="appUpdateNotesDetails" class="app-update-notes-details hidden" inert>
+                  <div class="app-update-notes-content">
+                    <div id="appUpdateNotesBody" class="app-update-notes-body"></div>
+                    <button id="appUpdateReleaseNotesButton" type="button" class="inline-link" data-i18n="settings.appUpdate.viewFullRelease">View full release</button>
+                  </div>
+                </div>
+              </div>
               <div id="appUpdateMessage" class="tokscale-message"></div>
             </div>
-            <div id="tokscaleGroup" class="settings-group settings-subgroup">
-              <div class="settings-group-header"><span>Tokscale</span><span data-i18n="settings.tokscale.source">CLI dependency from npm</span></div>
-              <div class="tokscale-lines">
-                <div><span data-i18n="settings.tokscale.installed">Installed</span><strong id="tokscaleInstalled" data-i18n="settings.common.checking">Checking...</strong></div>
-                <div id="tokscaleBundledLine"><span data-i18n="settings.tokscale.bundled">Bundled</span><strong id="tokscaleBundled">—</strong></div>
-                <div><span><span data-i18n="settings.tokscale.npm">On npm</span> <small data-i18n="settings.tokscale.latestTag">(latest tag)</small></span><strong id="tokscaleNpm" data-i18n="settings.common.notChecked">Not checked</strong></div>
-              </div>
-              <p class="settings-note"><span data-i18n="settings.tokscale.noteBefore">Token Monitor uses tokscale (MIT, open-source) to read token data.</span> <button id="openTokscaleLinkButton" type="button" class="inline-link" data-i18n="settings.tokscale.learnMore">Learn more</button></p>
-              <div id="tokscaleMessage" class="tokscale-message"></div>
-              <div class="settings-actions">
-                <button id="checkTokscaleButton" type="button" data-i18n="settings.tokscale.checkNpm">Check npm</button>
-                <button id="downloadTokscaleButton" type="button" class="hidden" data-i18n="settings.tokscale.downloadNpm">Download from npm</button>
-                <button id="resetTokscaleButton" type="button" class="hidden" data-i18n="settings.tokscale.resetBundled">Reset to bundled</button>
-              </div>
-            </div>
-            <div class="settings-subgroup">
-              <div class="settings-group-header"><span data-i18n="settings.advanced.title">Advanced</span></div>
-              <p class="settings-note"><span data-i18n="settings.advanced.note">Additional options are available in</span> <code>settings.json</code>.</p>
-              <div class="settings-actions">
-                <button id="openConfigButton" data-i18n="settings.advanced.openConfig">Open Config</button>
+            <div id="advancedSettingsGroup" class="settings-subgroup advanced-settings">
+              <button id="advancedSettingsToggle" class="settings-group-header advanced-settings-toggle" type="button" aria-expanded="false" aria-controls="advancedSettingsDetails">
+                <span data-i18n="settings.advanced.title">Advanced</span>
+                <span class="advanced-settings-meta">
+                  <span id="advancedSettingsSummary" class="settings-subgroup-summary" data-i18n="settings.advanced.summary">Maintenance &amp; config</span>
+                  <span class="settings-section-disclosure" aria-hidden="true"></span>
+                </span>
+              </button>
+              <div id="advancedSettingsDetails" class="advanced-settings-details hidden" inert>
+                <div class="advanced-settings-body">
+                  <div id="tokscaleGroup" class="settings-group advanced-settings-block maintenance-panel">
+                    <div class="settings-group-header maintenance-header"><span>Tokscale</span><span data-i18n="settings.tokscale.source">Data engine from npm</span></div>
+                    <div class="maintenance-version-grid tokscale-version-grid">
+                      <div class="maintenance-version-item"><span data-i18n="settings.tokscale.installed">Installed</span><strong id="tokscaleInstalled" data-i18n="settings.common.checking">Checking...</strong></div>
+                      <div class="maintenance-version-item"><span><span data-i18n="settings.tokscale.npm">On npm</span> <small data-i18n="settings.tokscale.latestTag">(latest tag)</small></span><strong id="tokscaleNpm" data-i18n="settings.common.notChecked">Not checked</strong></div>
+                      <div id="tokscaleBundledLine" class="maintenance-version-item"><span data-i18n="settings.tokscale.bundled">Bundled</span><strong id="tokscaleBundled">—</strong></div>
+                    </div>
+                    <p class="settings-note"><span data-i18n="settings.tokscale.noteBefore">Token Monitor uses tokscale (MIT, open-source) to read token data.</span> <button id="openTokscaleLinkButton" type="button" class="inline-link" data-i18n="settings.tokscale.learnMore">Learn more</button></p>
+                    <div id="tokscaleMessage" class="tokscale-message"></div>
+                    <div class="settings-actions maintenance-actions">
+                      <button id="checkTokscaleButton" type="button" data-i18n="settings.tokscale.checkNpm">Check npm</button>
+                      <button id="downloadTokscaleButton" type="button" class="hidden" data-i18n="settings.tokscale.downloadNpm">Download from npm</button>
+                      <button id="resetTokscaleButton" type="button" class="hidden" data-i18n="settings.tokscale.resetBundled">Reset to bundled</button>
+                    </div>
+                  </div>
+                  <div class="settings-group advanced-settings-block advanced-config-row">
+                    <p class="settings-note"><span data-i18n="settings.advanced.note">Additional options are available in</span> <code>settings.json</code>.</p>
+                    <div class="settings-actions">
+                      <button id="openConfigButton" type="button" data-i18n="settings.advanced.openConfig">Open Config</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="settings-subgroup about-settings">

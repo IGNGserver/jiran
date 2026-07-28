@@ -293,6 +293,10 @@ Object.assign(els, {
   startupGroup: document.getElementById('startupGroup'),
   startAtLoginInput: document.getElementById('startAtLoginInput'),
   startupNote: document.getElementById('startupNote'),
+  advancedSettingsGroup: document.getElementById('advancedSettingsGroup'),
+  advancedSettingsToggle: document.getElementById('advancedSettingsToggle'),
+  advancedSettingsDetails: document.getElementById('advancedSettingsDetails'),
+  advancedSettingsSummary: document.getElementById('advancedSettingsSummary'),
   tokscaleGroup: document.getElementById('tokscaleGroup'),
   tokscaleInstalled: document.getElementById('tokscaleInstalled'),
   tokscaleBundledLine: document.getElementById('tokscaleBundledLine'),
@@ -326,6 +330,8 @@ Object.assign(els, {
   appUpdateCheckButton: document.getElementById('appUpdateCheckButton'),
   appUpdateViewReleaseButton: document.getElementById('appUpdateViewReleaseButton'),
   appUpdateNotes: document.getElementById('appUpdateNotes'),
+  appUpdateNotesToggle: document.getElementById('appUpdateNotesToggle'),
+  appUpdateNotesDetails: document.getElementById('appUpdateNotesDetails'),
   appUpdateNotesTitle: document.getElementById('appUpdateNotesTitle'),
   appUpdateNotesBody: document.getElementById('appUpdateNotesBody'),
   appUpdateReleaseNotesButton: document.getElementById('appUpdateReleaseNotesButton'),
@@ -898,7 +904,7 @@ function renderAppUpdateNotes(s) {
   const visible = Boolean(version && groups.length > 0);
   els.appUpdateNotes.classList.toggle('hidden', !visible);
   if (!visible) {
-    els.appUpdateNotes.open = false;
+    setSettingsAccordionExpanded(els.appUpdateNotes, els.appUpdateNotesToggle, els.appUpdateNotesDetails, false);
     els.appUpdateNotesTitle.textContent = '';
     els.appUpdateNotesBody.replaceChildren();
     return;
@@ -908,7 +914,10 @@ function renderAppUpdateNotes(s) {
   els.appUpdateNotesBody.replaceChildren(...buildAppUpdateNoteGroupNodes(groups));
   els.appUpdateReleaseNotesButton.classList.toggle('hidden', !s.latest?.htmlUrl);
   if (s.hasUpdate && state.appUpdateNotesPresentedVersion !== version) {
-    els.appUpdateNotes.open = true;
+    // The disclosure may have just changed from display:none. Commit its
+    // collapsed grid once so the first automatic reveal can transition too.
+    els.appUpdateNotesDetails.getBoundingClientRect();
+    setSettingsAccordionExpanded(els.appUpdateNotes, els.appUpdateNotesToggle, els.appUpdateNotesDetails, true);
     state.appUpdateNotesPresentedVersion = version;
   }
 }
@@ -1037,6 +1046,13 @@ function mergeTokscalePayload(payload) {
 function renderTokscaleStatus() {
   if (!els.tokscaleGroup) return;
   const status = state.tokscaleStatus;
+  const advancedSummaryKey = state.tokscaleCheck?.newer
+    ? 'settings.advanced.tokscaleUpdate'
+    : 'settings.advanced.summary';
+  if (els.advancedSettingsSummary) {
+    els.advancedSettingsSummary.dataset.i18n = advancedSummaryKey;
+    els.advancedSettingsSummary.textContent = t(advancedSummaryKey);
+  }
   if (status?.supported === false) {
     els.tokscaleGroup.classList.add('hidden');
     return;
@@ -7924,21 +7940,26 @@ els.themeCodeInput?.addEventListener('keydown', (event) => {
   void applyThemeCodeFromInput();
 });
 els.themeCodeInput?.addEventListener('input', invalidateThemeCodeFeedback);
-function setupThemeAccordion(group, toggle, details) {
+function setSettingsAccordionExpanded(group, toggle, details, expanded) {
   if (!group || !toggle || !details) return;
-  const setExpanded = (expanded) => {
-    const open = Boolean(expanded);
-    toggle.setAttribute('aria-expanded', String(open));
-    details.classList.toggle('hidden', !open);
-    details.inert = !open;
-    group.classList.toggle('expanded', open);
-  };
-  toggle.addEventListener('click', () => setExpanded(details.classList.contains('hidden')));
-  setExpanded(false);
+  const open = Boolean(expanded);
+  toggle.setAttribute('aria-expanded', String(open));
+  details.classList.toggle('hidden', !open);
+  details.inert = !open;
+  group.classList.toggle('expanded', open);
+}
+function setupSettingsAccordion(group, toggle, details) {
+  if (!group || !toggle || !details) return;
+  toggle.addEventListener('click', () => {
+    setSettingsAccordionExpanded(group, toggle, details, details.classList.contains('hidden'));
+  });
+  setSettingsAccordionExpanded(group, toggle, details, false);
 }
 
-setupThemeAccordion(els.themeAdvancedGroup, els.themeAdvancedToggle, els.themeAdvancedDetails);
-setupThemeAccordion(els.themeVendorGroup, els.themeVendorToggle, els.themeVendorDetails);
+setupSettingsAccordion(els.appUpdateNotes, els.appUpdateNotesToggle, els.appUpdateNotesDetails);
+setupSettingsAccordion(els.advancedSettingsGroup, els.advancedSettingsToggle, els.advancedSettingsDetails);
+setupSettingsAccordion(els.themeAdvancedGroup, els.themeAdvancedToggle, els.themeAdvancedDetails);
+setupSettingsAccordion(els.themeVendorGroup, els.themeVendorToggle, els.themeVendorDetails);
 for (const input of els.systemGlassInputs || []) {
   input.addEventListener('change', () => {
     if (input.checked) saveAppearanceFromControls();
@@ -12073,6 +12094,8 @@ function initSettingsAnimationWrappers() {
   const selectors = [
     '.settings-section-details',
     '.cursor-settings-details',
+    '.advanced-settings-details',
+    '.app-update-notes-details',
     '.hub-mode-fields',
     '.presence-feature-body',
     '#claudeManualPanel',

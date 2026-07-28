@@ -327,20 +327,22 @@ test('theme code feedback clears when the displayed code changes', () => {
   assert.match(copy, /themeCodeFeedbackIsCurrent\(generation, code\)/);
 });
 
-test('theme colour accordions share accessible collapsed-state handling', () => {
+test('settings accordions share accessible collapsed-state handling', () => {
   const app = readRendererFile('app.js');
-  const setupStart = app.indexOf('function setupThemeAccordion(');
-  const setupEnd = app.indexOf('\nsetupThemeAccordion(els.themeAdvancedGroup', setupStart);
-  assert.notEqual(setupStart, -1, 'setupThemeAccordion function should exist');
-  assert.notEqual(setupEnd, -1, 'theme accordion setup calls should follow the helper');
+  const setupStart = app.indexOf('function setSettingsAccordionExpanded(');
+  const setupEnd = app.indexOf('\nfunction setupSettingsAccordion(', setupStart);
+  assert.notEqual(setupStart, -1, 'setSettingsAccordionExpanded function should exist');
+  assert.notEqual(setupEnd, -1, 'settings accordion setup calls should follow the helper');
   const setup = app.slice(setupStart, setupEnd);
 
   assert.match(setup, /toggle\.setAttribute\('aria-expanded', String\(open\)\)/);
   assert.match(setup, /details\.classList\.toggle\('hidden', !open\)/);
   assert.match(setup, /details\.inert = !open/);
   assert.match(setup, /group\.classList\.toggle\('expanded', open\)/);
-  assert.match(app, /setupThemeAccordion\(els\.themeAdvancedGroup, els\.themeAdvancedToggle, els\.themeAdvancedDetails\)/);
-  assert.match(app, /setupThemeAccordion\(els\.themeVendorGroup, els\.themeVendorToggle, els\.themeVendorDetails\)/);
+  assert.match(app, /setupSettingsAccordion\(els\.appUpdateNotes, els\.appUpdateNotesToggle, els\.appUpdateNotesDetails\)/);
+  assert.match(app, /setupSettingsAccordion\(els\.advancedSettingsGroup, els\.advancedSettingsToggle, els\.advancedSettingsDetails\)/);
+  assert.match(app, /setupSettingsAccordion\(els\.themeAdvancedGroup, els\.themeAdvancedToggle, els\.themeAdvancedDetails\)/);
+  assert.match(app, /setupSettingsAccordion\(els\.themeVendorGroup, els\.themeVendorToggle, els\.themeVendorDetails\)/);
 });
 
 test('Trends has a master toggle separate from main-screen visibility', () => {
