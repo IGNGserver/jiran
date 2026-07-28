@@ -1105,9 +1105,12 @@ test('active Codex account labels are always shown for multi-account limits rows
 
 test('collection cadence setting is exposed in the Collection panel', () => {
   const html = readRendererFile('index.html');
+  const i18n = readRendererFile('i18n.js');
   const controls = html.match(/<div class="settings-subgroup settings-collection-cadence"[\s\S]*?<select id="collectionCadenceInput"[\s\S]*?<\/select>[\s\S]*?<\/div>/)?.[0] || '';
   assert.match(controls, /data-i18n="settings\.collection\.cadence"/);
   assert.match(controls, /value="live"/);
+  assert.match(controls, /value="smart"[\s\S]*data-i18n="settings\.collection\.mode\.smart"/);
+  assert.match(i18n, /'settings\.collection\.modeDesc': 'Smart mode collects after agent activity, with an hourly reconciliation; fixed intervals turn off file watching\.'/);
   assert.match(controls, /<option value="300000"/);
   assert.match(controls, /<option value="900000"/);
   assert.match(controls, /<option value="1800000"/);
@@ -1127,6 +1130,8 @@ test('collection cadence setting is exposed in the Collection panel', () => {
   );
   assert.match(listenerSlice, /saveSettings\(\{[\s\S]*collectionMode:/);
   assert.match(listenerSlice, /collectionIntervalMs:/);
+  assert.match(listenerSlice, /value === 'smart'/);
+  assert.match(listenerSlice, /600000/);
 });
 
 test('sync upload interval setting is exposed in the Multi-device Sync panel', () => {
@@ -1158,6 +1163,11 @@ test('main settings normalize collection cadence and restart only the device run
   const main = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'electron', 'main.js'), 'utf8');
   assert.match(main, /function normalizeCollectionMode/);
   assert.match(main, /function normalizeCollectionIntervalMs/);
+  assert.match(main, /COLLECTION_MODE_VALUES = new Set\(\[[^\]]*'smart'/);
+  assert.match(main, /SMART_COLLECTION_INTERVAL_MS = 10 \* 60 \* 1000/);
+  // Smart's fixed cadence must not enter the persisted-interval allowlist, or a
+  // smart-mode value survives a switch back to live and changes its backstop.
+  assert.doesNotMatch(main, /COLLECTION_INTERVAL_OPTIONS = \[[^\]]*10 \* 60 \* 1000/);
 
   const defaults = main.slice(main.indexOf('function defaultSettings'), main.indexOf('function defaultLimitProviders'));
   assert.match(defaults, /collectionMode: 'live'/);
@@ -1166,6 +1176,13 @@ test('main settings normalize collection cadence and restart only the device run
   const usageConfig = functionBody(main, 'electronUsageConfig', 'electronLimitsConfig');
   assert.match(usageConfig, /intervalMs: collectorIntervalMs\(\)/);
   assert.match(usageConfig, /watchEnabled: collectorWatchEnabled\(\)/);
+  assert.match(usageConfig, /watchUsePolling: collectorWatchUsePolling\(\)/);
+  assert.match(usageConfig, /watchTriggersCollection: collectorWatchTriggersCollection\(\)/);
+  assert.match(usageConfig, /intervalRequiresActivity: collectorIntervalRequiresActivity\(\)/);
+
+  // Smart mode keeps watching (native events) but never scans on the event itself.
+  assert.match(main, /function collectorWatchUsePolling[\s\S]*?=== 'live'/);
+  assert.match(main, /function collectorIntervalRequiresActivity[\s\S]*?=== 'smart'/);
 
   const updateHandler = main.slice(main.indexOf("ipcMain.handle('settings:update'"), main.indexOf("ipcMain.handle('appearance:preview'"));
   assert.match(updateHandler, /const previousRuntimeSettings = JSON\.parse\(JSON\.stringify\(settings\)\);/);

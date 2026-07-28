@@ -212,8 +212,14 @@ const CSP_HEADER = [
 const TRAY_CONTENT_VALUES = new Set(['tokens', 'cost', 'both', 'tokensAll', 'costAll', 'bothAll', 'limitsAllSessions', 'bars', 'barsSession', 'barsWeekly', 'barsAllSessions', 'icon', 'custom']);
 const HUB_MODE_VALUES = new Set(['local', 'client', 'host']);
 const LANGUAGE_VALUES = new Set(LANGUAGE_OPTIONS.map((option) => option.value));
-const COLLECTION_MODE_VALUES = new Set(['live', 'interval']);
+const COLLECTION_MODE_VALUES = new Set(['live', 'smart', 'interval']);
 const COLLECTION_INTERVAL_OPTIONS = [5 * 60 * 1000, 15 * 60 * 1000, 30 * 60 * 1000];
+// Smart mode's cadence is fixed and resolved directly in collectorIntervalMs(),
+// so it stays out of COLLECTION_INTERVAL_OPTIONS: that list validates the
+// persisted collectionIntervalMs, and admitting 10m there would let a
+// smart-mode value survive a switch back to live/interval and silently
+// change that mode's backstop interval.
+const SMART_COLLECTION_INTERVAL_MS = 10 * 60 * 1000;
 const DEFAULT_COLLECTION_INTERVAL_MS = 5 * 60 * 1000;
 const HUB_DEFAULT_PORT = 17321;
 const KNOWN_CLIENT_LIST = KNOWN_CLIENTS.split(',').map((id) => ({ id }));
@@ -396,11 +402,27 @@ function normalizeCollectionIntervalMs(value, fallback = DEFAULT_COLLECTION_INTE
 }
 
 function collectorIntervalMs() {
-  return normalizeCollectionIntervalMs(settings?.collectionIntervalMs);
+  return normalizeCollectionMode(settings?.collectionMode) === 'smart'
+    ? SMART_COLLECTION_INTERVAL_MS
+    : normalizeCollectionIntervalMs(settings?.collectionIntervalMs);
 }
 
 function collectorWatchEnabled() {
+  return normalizeCollectionMode(settings?.collectionMode) !== 'interval';
+}
+
+// Smart mode watches with native events and never collects on the event itself;
+// the event only marks activity, and the interval decides whether to scan.
+function collectorWatchUsePolling() {
   return normalizeCollectionMode(settings?.collectionMode) === 'live';
+}
+
+function collectorWatchTriggersCollection() {
+  return normalizeCollectionMode(settings?.collectionMode) === 'live';
+}
+
+function collectorIntervalRequiresActivity() {
+  return normalizeCollectionMode(settings?.collectionMode) === 'smart';
 }
 
 function syncUploadIntervalMs() {
@@ -416,6 +438,9 @@ function electronUsageConfig(errorPrefix) {
     intervalMs: collectorIntervalMs(),
     historyIntervalMs: normalizeHistoryIntervalMs(settings.historyIntervalMs),
     watchEnabled: collectorWatchEnabled(),
+    watchUsePolling: collectorWatchUsePolling(),
+    watchTriggersCollection: collectorWatchTriggersCollection(),
+    intervalRequiresActivity: collectorIntervalRequiresActivity(),
     watchDebounceMs: 1500,
     dailyHistoryArchiveWriteEnabled: () => !isExternalAgentActive(),
     onError: (error, reason) => console.log(`[${errorPrefix}] ${reason}: ${error.message}`),

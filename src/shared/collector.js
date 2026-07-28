@@ -1116,6 +1116,7 @@ function startCollector(options) {
   const {
     clients, allTimeSince, commandTimeoutMs, deviceId, agentVersion, agentRuntime,
     intervalMs, historyIntervalMs = 15 * 60 * 1000, historyEnabled = true, watchEnabled, watchDebounceMs,
+    watchUsePolling = true, watchTriggersCollection = true, intervalRequiresActivity = false,
     onUpdate, onPreview, onError, logger
   } = options;
   const deviceOsInfo = options.osInfo === undefined
@@ -1126,6 +1127,7 @@ function startCollector(options) {
   let tickPending = false;
   let pendingForceHistory = false;
   let pendingForceCursorSync = false;
+  let pendingActivityRevision = null;
   let lastHistoryAt = 0;
   // Last full-scan snapshot; lets watch ticks scan only --today and derive
   // month/allTime exactly (applyPeriodDelta). Reset by every full tick.
@@ -1139,7 +1141,11 @@ function startCollector(options) {
   let debounceTimer = null;
   let intervalTimer = null;
   let stopped = false;
+  let activityRevision = 0;
+  let collectedActivityRevision = 0;
+  let initialCollectionComplete = false;
   const watchers = [];
+  let watchedDirectoryKey = null;
 
   // On-disk anchor: persist full-scan snapshots so the collector can reuse
   // month/allTime across restarts. On the first interval tick the anchor is
@@ -1277,29 +1283,50 @@ function startCollector(options) {
         wslStatusAnchor = captured.wslStatus || null;
       }
       await onUpdate?.(summary, reason);
+      if (!anchored) setupWatchers();
+      if (Number.isFinite(tickOptions.activityRevision)) {
+        collectedActivityRevision = Math.max(collectedActivityRevision, tickOptions.activityRevision);
+        initialCollectionComplete = true;
+      }
+      return true;
     } catch (error) {
       if (stopped) return;
       if (onError) onError(error, reason); else log(`collector tick failed (${reason}): ${error.message}`);
+      return false;
     }
   }
 
   async function runTick(reason, tickOptions = {}) {
+    const tickActivityRevision = Number.isFinite(tickOptions.activityRevision)
+      ? tickOptions.activityRevision
+      : activityRevision;
+    const effectiveTickOptions = { ...tickOptions, activityRevision: tickActivityRevision };
     if (tickInFlight) {
       tickPending = true;
       pendingForceHistory = pendingForceHistory || Boolean(tickOptions.forceHistory);
       pendingForceCursorSync = pendingForceCursorSync || Boolean(tickOptions.forceCursorSync);
+      pendingActivityRevision = pendingActivityRevision === null
+        ? tickActivityRevision
+        : Math.max(pendingActivityRevision, tickActivityRevision);
       return new Promise((resolve) => pendingWaiters.push(resolve));
     }
     tickInFlight = true;
     try {
-      await performTick(reason, tickOptions);
+      await performTick(reason, effectiveTickOptions);
       while (tickPending && !stopped) {
         const forceHistory = pendingForceHistory;
         const forceCursorSync = pendingForceCursorSync;
+        const activityRevision = pendingActivityRevision;
         tickPending = false;
         pendingForceHistory = false;
         pendingForceCursorSync = false;
-        await performTick('coalesced', { forceHistory, forceCursorSync, todayOnly: forceCursorSync });
+        pendingActivityRevision = null;
+        await performTick('coalesced', {
+          forceHistory,
+          forceCursorSync,
+          todayOnly: forceCursorSync,
+          ...(activityRevision === null ? {} : { activityRevision })
+        });
       }
     } finally {
       tickInFlight = false;
@@ -1319,10 +1346,21 @@ function startCollector(options) {
     }, watchDebounceMs);
   }
 
+  function closeWatchers() {
+    for (const watcher of watchers) {
+      try { watcher.close(); } catch (_) {}
+    }
+    watchers.length = 0;
+  }
+
   function setupWatchers() {
     if (!watchEnabled) return;
     const dirs = watchPathsForClients(clients);
+    const directoryKey = dirs.join('\0');
+    if (directoryKey === watchedDirectoryKey) return;
+    closeWatchers();
     if (dirs.length === 0) {
+      watchedDirectoryKey = directoryKey;
       log('No watchable client data directories found; relying on fallback interval only.');
       return;
     }
@@ -1331,30 +1369,56 @@ function startCollector(options) {
       const watcher = chokidar.watch(dirs, {
         ignoreInitial: true,
         persistent: true,
-        usePolling: true,
-        interval: 2000,
-        binaryInterval: 5000,
+        ...(watchUsePolling
+          ? { usePolling: true, interval: 2000, binaryInterval: 5000 }
+          : { usePolling: false }),
         ...(ignored ? { ignored } : {}),
         awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 200 }
       });
-      watcher.on('all', (event, filePath) => scheduleTick(`watch:${event}:${path.basename(filePath || '')}`));
+      watcher.on('all', (event, filePath) => {
+        activityRevision += 1;
+        if (tickPending) {
+          pendingActivityRevision = pendingActivityRevision === null
+            ? activityRevision
+            : Math.max(pendingActivityRevision, activityRevision);
+        }
+        if (watchTriggersCollection) scheduleTick(`watch:${event}:${path.basename(filePath || '')}`);
+      });
       watcher.on('error', (error) => log(`chokidar error: ${error.message}`));
       watchers.push(watcher);
-      for (const dir of dirs) log(`Watching ${dir} (polling 2s)`);
+      watchedDirectoryKey = directoryKey;
+      for (const dir of dirs) log(`Watching ${dir} (${watchUsePolling ? 'polling 2s' : 'native events'})`);
     } catch (error) {
+      watchedDirectoryKey = null;
       log(`Cannot watch ${dirs.join(', ')}: ${error.message}`);
     }
   }
 
   function loop() {
     if (stopped) return;
+    const activityRevisionAtStart = activityRevision;
+    // Native watchers are an optimization, not the source of truth. Always
+    // retain the hourly reconciliation path for missed events, newly created
+    // client directories, WSL-only activity, and cross-day metadata refreshes.
+    const fullScanDue = lastFullScanAt === 0 || Date.now() - lastFullScanAt >= FULL_SCAN_INTERVAL_MS;
+    if (
+      intervalRequiresActivity &&
+      initialCollectionComplete &&
+      !fullScanDue &&
+      activityRevisionAtStart <= collectedActivityRevision
+    ) {
+      intervalTimer = setTimeout(loop, intervalMs);
+      return;
+    }
     // Full scan at least once per FULL_SCAN_INTERVAL_MS so the anchor
     // does not drift from reality over a long-running session.
     // lastFullScanAt === 0 means no valid timestamp exists (cold start,
     // unparseable, or future timestamp) — force a full scan immediately.
-    const fullScanDue = lastFullScanAt === 0 || Date.now() - lastFullScanAt >= FULL_SCAN_INTERVAL_MS;
     const anchorToday = Boolean(!fullScanDue && anchor && anchor.dateKey === localTodayKey());
-    runTick('interval', anchorToday ? { todayOnly: true, refreshWsl: true } : {}).finally(() => {
+    runTick('interval', {
+      ...(anchorToday ? { todayOnly: true, refreshWsl: true } : {}),
+      activityRevision: activityRevisionAtStart
+    }).finally(() => {
       if (stopped) return;
       intervalTimer = setTimeout(loop, intervalMs);
     });
@@ -1365,10 +1429,8 @@ function startCollector(options) {
     stopped = true;
     if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
     if (intervalTimer) { clearTimeout(intervalTimer); intervalTimer = null; }
-    for (const watcher of watchers) {
-      try { watcher.close(); } catch (_) {}
-    }
-    watchers.length = 0;
+    closeWatchers();
+    watchedDirectoryKey = null;
   }
 
   setupWatchers();
