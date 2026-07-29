@@ -161,7 +161,8 @@ function functionBody(source, name, nextName) {
   assert.notEqual(start, -1, `${name} function should exist`);
   const end = source.indexOf(`function ${nextName}(`, start);
   assert.notEqual(end, -1, `${nextName} function should follow ${name}`);
-  return source.slice(start, end);
+  const endLineStart = source.lastIndexOf('\n', end) + 1;
+  return source.slice(start, endLineStart);
 }
 
 function runLocalProviderStatus(source, state, providerName) {
@@ -1218,37 +1219,388 @@ test('Copilot env token is documented in env example, not the README overview', 
   assert.doesNotMatch(readmeTw, /COPILOT_API_TOKEN|GITHUB_COPILOT_TOKEN/);
 });
 
-test('Accounts summary counts all managed account groups including Claude Web and Third-party API', () => {
+test('AI Tool Limits owns every live account group and its status pill', () => {
   const app = readRendererFile('app.js');
-  const mimoLinkedBody = functionBody(app, 'mimoAccountLinked', 'renderMimoStatus');
-  const summaryBody = functionBody(app, 'settingsSectionSummary', 'renderSettingsSummaries');
+  const html = readRendererFile('index.html');
+  const groupMap = app.slice(
+    app.indexOf('const LIMIT_PROVIDER_ACCOUNT_GROUP_IDS = {'),
+    app.indexOf('const LIMIT_PROVIDER_ACCOUNT_STATUS_IDS = {')
+  );
+  const statusMap = app.slice(
+    app.indexOf('const LIMIT_PROVIDER_ACCOUNT_STATUS_IDS = {'),
+    app.indexOf('const LIMIT_PROVIDER_CONNECTION_DETAIL_KEYS = {')
+  );
+  const providers = [
+    ['claude', 'claudeAccountGroup', 'claudeAccountStatus'],
+    ['codex', 'codexAccountGroup', 'codexAccountStatus'],
+    ['opencode', 'opencodeCookieGroup', 'opencodeCookieStatus'],
+    ['cursor', 'cursorAccountGroup', 'cursorAccountStatus'],
+    ['kimi', 'kimiAccountGroup', 'kimiAccountStatus'],
+    ['copilot', 'copilotAccountGroup', 'copilotApiTokenStatus'],
+    ['mimo', 'mimoAccountGroup', 'mimoAccountStatus'],
+    ['zai', 'zaiAccountGroup', 'zaiAccountStatus'],
+    ['zaiteam', 'zaiteamAccountGroup', 'zaiteamAccountStatus'],
+    ['deepseek', 'deepseekAccountGroup', 'deepseekApiKeyStatus'],
+    ['openrouter', 'openrouterAccountGroup', 'openrouterStatus'],
+    ['minimax', 'minimaxAccountGroup', 'minimaxApiKeyStatus'],
+    ['volcengine', 'volcengineAccountGroup', 'volcengineAccountStatus'],
+    ['qoder', 'qoderAccountGroup', 'qoderAccountStatus'],
+    ['ollama', 'ollamaAccountGroup', 'ollamaAccountStatus'],
+    ['thirdparty', 'thirdpartyAccountGroup', 'thirdpartyStatus']
+  ];
 
-  assert.match(mimoLinkedBody, /return \(state\.settings\?\.mimoManagedAccounts \|\| \[\]\)\.length > 0;/);
-  assert.match(summaryBody, /const claudeLinked = externalProviderAccountLinked\('claude'\);/);
-  assert.match(summaryBody, /const minimaxLinked = minimaxAccountLinked\(\);/);
-  assert.match(summaryBody, /const zaiLinked = externalProviderAccountLinked\('zai'\);/);
-  assert.match(summaryBody, /const zaiteamLinked = externalProviderAccountLinked\('zaiteam'\);/);
-  assert.match(summaryBody, /const volcengineLinked = externalProviderAccountLinked\('volcengine'\);/);
-  assert.match(summaryBody, /const qoderLinked = externalProviderAccountLinked\('qoder'\);/);
-  assert.match(summaryBody, /const kimiLinked = externalProviderAccountLinked\('kimi'\);/);
-  assert.match(summaryBody, /const ollamaLinked = externalProviderAccountLinked\('ollama'\);/);
-  assert.match(summaryBody, /const openrouterCount = state\.openrouterProfileCount \|\| 0;/);
-  assert.match(summaryBody, /const thirdpartyCount = state\.thirdPartyProfileCount \|\| 0;/);
-  assert.match(summaryBody, /const mimoLinked = mimoAccountLinked\(\);/);
-  assert.match(summaryBody, /const copilotLinked = copilotAccountLinked\(\);/);
-  assert.match(summaryBody, /\(minimaxLinked \? 1 : 0\)/);
-  assert.match(summaryBody, /\(claudeLinked \? 1 : 0\)/);
-  assert.match(summaryBody, /\(zaiLinked \? 1 : 0\)/);
-  assert.match(summaryBody, /\(zaiteamLinked \? 1 : 0\)/);
-  assert.match(summaryBody, /\(volcengineLinked \? 1 : 0\)/);
-  assert.match(summaryBody, /\(qoderLinked \? 1 : 0\)/);
-  assert.match(summaryBody, /\(kimiLinked \? 1 : 0\)/);
-  assert.match(summaryBody, /\(ollamaLinked \? 1 : 0\)/);
-  assert.match(summaryBody, /\(openrouterCount > 0 \? 1 : 0\)/);
-  assert.match(summaryBody, /\(thirdpartyCount > 0 \? 1 : 0\)/);
-  assert.match(summaryBody, /\(mimoLinked \? 1 : 0\)/);
-  assert.match(summaryBody, /\(copilotLinked \? 1 : 0\)/);
-  assert.match(summaryBody, /total: 16/);
+  for (const [provider, groupId, statusId] of providers) {
+    assert.match(groupMap, new RegExp(`${provider}: '${groupId}'`));
+    assert.match(statusMap, new RegExp(`${provider}: '${statusId}'`));
+    assert.match(html, new RegExp(`id="${groupId}"`));
+    assert.match(html, new RegExp(`id="${statusId}"[^>]*class="cursor-status-pill`));
+  }
+  assert.match(html, /id="accountsSettingsDetails" class="hidden" aria-hidden="true"/);
+  assert.doesNotMatch(html, /data-settings-section="accounts"/);
+});
+
+test('provider rerenders preserve live account nodes and focused controls', () => {
+  const app = readRendererFile('app.js');
+  const moveLiveNode = functionBody(app, 'moveLimitProviderLiveNode', 'renderLimitProviderCheckboxes');
+  const renderSettings = functionBody(app, 'renderLimitProviderCheckboxes', 'limitProviderAccountGroup');
+  const focusedInput = { id: 'deepseekApiKeyInput', isConnected: true };
+  const oldParent = { isConnected: true };
+  const disclosureIcon = { id: 'disclosureIcon' };
+  const connectedParent = {
+    isConnected: true,
+    children: [disclosureIcon],
+    moveBefore(node, before) {
+      assert.equal(this.isConnected, true);
+      assert.equal(node.isConnected, true);
+      assert.equal(before, disclosureIcon);
+      this.children.splice(this.children.indexOf(before), 0, node);
+      node.parentElement = this;
+    }
+  };
+  focusedInput.parentElement = oldParent;
+
+  vm.runInNewContext(
+    `${moveLiveNode}\nmoveLimitProviderLiveNode(connectedParent, focusedInput, disclosureIcon);`,
+    { connectedParent, disclosureIcon, focusedInput }
+  );
+
+  assert.equal(focusedInput.parentElement, connectedParent);
+  assert.deepEqual(connectedParent.children, [focusedInput, disclosureIcon]);
+  assert.doesNotMatch(renderSettings, /replaceChildren|restoreLimitProviderAccountGroups/);
+  assert.ok(
+    renderSettings.indexOf('els.limitProviderCheckboxes.appendChild(row);')
+      < renderSettings.indexOf('moveLimitProviderLiveNode(optionsInner, accountGroup);')
+  );
+  assert.ok(
+    renderSettings.indexOf('moveLimitProviderLiveNode(optionsInner, accountGroup);')
+      < renderSettings.indexOf('for (const row of previousRows) row.remove();')
+  );
+  assert.match(renderSettings, /accountGroup\.classList\.add\('limit-provider-account-group'\)/);
+  assert.match(renderSettings, /document\.getElementById\(focusedId\)\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.doesNotMatch(app, /function restoreLimitProviderAccountGroups/);
+});
+
+test('background provider rerenders preserve settings scroll without a focused control', () => {
+  const app = readRendererFile('app.js');
+  const interactionStart = app.indexOf('const SETTINGS_SCROLL_ANCHOR_MS');
+  const interactionEnd = app.indexOf('function shouldAnchorSettingsScroll', interactionStart);
+  const scrollInteraction = app.slice(interactionStart, interactionEnd);
+  const renderSettings = functionBody(app, 'renderLimitProviderCheckboxes', 'renderLimitProviderCheckboxesNow');
+  const preserveScroll = functionBody(app, 'preserveSettingsPanelScroll', 'saveSettings');
+  const panel = {
+    scrollTop: 684,
+    scrollLeft: 9,
+    classList: { contains: () => false }
+  };
+  const frames = [];
+  const els = {
+    limitProviderCheckboxes: {},
+    settingsPanel: panel
+  };
+  const renderLimitProviderCheckboxesNow = () => {
+    // Removing the visible anchor rows can make Chromium clamp both axes while
+    // the replacement list is being committed.
+    panel.scrollTop = 112;
+    panel.scrollLeft = 0;
+  };
+
+  vm.runInNewContext(
+    `${scrollInteraction}\n${preserveScroll}\n${renderSettings}\nrenderLimitProviderCheckboxes();`,
+    {
+      cancelAnimationFrame: () => {},
+      els,
+      limitProviderDrag: null,
+      renderLimitProviderCheckboxesNow,
+      requestAnimationFrame: (callback) => frames.push(callback)
+    }
+  );
+
+  assert.equal(panel.scrollTop, 684);
+  assert.equal(panel.scrollLeft, 9);
+  assert.equal(frames.length, 1);
+
+  // A post-layout anchor adjustment must be corrected as well.
+  panel.scrollTop = 112;
+  panel.scrollLeft = 0;
+  frames[0]();
+  assert.equal(panel.scrollTop, 684);
+  assert.equal(panel.scrollLeft, 9);
+});
+
+test('user scrolling wins over a pending provider scroll restore', () => {
+  const app = readRendererFile('app.js');
+  const interactionStart = app.indexOf('const SETTINGS_SCROLL_ANCHOR_MS');
+  const interactionEnd = app.indexOf('function shouldAnchorSettingsScroll', interactionStart);
+  const scrollInteraction = app.slice(interactionStart, interactionEnd);
+  const renderSettings = functionBody(app, 'renderLimitProviderCheckboxes', 'renderLimitProviderCheckboxesNow');
+  const preserveScroll = functionBody(app, 'preserveSettingsPanelScroll', 'saveSettings');
+  const setupSections = functionBody(app, 'setupSettingsSections', 'refreshIntervalLabel');
+  const listeners = new Map();
+  const panel = {
+    scrollTop: 200,
+    scrollLeft: 0,
+    classList: { contains: () => false },
+    addEventListener(type, listener) {
+      const entries = listeners.get(type) || [];
+      entries.push(listener);
+      listeners.set(type, entries);
+    },
+    dispatch(type, event = {}) {
+      for (const listener of listeners.get(type) || []) listener(event);
+    }
+  };
+  const frames = [];
+  const els = {
+    limitProviderCheckboxes: {},
+    settingsPanel: panel
+  };
+  const renderLimitProviderCheckboxesNow = () => {};
+
+  vm.runInNewContext(
+    `${scrollInteraction}
+${setupSections}
+${preserveScroll}
+${renderSettings}
+setupSettingsSections();
+renderLimitProviderCheckboxes();`,
+    {
+      cancelAnimationFrame: () => {},
+      document: { querySelectorAll: () => [] },
+      els,
+      limitProviderDrag: null,
+      renderLimitProviderCheckboxesNow,
+      requestAnimationFrame: (callback) => frames.push(callback)
+    }
+  );
+
+  panel.dispatch('wheel');
+  panel.scrollTop = 240;
+  frames[0]();
+  assert.equal(panel.scrollTop, 240);
+});
+
+test('dynamic account summaries are never reset by the static translation pass', () => {
+  const html = readRendererFile('index.html');
+  const statusIds = [
+    'claudeAccountStatus',
+    'codexAccountStatus',
+    'cursorAccountStatus',
+    'opencodeCookieStatus',
+    'openrouterStatus',
+    'deepseekApiKeyStatus',
+    'minimaxApiKeyStatus',
+    'zaiAccountStatus',
+    'zaiteamAccountStatus',
+    'volcengineAccountStatus',
+    'qoderAccountStatus',
+    'ollamaAccountStatus',
+    'kimiAccountStatus',
+    'mimoAccountStatus',
+    'copilotApiTokenStatus',
+    'thirdpartyStatus'
+  ];
+
+  for (const id of statusIds) {
+    const tag = html.match(new RegExp(`<span id="${id}"[^>]*>`))?.[0] || '';
+    assert.ok(tag, `${id} should exist`);
+    assert.doesNotMatch(tag, /data-i18n=/, `${id} is owned by its runtime status renderer`);
+  }
+});
+
+test('provider toggles converge through the limits push without a forced refresh', () => {
+  const app = readRendererFile('app.js');
+  const body = functionBody(app, 'onLimitProviderToggle', 'onLimitProviderMove');
+
+  assert.match(body, /saveSettings\(\{ limitProviders: checked\.join\(','\), limitsEnabled: checked\.length > 0 \}\)/);
+  assert.match(body, /clearDisabledLimitProviderPendingChecks\(new Set\(checked\)\)/);
+  assert.doesNotMatch(body, /refreshStats\(/);
+});
+
+test('empty OpenCode profiles render a localized summary before returning', () => {
+  const app = readRendererFile('app.js');
+  const renderProfiles = functionBody(app, 'renderOpenCodeProfiles', 'updateOpenCodeProfilesStatus');
+  const renderSummary = functionBody(app, 'renderOpenCodeProfilesStatusSummary', 'openrouterProfileStatusText');
+  const totalEl = { textContent: 'Not configured' };
+  const context = {
+    document: {
+      getElementById(id) {
+        return id === 'opencodeCookieStatus' ? totalEl : null;
+      }
+    },
+    state: { opencodeProfileCount: 0 },
+    t: (key, params) => params ? `${key}:${params.linked}/${params.total}` : `localized:${key}`
+  };
+
+  vm.runInNewContext(`${renderSummary}\nrenderOpenCodeProfilesStatusSummary({});`, context);
+
+  assert.equal(totalEl.textContent, 'localized:settings.opencode.statusNotSet');
+  assert.match(
+    renderProfiles,
+    /state\.opencodeProfileCount = 0;\s*renderOpenCodeProfilesStatusSummary\(\{\}\);\s*renderSettingsSummaries\(\);\s*return;/
+  );
+});
+
+test('expanded provider options use the full row width without nested indentation', () => {
+  const css = readRendererFile('styles.css');
+
+  assert.match(css, /\.settings-panel \.limit-provider-settings-list\s*\{[^}]*margin: 0;[^}]*padding-left: 0;[^}]*border-left: 0;/);
+  assert.match(css, /\.limit-provider-account-group\s*\{[^}]*margin-left: 0;/);
+  assert.match(css, /\.limit-provider-account-group > \.cursor-settings-details\s*\{[^}]*margin-top: 0;/);
+  assert.match(css, /\.limit-provider-connection-detail\s*\{[^}]*padding: 4px 0 2px;/);
+});
+
+test('Claude prepaid balance stays off and disabled until Web login is configured', () => {
+  const app = readRendererFile('app.js');
+  const renderList = functionBody(app, 'limitProviderSettingsList', 'onToolTrackingToggle');
+  const settings = [{
+    key: 'claudePrepaidBalanceEnabled',
+    titleKey: 'settings.limits.prepaidBalance',
+    descKey: 'settings.limits.prepaidBalanceDesc',
+    requiresConfiguredKey: 'claudeWebCookieConfigured'
+  }];
+
+  class FakeElement {
+    constructor(tagName) {
+      this.tagName = tagName;
+      this.children = [];
+      this.className = '';
+      this.classList = {
+        toggle: (name, enabled) => {
+          if (enabled) this.className = `${this.className} ${name}`.trim();
+        }
+      };
+    }
+    append(...children) { this.children.push(...children); }
+    addEventListener() {}
+  }
+
+  const context = {
+    document: { createElement: (tagName) => new FakeElement(tagName) },
+    state: {
+      settings: {
+        claudePrepaidBalanceEnabled: true,
+        claudeWebCookieConfigured: false
+      }
+    },
+    t: (key) => key
+  };
+  const loggedOutContext = { ...context, settings };
+  vm.runInNewContext(
+    `${renderList}\nresult = limitProviderSettingsList('claude', settings);`,
+    loggedOutContext
+  );
+  const loggedOutInput = loggedOutContext.result?.children?.[0]?.children?.[1];
+  assert.equal(loggedOutInput?.checked, false);
+  assert.equal(loggedOutInput?.disabled, true);
+
+  context.state.settings.claudeWebCookieConfigured = true;
+  const loggedInContext = { ...context, settings };
+  vm.runInNewContext(
+    `${renderList}\nresult = limitProviderSettingsList('claude', settings);`,
+    loggedInContext
+  );
+  const loggedInInput = loggedInContext.result?.children?.[0]?.children?.[1];
+  assert.equal(loggedInInput?.checked, true);
+  assert.equal(loggedInInput?.disabled, false);
+});
+
+test('successful providers use a green dot while preserving source and account labels', () => {
+  const app = readRendererFile('app.js');
+  const css = readRendererFile('styles.css');
+  const renderSettings = functionBody(app, 'renderLimitProviderCheckboxes', 'limitProviderAccountGroup');
+
+  assert.match(renderSettings, /const detected = provider\.status === 'ok' && !provider\.stale/);
+  assert.match(renderSettings, /dot\.className = 'limit-provider-status-dot'/);
+  assert.match(renderSettings, /if \(\(detected \|\| !isEnabled\) && tagInfo\.kind === 'status'\) continue/);
+  assert.match(renderSettings, /tag\.className = `limit-provider-tag limit-provider-tag-\$\{tagInfo\.kind\}`/);
+  assert.match(renderSettings, /moveLimitProviderLiveNode\(actions, accountStatus, disclosureIcon\)/);
+  assert.match(css, /\.limit-provider-status-dot\s*\{[\s\S]*?background: var\(--success\)/);
+});
+
+test('account and automatic provider panels reuse the original account summary geometry', () => {
+  const app = readRendererFile('app.js');
+  const css = readRendererFile('styles.css');
+  const i18n = readRendererFile('i18n.js');
+  const renderSettings = functionBody(app, 'renderLimitProviderCheckboxes', 'limitProviderAccountGroup');
+
+  assert.match(renderSettings, /main\.className = 'limit-provider-main'/);
+  assert.match(renderSettings, /disclosureIcon\.className = 'cursor-disclosure-icon'/);
+  assert.match(renderSettings, /actions\.append\(disclosureIcon\)/);
+  assert.match(renderSettings, /moveLimitProviderLiveNode\(actions, accountStatus, disclosureIcon\)/);
+  assert.match(renderSettings, /mode\.className = 'cursor-status-pill limit-provider-mode-pill'/);
+  assert.match(renderSettings, /mode\.textContent = t\('settings\.limits\.connection\.autoDetect'\)/);
+  assert.match(renderSettings, /connectionDetailKey && tagInfo\.label === 'Auto'/);
+  assert.match(renderSettings, /accountGroup && tagInfo\.label === 'Manual login'/);
+  assert.match(renderSettings, /if \(duplicatesInlineSetup\) continue/);
+  assert.match(renderSettings, /main\.append\(copy, actions\)/);
+  assert.doesNotMatch(renderSettings, /limit-provider-disclosure/);
+  assert.doesNotMatch(renderSettings, /view-subgroup-toggle|view-subgroup-icon/);
+  assert.match(app, /antigravity: 'settings\.limits\.connection\.antigravity'/);
+  assert.match(app, /grok: 'settings\.limits\.connection\.grok'/);
+  assert.match(app, /kiro: 'settings\.limits\.connection\.kiro'/);
+  assert.equal((i18n.match(/'settings\.limits\.connection\.title':/g) || []).length, 5);
+  assert.equal((i18n.match(/'settings\.limits\.connection\.autoDetect':/g) || []).length, 5);
+  assert.equal((i18n.match(/'settings\.limits\.connection\.antigravity':/g) || []).length, 5);
+  assert.equal((i18n.match(/'settings\.limits\.connection\.grok':/g) || []).length, 5);
+  assert.equal((i18n.match(/'settings\.limits\.connection\.kiro':/g) || []).length, 5);
+  assert.match(css, /\.limit-provider-main\s*\{[\s\S]*?display: flex;[\s\S]*?justify-content: space-between/);
+  assert.match(css, /\.limit-provider-actions\s*\{[\s\S]*?flex: 0 1 auto;[\s\S]*?max-width: 58%;[\s\S]*?gap: 4px/);
+  assert.doesNotMatch(css, /\.limit-provider-actions > \.cursor-status-pill\s*\{[^}]*min-width:/);
+  assert.match(css, /\.limit-provider-row\.expanded > \.limit-provider-main \.cursor-disclosure-icon/);
+});
+
+test('disabled providers use checkbox state instead of a redundant status tag', () => {
+  const app = readRendererFile('app.js');
+  const css = readRendererFile('styles.css');
+  const renderSettings = functionBody(app, 'renderLimitProviderCheckboxes', 'limitProviderAccountGroup');
+
+  assert.match(renderSettings, /row\.className = `limit-provider-row\$\{isEnabled \? '' : ' is-disabled'\}`/);
+  assert.match(renderSettings, /if \(\(detected \|\| !isEnabled\) && tagInfo\.kind === 'status'\) continue/);
+  assert.match(css, /\.limit-provider-row\.is-disabled \.limit-provider-main\s*\{[^}]*color: var\(--muted\)/);
+  assert.match(css, /\.limit-provider-row\.is-disabled \.limit-provider-tag\s*\{[^}]*color: var\(--muted\)/);
+});
+
+test('provider checkboxes are named by their visible provider name', () => {
+  const app = readRendererFile('app.js');
+  const connectName = functionBody(app, 'connectLimitProviderCheckboxName', 'renderLimitProviderCheckboxes');
+  const renderSettings = functionBody(app, 'renderLimitProviderCheckboxes', 'limitProviderAccountGroup');
+  const checkbox = {
+    attributes: {},
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    }
+  };
+  const nameNode = { id: '', textContent: 'Codex' };
+
+  vm.runInNewContext(
+    `${connectName}\nconnectLimitProviderCheckboxName(checkbox, nameNode, 'codex');`,
+    { checkbox, nameNode }
+  );
+
+  assert.equal(nameNode.id, 'limitProviderName-codex');
+  assert.equal(checkbox.attributes['aria-labelledby'], nameNode.id);
+  assert.equal(nameNode.textContent, 'Codex');
+  assert.match(renderSettings, /connectLimitProviderCheckboxName\(cb, text, id\)/);
 });
 
 test('account validation does not use a remote aggregate when the local device lacks the provider', () => {
@@ -1448,7 +1800,7 @@ test('Z.ai, Volcengine, Qoder, and Ollama source labels and setup statuses', () 
 });
 
 test('Kimi capability tags and source label', () => {
-  assert.deepEqual(presentation.limitProviderCapabilityTags('kimi'), ['Membership/Coding Plan', 'Web/API']);
+  assert.deepEqual(presentation.limitProviderCapabilityTags('kimi'), ['Coding Plan', 'Web/API']);
   assert.equal(presentation.limitProviderSourceLabel({ provider: 'kimi', source: 'api' }), 'API');
   assert.equal(presentation.limitProviderSourceLabel({ provider: 'kimi', source: 'web' }), 'Web');
   assert.deepEqual(

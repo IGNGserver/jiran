@@ -87,6 +87,47 @@ const LIMIT_PROVIDERS = [
   { id: 'ollama', label: 'Ollama' },
   { id: 'thirdparty', label: 'Third-party APIs' }
 ];
+const LIMIT_PROVIDER_ACCOUNT_GROUP_IDS = {
+  claude: 'claudeAccountGroup',
+  codex: 'codexAccountGroup',
+  opencode: 'opencodeCookieGroup',
+  cursor: 'cursorAccountGroup',
+  kimi: 'kimiAccountGroup',
+  copilot: 'copilotAccountGroup',
+  mimo: 'mimoAccountGroup',
+  zai: 'zaiAccountGroup',
+  zaiteam: 'zaiteamAccountGroup',
+  deepseek: 'deepseekAccountGroup',
+  openrouter: 'openrouterAccountGroup',
+  minimax: 'minimaxAccountGroup',
+  volcengine: 'volcengineAccountGroup',
+  qoder: 'qoderAccountGroup',
+  ollama: 'ollamaAccountGroup',
+  thirdparty: 'thirdpartyAccountGroup'
+};
+const LIMIT_PROVIDER_ACCOUNT_STATUS_IDS = {
+  claude: 'claudeAccountStatus',
+  codex: 'codexAccountStatus',
+  opencode: 'opencodeCookieStatus',
+  cursor: 'cursorAccountStatus',
+  kimi: 'kimiAccountStatus',
+  copilot: 'copilotApiTokenStatus',
+  mimo: 'mimoAccountStatus',
+  zai: 'zaiAccountStatus',
+  zaiteam: 'zaiteamAccountStatus',
+  deepseek: 'deepseekApiKeyStatus',
+  openrouter: 'openrouterStatus',
+  minimax: 'minimaxApiKeyStatus',
+  volcengine: 'volcengineAccountStatus',
+  qoder: 'qoderAccountStatus',
+  ollama: 'ollamaAccountStatus',
+  thirdparty: 'thirdpartyStatus'
+};
+const LIMIT_PROVIDER_CONNECTION_DETAIL_KEYS = {
+  antigravity: 'settings.limits.connection.antigravity',
+  grok: 'settings.limits.connection.grok',
+  kiro: 'settings.limits.connection.kiro'
+};
 const TRAY_ICON_VARIANTS = [
   { id: 'claude-brand', label: 'Claude', after: 'claude' },
   { id: 'chatgpt', label: 'ChatGPT', after: 'codex' }
@@ -157,7 +198,6 @@ const LIMIT_CAPABILITY_TAG_KEYS = {
   Subscription: 'settings.limits.capability.subscription',
   'Token Plan': 'settings.limits.capability.tokenPlan',
   'Coding Plan': 'settings.limits.capability.codingPlan',
-  'Membership/Coding Plan': 'settings.limits.capability.membershipCodingPlan',
   Relay: 'settings.limits.capability.relay',
   'API key': 'settings.limits.capability.apiKey',
   'AK/SK': 'settings.limits.capability.akSk',
@@ -231,7 +271,7 @@ const TOKEN_MONITOR_REPOSITORY_URL = 'https://github.com/Javis603/token-monitor'
 const TOKEN_MONITOR_ISSUES_URL = `${TOKEN_MONITOR_REPOSITORY_URL}/issues/new/choose`;
 const TOKEN_MONITOR_WSL_SQLITE_GUIDE_URL = `${TOKEN_MONITOR_REPOSITORY_URL}/blob/main/docs/wsl-sqlite-setup.md`;
 const serviceStatusProviderPreferencesApi = window.TokenMonitorServiceStatusProviderPreferences;
-const SETTINGS_SECTION_IDS = ['general', 'main', 'window', 'appearance', 'tools', 'limits', 'accounts', 'sync'];
+const SETTINGS_SECTION_IDS = ['general', 'main', 'window', 'appearance', 'tools', 'limits', 'sync'];
 const REFRESH_BUTTON_FEEDBACK_MS = 700;
 const CODEX_PENDING_ACTIVE_GRACE_MS = 30000;
 const initialFloatingBubble = window.__TOKEN_MONITOR_INITIAL_FLOATING_BUBBLE__ || { collapsed: false, side: null };
@@ -347,7 +387,6 @@ Object.assign(els, {
   viewDisplayList: document.getElementById('viewDisplayList'),
   syncSettingsSummary: document.getElementById('syncSettingsSummary'),
   toolsSettingsSummary: document.getElementById('toolsSettingsSummary'),
-  accountsSettingsSummary: document.getElementById('accountsSettingsSummary'),
   limitsSettingsSummary: document.getElementById('limitsSettingsSummary'),
   generalSettingsSummary: document.getElementById('generalSettingsSummary'),
   mainSettingsSummary: document.getElementById('mainSettingsSummary'),
@@ -482,6 +521,7 @@ function setSettingsSectionExpanded(section, expanded) {
 const SETTINGS_SCROLL_ANCHOR_MS = 360;
 const SETTINGS_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Tab']);
 let settingsScrollAnchorFrame = null;
+let settingsScrollInteractionRevision = 0;
 
 function cancelSettingsScrollAnchor() {
   if (settingsScrollAnchorFrame === null) return;
@@ -489,8 +529,13 @@ function cancelSettingsScrollAnchor() {
   settingsScrollAnchorFrame = null;
 }
 
+function cancelSettingsScrollAnchorOnInteraction() {
+  settingsScrollInteractionRevision += 1;
+  cancelSettingsScrollAnchor();
+}
+
 function cancelSettingsScrollAnchorOnKeydown(event) {
-  if (SETTINGS_SCROLL_KEYS.has(event.key)) cancelSettingsScrollAnchor();
+  if (SETTINGS_SCROLL_KEYS.has(event.key)) cancelSettingsScrollAnchorOnInteraction();
 }
 
 function shouldAnchorSettingsScroll(section, expanding) {
@@ -530,21 +575,9 @@ function setupSettingsSections() {
     });
     setSettingsSectionExpanded(section, state.settingsSections[section]);
   }
-  els.settingsPanel?.addEventListener('pointerdown', cancelSettingsScrollAnchor, { passive: true });
-  els.settingsPanel?.addEventListener('wheel', cancelSettingsScrollAnchor, { passive: true });
+  els.settingsPanel?.addEventListener('pointerdown', cancelSettingsScrollAnchorOnInteraction, { passive: true });
+  els.settingsPanel?.addEventListener('wheel', cancelSettingsScrollAnchorOnInteraction, { passive: true });
   els.settingsPanel?.addEventListener('keydown', cancelSettingsScrollAnchorOnKeydown);
-}
-
-function orderAccountProviderGroups() {
-  const container = document.getElementById('accountsSettingsDetails');
-  if (!container) return;
-  for (const provider of LIMIT_PROVIDERS) {
-    const groupId = provider.id === 'opencode'
-      ? 'opencodeCookieGroup'
-      : `${provider.id}AccountGroup`;
-    const group = document.getElementById(groupId);
-    if (group?.parentElement === container) container.append(group);
-  }
 }
 
 function refreshIntervalLabel(value) {
@@ -574,28 +607,6 @@ function settingsSectionSummary(section) {
       tracked: enabledClientSet().size,
       visible: KNOWN_CLIENTS.length - hiddenClientSet().size,
       pinned: pinnedClientSet().size
-    });
-  }
-  if (section === 'accounts') {
-    const claudeLinked = externalProviderAccountLinked('claude');
-    const cursorLinked = Boolean(state.cursorAccount.status?.loggedIn) && !state.cursorAccount.status?.expired;
-    const opencodeCount = state.opencodeProfileCount || 0;
-    const openrouterCount = state.openrouterProfileCount || 0;
-    const thirdpartyCount = state.thirdPartyProfileCount || 0;
-    const deepseekLinked = deepseekAccountLinked();
-    const minimaxLinked = minimaxAccountLinked();
-    const zaiLinked = externalProviderAccountLinked('zai');
-    const zaiteamLinked = externalProviderAccountLinked('zaiteam');
-    const volcengineLinked = externalProviderAccountLinked('volcengine');
-    const qoderLinked = externalProviderAccountLinked('qoder');
-    const kimiLinked = externalProviderAccountLinked('kimi');
-    const ollamaLinked = externalProviderAccountLinked('ollama');
-    const mimoLinked = mimoAccountLinked();
-    const copilotLinked = copilotAccountLinked();
-    const codexLinked = (state.settings?.codexManagedAccounts || []).length > 0;
-    return t('settings.summary.accounts', {
-      linked: (claudeLinked ? 1 : 0) + (codexLinked ? 1 : 0) + (cursorLinked ? 1 : 0) + (opencodeCount > 0 ? 1 : 0) + (openrouterCount > 0 ? 1 : 0) + (thirdpartyCount > 0 ? 1 : 0) + (deepseekLinked ? 1 : 0) + (minimaxLinked ? 1 : 0) + (zaiLinked ? 1 : 0) + (zaiteamLinked ? 1 : 0) + (volcengineLinked ? 1 : 0) + (qoderLinked ? 1 : 0) + (kimiLinked ? 1 : 0) + (ollamaLinked ? 1 : 0) + (mimoLinked ? 1 : 0) + (copilotLinked ? 1 : 0),
-      total: 16
     });
   }
   if (section === 'limits') {
@@ -6348,11 +6359,10 @@ function limitProviderDragRows() {
   });
 }
 
-// The row's own controls own their clicks, and so does the options panel that
-// hangs under it. Arming a drag from them lets a few pixels of hand movement
-// swallow the click that was actually intended — on a trackpad that is most
-// clicks, which reads as the control being broken half the time.
-const LIMIT_PROVIDER_DRAG_EXCLUDED = 'button, input, select, textarea, a, .accordion-animated-container';
+// The checkbox, nested controls, and options panel own their clicks. The main
+// disclosure button is deliberately the drag surface too: below the threshold
+// it clicks, above it the drag suppresses that click.
+const LIMIT_PROVIDER_DRAG_EXCLUDED = 'button:not(.limit-provider-main), input, select, textarea, a, .accordion-animated-container';
 
 function startLimitProviderRowDrag(event, id) {
   if (event.button !== 0) return;
@@ -6384,10 +6394,6 @@ function startLimitProviderRowDrag(event, id) {
     scrollFrame: 0,
     renderPending: false
   };
-  // Without capture a release outside the window never reaches us, and a stuck
-  // drag keeps the repaint gate closed — the list would stop updating for good.
-  try { rowEl.setPointerCapture?.(event.pointerId); } catch (_) {}
-  rowEl.addEventListener('lostpointercapture', onLimitProviderDragAbort);
   setLimitProviderDragListeners(true);
 }
 
@@ -6469,6 +6475,13 @@ function onLimitProviderPointerMove(event) {
   drag.lastClientY = event.clientY;
   if (!drag.started) {
     if (Math.abs(limitProviderContentY(event.clientY) - drag.pressY) < LIMIT_PROVIDER_DRAG_THRESHOLD) return;
+    // Capture only after the gesture crosses the drag threshold. Capturing on
+    // pointerdown retargets the eventual click from the nested disclosure
+    // button to the outer row, so an ordinary press can no longer expand it.
+    // Once dragging, capture still guarantees that an outside-window release
+    // reaches cleanup instead of leaving the repaint gate stuck.
+    drag.captureEl?.addEventListener('lostpointercapture', onLimitProviderDragAbort);
+    try { drag.captureEl?.setPointerCapture?.(event.pointerId); } catch (_) {}
     if (!beginLimitProviderDrag()) return;
   }
   event.preventDefault();
@@ -6514,45 +6527,57 @@ function onLimitProviderDragKeydown(event) {
   finishLimitProviderDrag(false);
 }
 
-// Applying the final order to the DOM *before* clearing the transforms is what
-// keeps the drop from flashing: the rows are already where the transforms were
-// pretending they were, so removing the transforms changes nothing on screen.
+function releaseLimitProviderLandingStyleAfterPaint(list) {
+  requestAnimationFrame(() => {
+    setTimeout(() => list?.classList.remove('is-landing'), 0);
+  });
+}
+
+// The final DOM positions and the drag transforms both encode the same move.
+// Keep transform transitions disabled through the first landed paint so rows
+// do not briefly apply both offsets and animate back from a double displacement.
 function finishLimitProviderDrag(commit) {
   const drag = limitProviderDrag;
   if (!drag) return;
-  if (drag.scrollFrame) cancelAnimationFrame(drag.scrollFrame);
-  setLimitProviderDragListeners(false);
-  // Released before the reorder moves the node: relocating a captured element
-  // fires `lostpointercapture`, which would re-enter this as an abort.
-  const captureEl = drag.captureEl;
-  captureEl?.removeEventListener('lostpointercapture', onLimitProviderDragAbort);
-  try {
-    if (captureEl?.hasPointerCapture?.(drag.pointerId)) captureEl.releasePointerCapture(drag.pointerId);
-  } catch (_) {}
-  const list = els.limitProviderCheckboxes;
-  if (drag.started) {
-    // Moving the nodes discards any transition running on them, so the lifted
-    // look and the offsets all clear in the frame the row lands in — no settle
-    // animation to suppress here.
-    if (commit && drag.changed && drag.order?.length) applyPreferenceOrder('provider', drag.order);
-    for (const { el } of drag.rows) {
-      el.style.removeProperty('--drag-y');
-      el.style.removeProperty('--drag-shift');
-      el.classList.remove('dragging');
+  // The DOM reorder itself runs before the asynchronous settings save. Moving
+  // the focused row (and every sibling via appendChild) can trigger browser
+  // scroll anchoring immediately, so the save-time scroll guard is already too
+  // late. Preserve the panel around the whole landing transaction, including a
+  // deferred repaint that was held while dragging.
+  preserveSettingsPanelScroll(() => {
+    if (drag.scrollFrame) cancelAnimationFrame(drag.scrollFrame);
+    setLimitProviderDragListeners(false);
+    // Released before the reorder moves the node: relocating a captured element
+    // fires `lostpointercapture`, which would re-enter this as an abort.
+    const captureEl = drag.captureEl;
+    captureEl?.removeEventListener('lostpointercapture', onLimitProviderDragAbort);
+    try {
+      if (captureEl?.hasPointerCapture?.(drag.pointerId)) captureEl.releasePointerCapture(drag.pointerId);
+    } catch (_) {}
+    const list = els.limitProviderCheckboxes;
+    if (drag.started) {
+      const landing = Boolean(commit && drag.changed && drag.order?.length);
+      if (landing) list?.classList.add('is-landing');
+      if (landing) applyPreferenceOrder('provider', drag.order);
+      for (const { el } of drag.rows) {
+        el.style.removeProperty('--drag-y');
+        el.style.removeProperty('--drag-shift');
+        el.classList.remove('dragging');
+      }
+      list?.classList.remove('drag-active');
+      list?.classList.remove('is-reordering');
+      if (drag.expandedBefore) setLimitProviderSettingsExpanded(drag.expandedBefore);
+      suppressNextLimitProviderClick();
+      if (landing) releaseLimitProviderLandingStyleAfterPaint(list);
     }
-    list?.classList.remove('drag-active');
-    list?.classList.remove('is-reordering');
-    if (drag.expandedBefore) setLimitProviderSettingsExpanded(drag.expandedBefore);
-    suppressNextLimitProviderClick();
-  }
-  const renderPending = drag.renderPending;
-  limitProviderDrag = null;
-  if (renderPending) renderLimitProviderCheckboxes();
+    const renderPending = drag.renderPending;
+    limitProviderDrag = null;
+    if (renderPending) renderLimitProviderCheckboxes();
+  });
 }
 
-// A `<label>` wraps the checkbox, so a click anywhere on the row synthesises a
-// click on the input and toggles it. A plain suppress flag cannot stop native
-// activation — cancelling the click event itself can.
+// The same main-row button owns click-to-expand and drag-to-reorder. Cancelling
+// its click after a completed drag prevents the drop from also toggling details.
 function suppressNextLimitProviderClick() {
   const swallow = (event) => {
     event.preventDefault();
@@ -7354,6 +7379,17 @@ function renderToolPreferences() {
   }
 }
 
+function connectLimitProviderCheckboxName(checkbox, nameNode, providerId) {
+  const nameId = `limitProviderName-${providerId}`;
+  nameNode.id = nameId;
+  checkbox.setAttribute('aria-labelledby', nameId);
+}
+
+function moveLimitProviderLiveNode(parent, node, before = null) {
+  if (!parent || !node || node.parentElement === parent) return;
+  parent.moveBefore(node, before);
+}
+
 function renderLimitProviderCheckboxes() {
   if (!els.limitProviderCheckboxes) return;
   // A stats update mid-drag would replace the rows under the pointer and kill
@@ -7362,23 +7398,30 @@ function renderLimitProviderCheckboxes() {
     limitProviderDrag.renderPending = true;
     return;
   }
+  return preserveSettingsPanelScroll(renderLimitProviderCheckboxesNow);
+}
+
+function renderLimitProviderCheckboxesNow() {
+  const previousRows = Array.from(els.limitProviderCheckboxes.children);
+  const focusedId = document.activeElement?.id || '';
   const enabled = enabledLimitProviderSet();
   const collected = new Map((state.stats?.limits?.providers || []).map((provider) => [provider.provider, provider]));
   const providers = limitProviderOrderApi.orderedLimitProviders(LIMIT_PROVIDERS, state.settings?.limitProviderOrder);
-  els.limitProviderCheckboxes.replaceChildren();
   for (const { id, label, settingsLabel } of providers) {
-    const provider = enabled.has(id)
+    const isEnabled = enabled.has(id);
+    const provider = isEnabled
       ? (collected.get(id) || { provider: id, ...(state.stats ? { status: missingLimitProviderStatus() } : {}), windows: [] })
       : { provider: id, status: 'disabled', windows: [] };
     const row = document.createElement('div');
-    row.className = 'limit-provider-row';
+    row.className = `limit-provider-row${isEnabled ? '' : ' is-disabled'}`;
     row.dataset.provider = id;
     const wrap = document.createElement('label');
     wrap.className = 'client-checkbox limit-provider-toggle';
     const cb = document.createElement('input');
     cb.type = 'checkbox';
+    cb.id = `limitProviderEnabled-${id}`;
     cb.dataset.provider = id;
-    cb.checked = enabled.has(id);
+    cb.checked = isEnabled;
     cb.addEventListener('change', onLimitProviderToggle);
     // The drag handle is gone, so the checkbox carries the keyboard reorder
     // shortcuts. A checkbox has no native arrow-key behaviour, so the existing
@@ -7387,60 +7430,137 @@ function renderLimitProviderCheckboxes() {
     cb.addEventListener('keydown', (event) => onPreferenceOrderKeydown(event, 'provider', id));
     const copy = document.createElement('span');
     copy.className = 'limit-provider-copy';
+    const nameLine = document.createElement('span');
+    nameLine.className = 'limit-provider-name-line';
     const text = document.createElement('span');
     text.className = 'limit-provider-name';
     text.textContent = settingsLabel || label;
+    connectLimitProviderCheckboxName(cb, text, id);
+    nameLine.append(text);
     const tags = document.createElement('span');
     tags.className = 'limit-provider-tags';
     const provenance = limitProviderProvenance(provider);
-    for (const tagInfo of limitProviderPresentationApi.limitProviderSettingsTags(provider, provenance)) {
+    const connectionDetailKey = LIMIT_PROVIDER_CONNECTION_DETAIL_KEYS[id];
+    const accountGroup = limitProviderAccountGroup(id);
+    const tagInfos = limitProviderPresentationApi.limitProviderSettingsTags(provider, provenance);
+    const detected = provider.status === 'ok' && !provider.stale;
+    if (detected) {
+      const statusTag = tagInfos.find((tagInfo) => tagInfo.kind === 'status');
+      const dot = document.createElement('span');
+      dot.className = 'limit-provider-status-dot';
+      dot.title = translatedLimitProviderTag(statusTag);
+      dot.setAttribute('role', 'img');
+      dot.setAttribute('aria-label', dot.title);
+      nameLine.append(dot);
+    }
+    for (const tagInfo of tagInfos) {
+      if ((detected || !isEnabled) && tagInfo.kind === 'status') continue;
+      const duplicatesInlineSetup = tagInfo.kind === 'capability'
+        && ((connectionDetailKey && tagInfo.label === 'Auto')
+          || (accountGroup && tagInfo.label === 'Manual login'));
+      if (duplicatesInlineSetup) continue;
       const tag = document.createElement('span');
       tag.className = `limit-provider-tag limit-provider-tag-${tagInfo.kind}`;
       if (tagInfo.tone) tag.classList.add(`limit-provider-tag-${tagInfo.tone}`);
       tag.textContent = translatedLimitProviderTag(tagInfo);
       tags.append(tag);
     }
-    copy.append(text, tags);
-    wrap.append(cb, copy);
-    // The chevron sits alone in the actions cell now that the whole row is the
-    // drag surface; rows without provider settings simply leave it empty.
+    copy.append(nameLine, tags);
+    wrap.append(cb);
     const actions = document.createElement('span');
     actions.className = 'limit-provider-actions';
-    const settings = LIMIT_PROVIDER_SETTINGS[id];
-    let optionsContainer = null;
-    if (settings) {
-      const expanded = state.limitProviderSettingsExpanded === id;
-      const disclosure = document.createElement('button');
-      disclosure.type = 'button';
-      disclosure.className = `view-subgroup-toggle${expanded ? ' is-expanded' : ''}`;
-      disclosure.title = t('settings.limits.providerOptions', { provider: settingsLabel || label });
-      disclosure.setAttribute('aria-label', disclosure.title);
-      disclosure.setAttribute('aria-expanded', String(expanded));
-      const icon = document.createElement('span');
-      icon.className = 'view-subgroup-icon';
-      icon.setAttribute('aria-hidden', 'true');
-      disclosure.append(icon);
-      // Built once and toggled by class, never added and removed: an element
-      // that leaves the DOM cannot animate. Same shape the Home view rows use.
-      optionsContainer = document.createElement('div');
-      optionsContainer.className = `accordion-animated-container${expanded ? '' : ' hidden'}`;
-      const inner = document.createElement('div');
-      inner.className = 'accordion-animation-inner';
-      inner.append(limitProviderSettingsList(id, settings));
-      optionsContainer.append(inner);
-      disclosure.addEventListener('click', () => {
-        setLimitProviderSettingsExpanded(state.limitProviderSettingsExpanded === id ? '' : id);
-      });
-      actions.append(disclosure);
+    const accountStatus = limitProviderAccountStatus(id);
+    if (connectionDetailKey) {
+      const mode = document.createElement('span');
+      mode.className = 'cursor-status-pill limit-provider-mode-pill';
+      mode.textContent = t('settings.limits.connection.autoDetect');
+      actions.append(mode);
     }
-    row.append(wrap, actions);
+    const settings = LIMIT_PROVIDER_SETTINGS[id];
+    const hasOptions = Boolean(accountGroup || settings || connectionDetailKey);
+    let optionsContainer = null;
+    let optionsInner = null;
+    let main = null;
+    let disclosureIcon = null;
+    if (hasOptions) {
+      const expanded = state.limitProviderSettingsExpanded === id;
+      row.classList.toggle('expanded', expanded);
+      main = document.createElement('button');
+      main.type = 'button';
+      main.id = `limitProviderDisclosure-${id}`;
+      main.className = 'limit-provider-main';
+      main.title = t('settings.limits.providerOptions', { provider: settingsLabel || label });
+      main.setAttribute('aria-label', main.title);
+      main.setAttribute('aria-expanded', String(expanded));
+      disclosureIcon = document.createElement('span');
+      disclosureIcon.className = 'cursor-disclosure-icon';
+      disclosureIcon.setAttribute('aria-hidden', 'true');
+      actions.append(disclosureIcon);
+      optionsContainer = document.createElement('div');
+      optionsContainer.id = `limitProviderOptions-${id}`;
+      optionsContainer.className = `accordion-animated-container${expanded ? '' : ' hidden'}`;
+      main.setAttribute('aria-controls', optionsContainer.id);
+      optionsInner = document.createElement('div');
+      optionsInner.className = 'accordion-animation-inner limit-provider-options-inner';
+      if (accountGroup) {
+        accountGroup.classList.add('limit-provider-account-group');
+      }
+      if (connectionDetailKey) optionsInner.append(limitProviderConnectionDetail(connectionDetailKey));
+      if (settings) optionsInner.append(limitProviderSettingsList(id, settings));
+      optionsContainer.append(optionsInner);
+      const toggleOptions = () => {
+        const opening = state.limitProviderSettingsExpanded !== id;
+        const accountToggle = accountGroup?.querySelector(':scope > .settings-group-header');
+        const accountOpen = accountToggle?.getAttribute('aria-expanded') === 'true';
+        if (accountToggle && accountOpen !== opening) accountToggle.click();
+        else setLimitProviderSettingsExpanded(opening ? id : '');
+      };
+      main.addEventListener('click', toggleOptions);
+    }
+    if (main) {
+      main.append(copy, actions);
+      row.append(wrap, main);
+    } else {
+      row.append(wrap, copy, actions);
+    }
     row.addEventListener('pointerdown', (event) => startLimitProviderRowDrag(event, id));
     // Kept inside the row rather than as a sibling: reordering moves only
     // `.limit-provider-row` nodes, so a sibling panel would be stranded when the
     // list is dragged.
     if (optionsContainer) row.append(optionsContainer);
     els.limitProviderCheckboxes.appendChild(row);
+    // `moveBefore()` preserves focus and edit state while reparenting. Its
+    // destination must already be connected, so the row is mounted first.
+    moveLimitProviderLiveNode(actions, accountStatus, disclosureIcon);
+    moveLimitProviderLiveNode(optionsInner, accountGroup);
   }
+  for (const row of previousRows) row.remove();
+  if (focusedId && document.activeElement === document.body) {
+    document.getElementById(focusedId)?.focus({ preventScroll: true });
+  }
+}
+
+function limitProviderAccountGroup(providerId) {
+  const groupId = LIMIT_PROVIDER_ACCOUNT_GROUP_IDS[providerId];
+  return groupId ? document.getElementById(groupId) : null;
+}
+
+function limitProviderAccountStatus(providerId) {
+  const statusId = LIMIT_PROVIDER_ACCOUNT_STATUS_IDS[providerId];
+  return statusId ? document.getElementById(statusId) : null;
+}
+
+function limitProviderConnectionDetail(bodyKey) {
+  const panel = document.createElement('div');
+  panel.className = 'limit-provider-connection-detail';
+  const title = document.createElement('span');
+  title.className = 'limit-provider-connection-title';
+  title.textContent = t('settings.limits.connection.title');
+  const body = document.createElement('p');
+  body.className = 'settings-note';
+  body.textContent = t(bodyKey);
+  panel.append(title, body);
+  return panel;
 }
 
 // Single entry point for the provider options accordion. The drag gesture also
@@ -7450,12 +7570,12 @@ function setLimitProviderSettingsExpanded(providerId) {
   state.limitProviderSettingsExpanded = providerId || '';
   const rows = els.limitProviderCheckboxes?.querySelectorAll('.limit-provider-row[data-provider]') || [];
   for (const row of rows) {
-    const disclosure = row.querySelector('.view-subgroup-toggle');
+    const disclosure = row.querySelector('.limit-provider-main');
     const container = row.querySelector(':scope > .accordion-animated-container');
     if (!disclosure || !container) continue;
     const open = row.dataset.provider === state.limitProviderSettingsExpanded;
-    disclosure.classList.toggle('is-expanded', open);
     disclosure.setAttribute('aria-expanded', String(open));
+    row.classList.toggle('expanded', open);
     container.classList.toggle('hidden', !open);
   }
 }
@@ -7467,6 +7587,7 @@ const LIMIT_PROVIDER_SETTINGS = {
     key: 'claudePrepaidBalanceEnabled',
     titleKey: 'settings.limits.prepaidBalance',
     descKey: 'settings.limits.prepaidBalanceDesc',
+    requiresConfiguredKey: 'claudeWebCookieConfigured',
     defaultValue: true
   }]
 };
@@ -7489,7 +7610,10 @@ function limitProviderSettingsList(providerId, settings) {
     copy.append(title);
     const input = document.createElement('input');
     input.type = 'checkbox';
-    input.checked = state.settings?.[setting.key] !== false;
+    const available = !setting.requiresConfiguredKey || Boolean(state.settings?.[setting.requiresConfiguredKey]);
+    input.checked = available && state.settings?.[setting.key] !== false;
+    input.disabled = !available;
+    item.classList.toggle('is-disabled', !available);
     input.addEventListener('change', async () => {
       await saveSettings({ [setting.key]: input.checked });
       // Switching this off hides the row immediately; the request it also stops
@@ -7559,7 +7683,11 @@ async function onLimitProviderToggle() {
   }
   await saveSettings({ limitProviders: checked.join(','), limitsEnabled: checked.length > 0 });
   clearDisabledLimitProviderPendingChecks(new Set(checked));
-  await refreshStats({ force: true });
+  // settings:update reconfigures LimitsRuntime immediately. Its existing
+  // snapshot and the newly enabled provider's eventual result arrive through
+  // the normal stats push, so a forced usage + all-provider refresh here only
+  // replaces stable account summaries with an interim snapshot and duplicates
+  // collection work.
 }
 
 async function onLimitProviderMove(providerId, direction) {
@@ -7800,13 +7928,18 @@ function preserveSettingsPanelScroll(callback) {
   if (!panel || panel.classList.contains('hidden')) return callback();
   const scrollTop = panel.scrollTop;
   const scrollLeft = panel.scrollLeft;
+  const interactionRevision = settingsScrollInteractionRevision;
   const restore = () => {
     panel.scrollTop = scrollTop;
     panel.scrollLeft = scrollLeft;
   };
   const result = callback();
   restore();
-  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(restore);
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      if (settingsScrollInteractionRevision === interactionRevision) restore();
+    });
+  }
   return result;
 }
 
@@ -9603,6 +9736,16 @@ function setAccountGroupExpanded(prefix, expanded, stateKey) {
   toggle.setAttribute('aria-expanded', next ? 'true' : 'false');
   details.classList.toggle('hidden', !next);
   if (group) group.classList.toggle('expanded', next);
+  syncLimitProviderAccountExpansion(prefix, next);
+}
+
+function syncLimitProviderAccountExpansion(providerId, expanded) {
+  if (!LIMIT_PROVIDER_ACCOUNT_GROUP_IDS[providerId]) return;
+  if (expanded) {
+    setLimitProviderSettingsExpanded(providerId);
+  } else if (state.limitProviderSettingsExpanded === providerId) {
+    setLimitProviderSettingsExpanded('');
+  }
 }
 
 function setCodexAccountExpanded(expanded) {
@@ -9908,10 +10051,6 @@ function clearDeepseekPendingCheck() {
 function clearDeepseekProviderStatus() {
   if (!Array.isArray(state.stats?.limits?.providers)) return;
   state.stats.limits.providers = state.stats.limits.providers.filter((provider) => provider.provider !== 'deepseek');
-}
-
-function mimoAccountLinked() {
-  return (state.settings?.mimoManagedAccounts || []).length > 0;
 }
 
 function renderMimoStatus() {
@@ -10229,9 +10368,12 @@ function setExternalAccountExpanded(providerName, expanded) {
   const details = document.getElementById(`${providerName}SettingsDetails`);
   const toggle = document.getElementById(`${providerName}SettingsToggle`);
   if (!details || !toggle) return;
-  state[`${providerName}AccountExpanded`] = expanded;
-  details.classList.toggle('hidden', !expanded);
-  toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  const next = Boolean(expanded);
+  state[`${providerName}AccountExpanded`] = next;
+  details.classList.toggle('hidden', !next);
+  toggle.setAttribute('aria-expanded', next ? 'true' : 'false');
+  limitProviderAccountGroup(providerName)?.classList.toggle('expanded', next);
+  syncLimitProviderAccountExpansion(providerName, next);
 }
 
 function zaiPlatformUrl() {
@@ -10336,9 +10478,12 @@ function setMinimaxAccountExpanded(expanded) {
   const details = document.getElementById('minimaxSettingsDetails');
   const toggle = document.getElementById('minimaxSettingsToggle');
   if (!details || !toggle) return;
-  state.minimaxAccountExpanded = expanded;
-  details.classList.toggle('hidden', !expanded);
-  toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  const next = Boolean(expanded);
+  state.minimaxAccountExpanded = next;
+  details.classList.toggle('hidden', !next);
+  toggle.setAttribute('aria-expanded', next ? 'true' : 'false');
+  limitProviderAccountGroup('minimax')?.classList.toggle('expanded', next);
+  syncLimitProviderAccountExpansion('minimax', next);
 }
 
 function renderMinimaxStatus() {
@@ -10434,6 +10579,7 @@ function renderOpenCodeProfiles() {
     if (entries.length === 0 && !hasEnvVar) {
       listEl.innerHTML = '<div class="opencode-empty">' + t('settings.opencode.emptyList') + '</div>';
       state.opencodeProfileCount = 0;
+      renderOpenCodeProfilesStatusSummary({});
       renderSettingsSummaries();
       return;
     }
@@ -10569,7 +10715,10 @@ async function updateOpenCodeProfilesStatus() {
     }
   }
 
-  // Update summary pill
+  renderOpenCodeProfilesStatusSummary(profiles);
+}
+
+function renderOpenCodeProfilesStatusSummary(profiles) {
   const totalEl = document.getElementById('opencodeCookieStatus');
   if (totalEl) {
     const linkedCount = Object.values(profiles).filter(s => s.linked).length;
@@ -10946,7 +11095,7 @@ function renderCursorStatus() {
     refreshBtn.classList.remove('hidden');
     manualPanel.classList.remove('hidden');
     setCursorCheckboxesEnabled(false);
-    setSettingsSectionExpanded('accounts', true);
+    setSettingsSectionExpanded('limits', true);
     setCursorAccountExpanded(true);
     renderSettingsSummaries();
     return;
@@ -10976,7 +11125,7 @@ function renderCursorStatus() {
     refreshBtn.classList.remove('hidden');
     manualPanel.classList.remove('hidden');
     setCursorCheckboxesEnabled(false);
-    setSettingsSectionExpanded('accounts', true);
+    setSettingsSectionExpanded('limits', true);
     setCursorAccountExpanded(true);
     renderSettingsSummaries();
     return;
@@ -12333,7 +12482,6 @@ function initSettingsAnimationWrappers() {
   });
 }
 
-orderAccountProviderGroups();
 initSettingsAnimationWrappers();
 setupSettingsSections();
 setupCursorAccountUI();
