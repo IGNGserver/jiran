@@ -416,10 +416,21 @@ function collectorWatchEnabled() {
   return normalizeCollectionMode(settings?.collectionMode) !== 'interval';
 }
 
-// Smart mode watches with native events and never collects on the event itself;
-// the event only marks activity, and the interval decides whether to scan.
+// Live mode no longer needs chokidar's 2-second directory polling on macOS.
+// chokidar 4 dropped the bundled fsevents backend, so macOS now watches through
+// the same per-directory fs.watch path as every other platform (chokidar still
+// walks the tree itself — there is no OS-level recursive watch involved). The
+// earlier attempt that observed missed events ran on chokidar 3's fsevents
+// backend; that evidence does not transfer to chokidar 4.
+//
+// Staged rollout: macOS first because #260 reported the battery cost there.
+// Windows/Linux keep polling for now and are tracked in #284 — that is a
+// deliberate hold, not a platform capability difference. TOKEN_MONITOR_WATCH_POLLING
+// overrides either way (see resolveWatchUsePolling in src/shared/collector.js).
+// Smart mode uses native events everywhere and never collects on the event itself.
 function collectorWatchUsePolling() {
-  return normalizeCollectionMode(settings?.collectionMode) === 'live';
+  return process.platform !== 'darwin'
+    && normalizeCollectionMode(settings?.collectionMode) === 'live';
 }
 
 function collectorWatchTriggersCollection() {
