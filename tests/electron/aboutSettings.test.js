@@ -49,6 +49,15 @@ test('General settings explains Discord presence and identifies Tokscale as an n
   assert.doesNotMatch(i18n, /'settings\.tokscale\.source': '[^']*(?:Data engine|資料引擎|数据引擎|데이터 엔진|データエンジン)/);
 });
 
+test('General settings places integrations after the complete App Updates group', () => {
+  const html = read('index.html');
+  const general = html.match(/<div id="generalSettingsDetails"[\s\S]*?<div id="mainSettingsDetails"/)?.[0] || '';
+
+  assert.ok(general.indexOf('id="startupGroup"') < general.indexOf('id="automaticAppUpdatesRow"'));
+  assert.ok(general.indexOf('id="appUpdateMessage"') < general.indexOf('id="discordRpcInput"'));
+  assert.ok(general.indexOf('id="discordRpcInput"') < general.indexOf('id="advancedSettingsGroup"'));
+});
+
 test('Advanced disclosure uses the shared animated accordion with accessible state', () => {
   const css = read('styles.css');
   const app = read('app.js');
