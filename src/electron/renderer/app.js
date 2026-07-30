@@ -297,7 +297,7 @@ let directBreakdownOverride = null;
 state.projectSettingsExpanded = false;
 state.homeActivitySettingsExpanded = false;
 state.settingsSections = Object.fromEntries(SETTINGS_SECTION_IDS.map((id) => [id, false]));
-const defaultAppearance = { glassOpacity: 68, glassBlur: 32, zoomFactor: 1, systemGlass: true, windowsBackdrop: 'acrylic', reduceMotion: 'system', showLiveDot: true, showToolIcons: true, titleIconOnly: true, showCompactTotalTokens: false, settingsInTitlebar: false };
+const defaultAppearance = { glassOpacity: 68, glassBlur: 32, zoomFactor: 1, systemGlass: true, windowsBackdrop: 'acrylic', reduceMotion: 'system', showLiveDot: true, showToolIcons: true, titleIconOnly: true, showCompactTotalTokens: false, compactTokenUnits: 'western', settingsInTitlebar: false };
 let preferenceDrag = null;
 let viewSwitcherLongPressTimer = null;
 let viewSwitcherLongPressTriggered = false;
@@ -382,6 +382,8 @@ Object.assign(els, {
   appUpdateMessage: document.getElementById('appUpdateMessage'),
   titleIconInput: document.getElementById('titleIconInput'),
   showCompactTotalTokensInput: document.getElementById('showCompactTotalTokensInput'),
+  compactTokenUnitsRow: document.getElementById('compactTokenUnitsRow'),
+  compactTokenUnitsInput: document.getElementById('compactTokenUnitsInput'),
   swapSettingsRefreshInput: document.getElementById('swapSettingsRefreshInput'),
   resetClientDisplayOrderButton: document.getElementById('resetClientDisplayOrderButton'),
   showAllClientsButton: document.getElementById('showAllClientsButton'),
@@ -470,6 +472,17 @@ function currentLanguage() {
 
 function currentLocale() {
   return i18n.resolveLocale(currentLanguage(), preferredLanguages());
+}
+
+function supportsLocalizedCompactTokenUnits(locale) {
+  return /^(zh|ja|ko)(?:-|$)/i.test(String(locale || ''));
+}
+
+function effectiveCompactTokenUnits() {
+  return supportsLocalizedCompactTokenUnits(currentLocale())
+    && state.settings?.compactTokenUnits === 'localized'
+    ? 'localized'
+    : 'western';
 }
 
 function t(key, params) {
@@ -647,32 +660,60 @@ function renderSettingsSummaries() {
 }
 
 function formatNumber(value) { return Math.round(Number(value || 0)).toLocaleString('en-US'); }
-function formatCompact(value) {
+function formatCompact(value, unitSystem = 'western', locale = 'en') {
   const num = Math.round(Number(value || 0));
   const abs = Math.abs(num);
-  const units = [
-    { divisor: 1e3, suffix: 'K' },
-    { divisor: 1e6, suffix: 'M' },
-    { divisor: 1e9, suffix: 'B' }
-  ];
-  let unitIndex = abs >= 1e9 ? 2 : abs >= 1e6 ? 1 : abs >= 1e3 ? 0 : -1;
+  const localized = unitSystem === 'localized';
+  const language = String(locale || '').toLowerCase();
+  const localizedSuffixes = language.startsWith('ko')
+    ? ['만', '억']
+    : language.startsWith('zh-cn')
+      ? ['万', '亿']
+      : language.startsWith('ja')
+        ? ['万', '億']
+        : ['萬', '億'];
+  const units = localized
+    ? [
+        { divisor: 1e4, suffix: localizedSuffixes[0] },
+        { divisor: 1e8, suffix: localizedSuffixes[1] }
+      ]
+    : [
+        { divisor: 1e3, suffix: 'K' },
+        { divisor: 1e6, suffix: 'M' },
+        { divisor: 1e9, suffix: 'B' }
+      ];
+  let unitIndex = -1;
+  for (let index = units.length - 1; index >= 0; index -= 1) {
+    if (abs >= units[index].divisor) {
+      unitIndex = index;
+      break;
+    }
+  }
   if (unitIndex < 0) return String(num);
 
   let unit = units[unitIndex];
-  let display = (num / unit.divisor).toFixed(1);
-  if (Math.abs(Number(display)) >= 1000 && unitIndex < units.length - 1) {
+  const formatted = () => {
+    const scaled = num / unit.divisor;
+    const digits = localized && Math.abs(scaled) < 10 ? 2 : 1;
+    return scaled.toFixed(digits);
+  };
+  let display = formatted();
+  const promotionBoundary = localized ? 10000 : 1000;
+  if (Math.abs(Number(display)) >= promotionBoundary && unitIndex < units.length - 1) {
     unit = units[unitIndex + 1];
-    display = (num / unit.divisor).toFixed(1);
+    display = formatted();
   }
-  return `${display.replace(/\.0$/, '')}${unit.suffix}`;
+  return `${display.replace(/\.?0+$/, '')}${unit.suffix}`;
 }
 function updateTotalCompact(value) {
   if (!els.totalTokensCompact) return;
   const num = Math.round(Number(value || 0));
-  if (state.settings?.showCompactTotalTokens !== true || Math.abs(num) < 1000) {
+  const unitSystem = effectiveCompactTokenUnits();
+  const threshold = unitSystem === 'localized' ? 1e4 : 1e3;
+  if (state.settings?.showCompactTotalTokens !== true || Math.abs(num) < threshold) {
     hideTotalCompact();
   } else {
-    els.totalTokensCompact.textContent = `≈ ${formatCompact(num)}`;
+    els.totalTokensCompact.textContent = `≈ ${formatCompact(num, unitSystem, currentLocale())}`;
     els.totalTokensCompact.classList.remove('hidden');
   }
   fitTotalNumber();
@@ -5866,6 +5907,7 @@ function appearancePatchFromControls() {
     showToolIcons: Boolean(els.toolIconsInput.checked),
     titleIconOnly: Boolean(els.titleIconInput.checked),
     showCompactTotalTokens: Boolean(els.showCompactTotalTokensInput.checked),
+    compactTokenUnits: els.compactTokenUnitsInput?.value === 'localized' ? 'localized' : 'western',
     settingsInTitlebar: Boolean(els.swapSettingsRefreshInput.checked),
     glassOpacity: Number(els.glassInput.value === '' ? defaultAppearance.glassOpacity : els.glassInput.value),
     glassBlur: Number(els.blurInput.value === '' ? defaultAppearance.glassBlur : els.blurInput.value),
@@ -6107,6 +6149,13 @@ function syncSettingsForm() {
   els.toolIconsInput.checked = state.settings.showToolIcons !== false;
   els.titleIconInput.checked = state.settings.titleIconOnly === true;
   els.showCompactTotalTokensInput.checked = state.settings.showCompactTotalTokens === true;
+  if (els.compactTokenUnitsInput) {
+    els.compactTokenUnitsInput.value = state.settings.compactTokenUnits === 'localized' ? 'localized' : 'western';
+  }
+  els.compactTokenUnitsRow?.classList.toggle(
+    'hidden',
+    state.settings.showCompactTotalTokens !== true || !supportsLocalizedCompactTokenUnits(currentLocale())
+  );
   els.swapSettingsRefreshInput.checked = state.settings.settingsInTitlebar === true;
   els.discordRpcInput.checked = Boolean(state.settings.discordRpcEnabled);
   syncWindowBehaviorControls();
@@ -8187,6 +8236,7 @@ els.hubModeOptions.addEventListener('change', async (event) => {
 
 els.languageInput?.addEventListener('change', async () => {
   await saveSettings({ language: els.languageInput.value });
+  if (!numberAnimHandle) updateTotalCompact(state.currentTotal);
 });
 
 els.currencyInput?.addEventListener('change', async () => {
@@ -8387,6 +8437,14 @@ els.toolIconsInput.addEventListener('change', async () => {
 });
 els.titleIconInput.addEventListener('change', saveAppearanceFromControls);
 els.showCompactTotalTokensInput.addEventListener('change', async () => {
+  els.compactTokenUnitsRow?.classList.toggle(
+    'hidden',
+    !els.showCompactTotalTokensInput.checked || !supportsLocalizedCompactTokenUnits(currentLocale())
+  );
+  await saveAppearanceFromControls();
+  if (!numberAnimHandle) updateTotalCompact(state.currentTotal);
+});
+els.compactTokenUnitsInput?.addEventListener('change', async () => {
   await saveAppearanceFromControls();
   if (!numberAnimHandle) updateTotalCompact(state.currentTotal);
 });
