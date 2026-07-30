@@ -32,7 +32,7 @@ function rewriteHtml(html) {
   return html
     .replace(/\s*<link rel="stylesheet" href="styles\/tokens\.css(?:\?[^"]*)?">[\s\S]*?<link rel="stylesheet" href="styles\/sections\.css(?:\?[^"]*)?">/, `\n    <link rel="stylesheet" href="styles.css?v=${assetVersion}">`)
     .replace(/\s*<script src="scripts\/i18n\.js(?:\?[^"]*)?" defer><\/script>[\s\S]*?<script src="scripts\/main\.js(?:\?[^"]*)?" defer><\/script>/, `\n    <script src="app.js?v=${assetVersion}" defer></script>\n    <script src="islands.js?v=${assetVersion}" defer></script>`)
-    .replace(/url\(\.\.\/assets\//g, "url(assets/");
+    .replace(/url\(([\"']?)\.\.\/assets\//g, "url($1assets/");
 }
 
 await rm(outputRoot, { recursive: true, force: true });
@@ -40,7 +40,7 @@ await mkdir(new URL("assets/", outputRoot), { recursive: true }); // also create
 await mkdir(new URL("assets/icons/", outputRoot), { recursive: true });
 await mkdir(new URL("assets/icons/views/", outputRoot), { recursive: true });
 
-const bundledCss = (await concat(cssFiles)).replace(/url\(\.\.\/assets\//g, "url(assets/");
+const bundledCss = (await concat(cssFiles)).replace(/url\(([\"']?)\.\.\/assets\//g, "url($1assets/");
 await writeFile(new URL("styles.css", outputRoot), bundledCss);
 await writeFile(new URL("app.js", outputRoot), await concat(jsFiles));
 await bundle({
