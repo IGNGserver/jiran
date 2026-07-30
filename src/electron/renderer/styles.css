@@ -2737,7 +2737,7 @@ html.is-windows .settings-panel select option {
   margin-top: 1px;
   overflow-x: auto;
   overflow-y: hidden;
-  cursor: grab;
+  cursor: default;
   scrollbar-width: none;
   overscroll-behavior-x: contain;
   touch-action: pan-x pan-y;
