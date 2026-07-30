@@ -2940,7 +2940,7 @@ html.is-windows .settings-panel select option {
 .row-icon-cursor     { -webkit-mask-image: url(../../../assets/icons/cursor.svg);        mask-image: url(../../../assets/icons/cursor.svg); }
 .row-icon-antigravity { -webkit-mask-image: url(../../../assets/icons/antigravity.svg);   mask-image: url(../../../assets/icons/antigravity.svg); }
 .row-icon-cline      { -webkit-mask-image: url(../../../assets/icons/cline.svg);         mask-image: url(../../../assets/icons/cline.svg); }
-.row-icon-kimi       { -webkit-mask-image: url(../../../assets/icons/moonshot.svg);      mask-image: url(../../../assets/icons/moonshot.svg); }
+.row-icon-kimi       { -webkit-mask-image: url(../../../assets/icons/kimi.svg);          mask-image: url(../../../assets/icons/kimi.svg); }
 .row-icon-grok       { -webkit-mask-image: url(../../../assets/icons/xai.svg);           mask-image: url(../../../assets/icons/xai.svg); }
 .row-icon-copilot    { -webkit-mask-image: url(../../../assets/icons/copilot.svg);       mask-image: url(../../../assets/icons/copilot.svg); }
 .row-icon-pi         { -webkit-mask-image: url(../../../assets/icons/pi.svg);            mask-image: url(../../../assets/icons/pi.svg); }
@@ -3054,8 +3054,8 @@ html.is-windows .settings-panel select option {
   mask-image: url(../../../assets/icons/ollama.svg);
 }
 .limit-icon-kimi {
-  -webkit-mask-image: url(../../../assets/icons/moonshot.svg);
-  mask-image: url(../../../assets/icons/moonshot.svg);
+  -webkit-mask-image: url(../../../assets/icons/kimi.svg);
+  mask-image: url(../../../assets/icons/kimi.svg);
 }
 .limit-icon-mimo {
   -webkit-mask-image: url(../../../assets/icons/xiaomi.svg);
