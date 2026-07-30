@@ -4421,6 +4421,8 @@ function dailyWithHeatIntensity(daily) {
   return window.TokenMonitorUsageCharts.computeHeatmapIntensities(daily);
 }
 
+const homeActivityProgrammaticScrollers = new WeakSet();
+
 function applyHomeActivityScroll(scroller) {
   const target = homeOverviewApi.homeActivityScrollTarget({
     scrollWidth: scroller.scrollWidth,
@@ -4428,7 +4430,10 @@ function applyHomeActivityScroll(scroller) {
     followEnd: state.homeActivityFollowEnd,
     savedLeft: state.homeActivityScrollLeft
   });
-  if (Math.abs(scroller.scrollLeft - target) > 0.5) scroller.scrollLeft = target;
+  if (Math.abs(scroller.scrollLeft - target) > 0.5) {
+    homeActivityProgrammaticScrollers.add(scroller);
+    scroller.scrollLeft = target;
+  }
   scroller.classList.toggle('is-scrolled', target > 2);
 }
 
@@ -4580,10 +4585,16 @@ function setupHomeActivityHover(scroller) {
     scheduleSpotlight();
   };
 
-  const hide = () => {
-    tooltip.dataset.visible = 'false';
-    tooltip.setAttribute('aria-hidden', 'true');
-    tooltip.style.transform = 'translate(-9999px, -9999px)';
+  const hide = ({ clearHover = true, concealTooltip = true } = {}) => {
+    if (clearHover) {
+      state.homeActivityHoverPoint = null;
+      state.homeActivityHoverDate = '';
+    }
+    if (concealTooltip) {
+      tooltip.dataset.visible = 'false';
+      tooltip.setAttribute('aria-hidden', 'true');
+      tooltip.style.transform = 'translate(-9999px, -9999px)';
+    }
     if (spotlightFrame) cancelAnimationFrame(spotlightFrame);
     spotlightFrame = 0;
     spotlightVisible = false;
@@ -4596,23 +4607,25 @@ function setupHomeActivityHover(scroller) {
     activeCell = null;
   };
 
-  scroller.addEventListener('pointermove', (event) => {
+  const showAtPoint = (clientX, clientY, target) => {
     if (!svg || scroller.classList.contains('is-dragging')) {
       hide();
       return;
     }
     const rect = svg.getBoundingClientRect();
     const view = svg.viewBox.baseVal;
-    const x = view.x + (event.clientX - rect.left) * view.width / Math.max(1, rect.width);
-    const y = view.y + (event.clientY - rect.top) * view.height / Math.max(1, rect.height);
+    const x = view.x + (clientX - rect.left) * view.width / Math.max(1, rect.width);
+    const y = view.y + (clientY - rect.top) * view.height / Math.max(1, rect.height);
     moveSpotlight(x, y);
 
-    const target = event.target instanceof Element ? event.target.closest('.heat[data-d]') : null;
-    const cell = target && canvas.contains(target) ? target : null;
+    const targetCell = target instanceof Element ? target.closest('.heat[data-d]') : null;
+    const cell = targetCell && canvas.contains(targetCell) ? targetCell : null;
     if (!cell) {
       hide();
       return;
     }
+    state.homeActivityHoverPoint = { x: clientX, y: clientY };
+    state.homeActivityHoverDate = cell.dataset.d || '';
     if (activeCell !== cell) {
       activeCell?.removeAttribute('data-active');
       activeCell = cell;
@@ -4624,23 +4637,73 @@ function setupHomeActivityHover(scroller) {
     tooltip.dataset.visible = 'true';
     tooltip.setAttribute('aria-hidden', 'false');
     moveHomeActivityTooltip(tooltip, cell);
+  };
+
+  scroller.addEventListener('pointermove', (event) => {
+    showAtPoint(event.clientX, event.clientY, event.target);
   });
-  scroller.addEventListener('pointerleave', hide);
-  scroller.addEventListener('scroll', hide);
+  scroller.addEventListener('pointerleave', () => hide());
+  scroller.addEventListener('scroll', () => {
+    // Restoring the saved/right-edge position emits a delayed scroll event. It is not
+    // user intent and must not clear the hover that renderHome just reconnected.
+    if (homeActivityProgrammaticScrollers.delete(scroller)) {
+      state.homeActivityHoverRestore?.();
+      return;
+    }
+    hide();
+  });
   // The tooltip lives on document.body and is only dismissed by handlers on this
-  // scroller, which renderHome() throws away on every rebuild. Expose the latest
-  // hide() so renderHome/render can clear it — DOM removal fires no pointerleave.
-  state.homeActivityHoverTeardown = hide;
+  // scroller, which renderHome() throws away on every rebuild. Preserve the visible
+  // tooltip plus its semantic cell identity across that replacement, so live stats
+  // refreshes do not fade or jump it before the new cell is ready.
+  state.homeActivityHoverTeardown = ({ preserveHover = false } = {}) => hide({
+    clearHover: !preserveHover,
+    concealTooltip: !preserveHover
+  });
+  state.homeActivityHoverRestore = () => {
+    const point = state.homeActivityHoverPoint;
+    const date = state.homeActivityHoverDate;
+    if (!point || !date) return;
+    const cell = Array.from(canvas?.querySelectorAll('.heat[data-d]') || [])
+      .find((candidate) => candidate.dataset.d === date);
+    if (!cell) {
+      hide();
+      return;
+    }
+    const rect = cell.getBoundingClientRect();
+    const hitSlop = 2;
+    const stillHovered = point.x >= rect.left - hitSlop
+      && point.x <= rect.right + hitSlop
+      && point.y >= rect.top - hitSlop
+      && point.y <= rect.bottom + hitSlop;
+    if (!stillHovered) {
+      hide();
+      return;
+    }
+    showAtPoint(point.x, point.y, cell);
+  };
 }
 
 // Dismiss the body-level activity tooltip + spotlight from outside the scroller's own
-// pointer handlers (Home rerender, or switching away from Home while a cell is hovered).
-// Clearing the ref after teardown drops the last hold on the old hide() closure, so a
-// discarded scroller + its SVG can be collected when the trends module goes away and no
-// fresh setupHomeActivityHover reassigns it. setup always re-registers before any hover.
-function hideHomeActivityTooltip() {
-  state.homeActivityHoverTeardown?.();
+// pointer handlers. A Home rerender may preserve the active hover for the replacement
+// scroller; leaving Home clears it. Dropping both closures lets the old SVG be collected.
+function hideHomeActivityTooltip({ preserveHover = false } = {}) {
+  const teardown = state.homeActivityHoverTeardown;
+  teardown?.({ preserveHover });
   state.homeActivityHoverTeardown = null;
+  state.homeActivityHoverRestore = null;
+  if (!preserveHover) {
+    state.homeActivityHoverPoint = null;
+    state.homeActivityHoverDate = '';
+    if (!teardown) {
+      const tooltip = document.querySelector('.home-activity-tooltip');
+      if (tooltip) {
+        tooltip.dataset.visible = 'false';
+        tooltip.setAttribute('aria-hidden', 'true');
+        tooltip.style.transform = 'translate(-9999px, -9999px)';
+      }
+    }
+  }
 }
 
 function renderHomeTrendsModule() {
@@ -4703,6 +4766,11 @@ function renderHomeTrendsModule() {
   const { module, body } = homeModuleShell('trends', t('home.activity'), 'trends', activeDaysLabel);
   const activityScroll = document.createElement('div');
   activityScroll.className = 'home-activity-scroll';
+  if (state.homeActivityHoverPoint && state.homeActivityHoverDate) {
+    // This replacement is being inserted directly under a stationary pointer. Keep
+    // the already-visible spotlight from replaying its hover fade on the new SVG.
+    activityScroll.classList.add('is-restoring-hover');
+  }
   activityScroll.tabIndex = 0;
   activityScroll.setAttribute('role', 'region');
   activityScroll.setAttribute('aria-label', t('home.activityScroll'));
@@ -4742,7 +4810,13 @@ function renderHomeTrendsModule() {
     dates.append(label);
   }
   body.append(activityScroll, trendHead, plot, dates);
-  setupHomeActivityScroller(activityScroll, () => animateHomeHistoryVisuals(activityScroll, activityCanvas, chart));
+  setupHomeActivityScroller(activityScroll, () => {
+    // The scroller is now laid out and has its saved/right-edge position. Reconnect
+    // an active hover only after that geometry is stable; otherwise the replacement
+    // briefly resolves against the oldest (left) edge and then drops the tooltip.
+    state.homeActivityHoverRestore?.();
+    animateHomeHistoryVisuals(activityScroll, activityCanvas, chart);
+  });
   setupHomeActivityHover(activityScroll);
   return module;
 }
@@ -4750,9 +4824,9 @@ function renderHomeTrendsModule() {
 function renderHome() {
   if (!els.homePanel) return;
   // The previous scroller (and its ResizeObserver) is about to be replaced; drop the
-  // observer so at most one is live and it is gone if the trends module disappears,
-  // and hide any open activity tooltip before its owning scroller is discarded.
-  hideHomeActivityTooltip();
+  // observer so at most one is live. Keep the active tooltip visible while the
+  // replacement heatmap reconnects it to the same date cell.
+  hideHomeActivityTooltip({ preserveHover: true });
   state.homeActivityResizeObserver?.disconnect();
   state.homeActivityResizeObserver = null;
   const period = state.stats.periods?.[state.period] || { totalTokens: 0, costUsd: 0, clients: {} };
@@ -4774,6 +4848,7 @@ function renderHome() {
     action.addEventListener('click', openHomeSettings);
     empty.append(title, body, action);
     els.homePanel.replaceChildren(empty);
+    hideHomeActivityTooltip();
     return;
   }
   const nodes = moduleIds.map((id) => {
@@ -4784,8 +4859,17 @@ function renderHome() {
     return renderHomeTrendsModule();
   });
   els.homePanel.replaceChildren(...nodes);
-  // setupHomeActivityScroller wires a ResizeObserver that applies the scroll position
-  // post-layout, so no requestAnimationFrame guess is needed here.
+  // setupHomeActivityScroller first runs while its module is detached, where
+  // scrollWidth can equal clientWidth. Apply again synchronously now that the DOM is
+  // attached, before the browser paints or hover restoration measures the new cell.
+  const activityScroller = els.homePanel.querySelector('.home-activity-scroll');
+  if (activityScroller) applyHomeActivityScroll(activityScroller);
+  if (state.homeActivityHoverRestore) state.homeActivityHoverRestore();
+  else hideHomeActivityTooltip();
+  if (activityScroller?.classList.contains('is-restoring-hover')) {
+    requestAnimationFrame(() => activityScroller.classList.remove('is-restoring-hover'));
+  }
+  // ResizeObserver repeats the scroll + hover restoration once layout fully settles.
 }
 
 function render() {

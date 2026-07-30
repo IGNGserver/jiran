@@ -163,5 +163,8 @@ test('Home history visuals reveal left to right only when entering the view', ()
   assert.match(app, /clipPath: 'inset\(0 100% 0 0\)'[\s\S]*?clipPath: 'inset\(0 0 0 0\)'/);
   assert.match(app, /if \(prefersReducedMotion\(\)\) return/);
   assert.match(app, /new ResizeObserver\(applySettledLayout\)/);
-  assert.match(app, /setupHomeActivityScroller\(activityScroll, \(\) => animateHomeHistoryVisuals\(activityScroll, activityCanvas, chart\)\)/);
+  assert.match(
+    app,
+    /setupHomeActivityScroller\(activityScroll,\s*\(\)\s*=>\s*\{[\s\S]*?animateHomeHistoryVisuals\(activityScroll, activityCanvas, chart\)[\s\S]*?\}\)/
+  );
 });
