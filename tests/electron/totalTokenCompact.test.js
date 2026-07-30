@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 
 const rendererDir = path.join(__dirname, '..', '..', 'src', 'electron', 'renderer');
 const app = fs.readFileSync(path.join(rendererDir, 'app.js'), 'utf8');
@@ -97,13 +98,47 @@ test('compact total stays visible through the count-up, with the font pre-locked
   // does not vanish, clip, or resize mid-animation in either direction.
   assert.match(app, /const animationFrom = numberAnimHandle \? numberAnimValue : state\.currentTotal;/);
   assert.match(app, /const widest = formatNumber\(nextTotal\)\.length >= formatNumber\(animationFrom\)\.length \? nextTotal : animationFrom;/);
-  assert.match(app, /els\.totalTokens\.textContent = formatNumber\(widest\);\s*updateTotalCompact\(nextTotal\);\s*animateNumber\(els\.totalTokens, animationFrom, nextTotal, state\.periodMotionActive \? 800 : 1000, fitTotalNumber\);/s);
+  assert.match(app, /els\.totalTokens\.textContent = formatNumber\(widest\);\s*updateTotalCompact\(nextTotal\);\s*animateTotalNumber\(els\.totalTokens, animationFrom, nextTotal, state\.periodMotionActive \? 800 : 1000\);/s);
   // animateNumber must not reset the font, or the pre-locked size would be lost.
   const animateBody = app.slice(app.indexOf('function animateNumber('), app.indexOf('function rowWidth('));
   assert.doesNotMatch(animateBody, /style\.fontSize/);
   // Tabular figures keep the number's width constant as it counts, so the chip
   // beside it does not jitter.
   assert.match(css, /\.total-number\s*\{[^}]*font-variant-numeric:\s*tabular-nums/s);
+});
+
+test('unit changes made during the count-up are applied when the animation settles', () => {
+  const start = app.indexOf('function easeOutQuart(');
+  const end = app.indexOf('const rowNumberAnimations', start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+
+  const frames = [];
+  const compactRenders = [];
+  let unitSystem = 'western';
+  const context = {
+    cancelAnimationFrame() {},
+    requestAnimationFrame(callback) {
+      frames.push(callback);
+      return frames.length;
+    },
+    performance: { now: () => 0 },
+    prefersReducedMotion: () => false,
+    formatNumber: (value) => String(Math.round(value)),
+    updateTotalCompact(value) {
+      compactRenders.push(`${value}:${unitSystem}`);
+    }
+  };
+  vm.runInNewContext(
+    `${app.slice(start, end)}\nthis.animateTotalNumberForTest = animateTotalNumber;`,
+    context
+  );
+
+  context.animateTotalNumberForTest({ textContent: '' }, 0, 100_000, 1000);
+  unitSystem = 'localized';
+  assert.deepEqual(compactRenders, []);
+  frames.shift()(1000);
+  assert.deepEqual(compactRenders, ['100000:localized']);
 });
 
 test('total number font scale shrinks to fit instead of clipping', () => {

@@ -65,7 +65,7 @@ test('live row updates count and resize bars together without slowing the headli
   assert.match(app, /const liveMotionSnapshot = !state\.periodMotionActive && !state\.animateBarsFromZero[\s\S]*?captureBreakdownMotion\(\)/);
   assert.match(app, /if \(liveMotionSnapshot\) animateBreakdownFrom\(liveMotionSnapshot, \{ duration: 600 \}\)/);
   assert.match(app, /const animationFrom = numberAnimHandle \? numberAnimValue : state\.currentTotal/);
-  assert.match(app, /animateNumber\(els\.totalTokens, animationFrom, nextTotal, state\.periodMotionActive \? 800 : 1000, fitTotalNumber\)/);
+  assert.match(app, /animateTotalNumber\(els\.totalTokens, animationFrom, nextTotal, state\.periodMotionActive \? 800 : 1000\)/);
   assert.match(app, /animateRowNumber\(row\.querySelector\('\.row-value'\), 0, value, duration\)/);
 });
 
