@@ -3621,7 +3621,7 @@ html[data-platform="linux"] [data-platform-option="linux"] { display: none; }
   background: #f8f9fb;
   color: #11151a;
   font-size: .9rem;
-  font-weight: 820;
+  font-weight: 700;
   text-align: center;
   box-shadow: 0 10px 26px rgba(0,0,0,.24), inset 0 -1px 0 rgba(0,0,0,.08);
 }
