@@ -2590,7 +2590,7 @@ html.is-windows .settings-panel select option {
 .home-limit-account {
   display: grid;
   min-width: 0;
-  gap: 8px;
+  gap: 4px;
 }
 .home-limit-account-head {
   display: grid;

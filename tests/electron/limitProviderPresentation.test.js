@@ -198,6 +198,38 @@ function runProviderSpendNode(source, balance) {
   return JSON.parse(JSON.stringify(context.result));
 }
 
+function runHomeLimitModule(rows, resetLabels = {}) {
+  const app = readRendererFile('app.js');
+  const homeLimits = functionBody(app, 'renderHomeLimitModule', 'renderHomeModelModule');
+  function createNode(tagName) {
+    return {
+      tagName,
+      className: '',
+      textContent: '',
+      children: [],
+      classList: { add() {} },
+      style: { setProperty() {} },
+      append(...children) { this.children.push(...children); }
+    };
+  }
+  const body = createNode('body');
+  const context = {
+    document: { createElement: createNode },
+    homeModuleShell: () => ({ module: createNode('section'), body }),
+    homeLimitRows: () => rows,
+    applyHomeListMark() {},
+    iconKindFor: () => 'limits',
+    homeLimitWindowLabel: (window) => window.label,
+    formatHomeLimitWindowValue: () => '',
+    formatReset: (value) => resetLabels[value] || '',
+    limitProviderPresentationApi: { limitProviderCompactWindowPeriodLabel: () => '' },
+    state: { settings: {} },
+    t: (key, values) => key === 'home.reset' ? `Reset ${values.value}` : key
+  };
+  vm.runInNewContext(`${homeLimits}\nresult = renderHomeLimitModule();`, context);
+  return body;
+}
+
 test('Limits and Home share reset expiry while preserving the existing reset copy', () => {
   const app = readRendererFile('app.js');
   const formatReset = functionBody(app, 'formatReset', 'formatDuration');
@@ -211,6 +243,30 @@ test('Limits and Home share reset expiry while preserving the existing reset cop
   assert.doesNotMatch(limitWindow, /formatReset\(window\?\.resetsAt\) \|\| window\?\.resetDescription/);
   assert.match(homeLimits, /window\.resetsAt\s*\? resetAt \|\|/);
   assert.doesNotMatch(app, /noActiveLimitWindow|formatResetDuration/);
+});
+
+test('Home omits reset rows that have no visible reset content', () => {
+  const body = runHomeLimitModule([
+    {
+      providerId: 'deepseek',
+      key: 'deepseek',
+      name: 'DeepSeek',
+      windows: [
+        { label: 'Balance', value: '$4.00' },
+        { label: 'Expired', value: '0% left', resetsAt: 'expired' },
+        { label: 'Weekly', value: '88% left', resetsAt: 'future' },
+        { label: 'Monthly', value: '50% left', resetDescription: '6d 23h' }
+      ]
+    }
+  ], { future: 'Reset 1h' });
+
+  const metrics = body.children[0].children[1].children;
+  assert.equal(metrics[0].children.length, 1);
+  assert.equal(metrics[1].children.length, 1);
+  assert.equal(metrics[2].children.length, 2);
+  assert.equal(metrics[2].children[1].textContent, 'Reset 1h');
+  assert.equal(metrics[3].children.length, 2);
+  assert.equal(metrics[3].children[1].textContent, 'Reset 6d 23h');
 });
 
 test('capability tags explain how each provider is collected in settings', () => {

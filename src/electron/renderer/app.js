@@ -4333,16 +4333,18 @@ function renderHomeLimitModule() {
       line.append(label, value);
       metric.append(line);
       const resetAt = formatReset(window.resetsAt);
-      const resetText = document.createElement('span');
-      resetText.className = 'home-limit-reset';
       const resetLabel = window.resetsAt
-        ? resetAt || '\u00a0'
+        ? resetAt || ''
         : window.resetDescription
         ? t('home.reset', { value: window.resetDescription })
-        : '\u00a0';
-      const periodLabel = limitProviderPresentationApi.limitProviderCompactWindowPeriodLabel(row.providerId, window, row.windows);
-      resetText.textContent = periodLabel && resetLabel !== '\u00a0' ? `${periodLabel} · ${resetLabel}` : resetLabel;
-      metric.append(resetText);
+        : '';
+      if (resetLabel) {
+        const resetText = document.createElement('span');
+        resetText.className = 'home-limit-reset';
+        const periodLabel = limitProviderPresentationApi.limitProviderCompactWindowPeriodLabel(row.providerId, window, row.windows);
+        resetText.textContent = periodLabel ? `${periodLabel} · ${resetLabel}` : resetLabel;
+        metric.append(resetText);
+      }
       windows.append(metric);
     }
     item.append(account, windows);
