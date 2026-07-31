@@ -2142,7 +2142,12 @@ function codexResetCreditExpiryDetailLabel(date) {
 
 // Shared by Codex reset credits and Claude prepaid grants.
 function expiryDateLabel(date) {
-  return new Intl.DateTimeFormat(currentLocale(), { month: 'numeric', day: 'numeric' }).format(date);
+  return new Intl.DateTimeFormat(currentLocale(), {
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(date);
 }
 
 function limitDetailTooltipShouldHoldRender() {
@@ -2203,9 +2208,10 @@ function codexResetCreditsNode(resetCredits) {
       timeline.append(time);
     });
     expiryGroup.append(timeline);
-    if (expirationDates.length > 1) {
+    if (expirationDates.length > 0) {
       // A date paired with a bare duration doesn't read as `<name>: <value>`, so
-      // the spoken label is supplied rather than derived from the cells.
+      // the spoken label is supplied rather than derived from the cells. Keep
+      // this detail available for a single reset as well as multiple resets.
       const infoNode = limitDetailInfoNode(
         expirationDates.map((date) => [expiryDateLabel(date), codexResetCreditExpiryLabel(date)]),
         '',

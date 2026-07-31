@@ -836,7 +836,10 @@ test('Codex renders manual reset credits below session and weekly windows', () =
   assert.match(resetCreditExpiryLabel, /diffMs <= 0 \? 'now'/);
   assert.match(resetCreditExpiryLabel, /formatDuration\(diffMs\)/);
   assert.match(resetCreditExpiryDetailLabel, /`Expires in \$\{formatDuration\(diffMs\)\}`/);
-  assert.match(resetCreditExpiryDateLabel, /Intl\.DateTimeFormat\(currentLocale\(\), \{ month: 'numeric', day: 'numeric' \}\)/);
+  assert.match(
+    resetCreditExpiryDateLabel,
+    /Intl\.DateTimeFormat\(currentLocale\(\), \{\s*month: 'numeric',\s*day: 'numeric',\s*hour: 'numeric',\s*minute: '2-digit'\s*\}\)/
+  );
   assert.match(codexResetCreditsNode, /limit-reset-credits/);
   assert.match(codexResetCreditsNode, /limit-reset-credits-line/);
   assert.match(codexResetCreditsNode, /limit-reset-credits-timeline/);
@@ -846,8 +849,10 @@ test('Codex renders manual reset credits below session and weekly windows', () =
   assert.match(codexResetCreditsNode, /expirationDates\.slice\(0, 3\)\.map\(codexResetCreditExpiryLabel\)/);
   assert.match(codexResetCreditsNode, /hiddenExpirationCount = expirationDates\.length - summaryParts\.length/);
   assert.match(codexResetCreditsNode, /summaryParts\.push\(`\+\$\{hiddenExpirationCount\}`\)/);
-  // The multi-expiry tooltip is the shared builder, not a second copy of its
-  // hover/focus wiring that has to be kept in step by hand.
+  // The expiry tooltip is the shared builder, not a second copy of its
+  // hover/focus wiring that has to be kept in step by hand. It is useful for a
+  // single reset too, not only when several dates are present.
+  assert.match(codexResetCreditsNode, /expiryGroup\.append\(timeline\);\s*if \(expirationDates\.length > 0\) \{/);
   assert.match(
     codexResetCreditsNode,
     /expirationDates\.map\(\(date\) => \[expiryDateLabel\(date\), codexResetCreditExpiryLabel\(date\)\]\)/
@@ -916,8 +921,8 @@ test('Claude prepaid grants list amount, expiry date and time left in separate c
   ], 'USD', now);
 
   assert.deepEqual(rows.map((row) => row.cells), [
-    ['$13.43', '8/8', '11d 17h'],
-    ['$100.00', '8/20', '23d 17h']
+    ['$13.43', '8/8, 5:00 PM', '11d 17h'],
+    ['$100.00', '8/20, 5:00 PM', '23d 17h']
   ]);
   // The columns dropped the wording, so only the spoken label still carries it.
   assert.deepEqual(rows.map((row) => row.aria), [
@@ -939,7 +944,7 @@ test('Claude prepaid grants keep three cells when a grant has no usable expiry',
   // Rows are grid cells, so a short row would slide into the next row's columns.
   assert.deepEqual(rows.map((row) => row.cells.length), [3, 3, 3]);
   assert.deepEqual(rows.map((row) => row.cells[2]), ['No expiry', 'No expiry', 'Expired']);
-  assert.deepEqual(rows.map((row) => row.cells[1]), ['', '', '7/1']);
+  assert.deepEqual(rows.map((row) => row.cells[1]), ['', '', '7/1, 12:00 PM']);
 });
 
 test('The detail tooltip widens its grid and pads short rows for three-column entries', () => {
