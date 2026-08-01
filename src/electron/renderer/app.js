@@ -303,9 +303,10 @@ let viewSwitcherLongPressTimer = null;
 let viewSwitcherLongPressTriggered = false;
 let viewSwitcherHoverCloseTimer = null;
 const els = {
-  shell: document.querySelector('.shell'), status: document.getElementById('status'), liveDot: document.getElementById('liveDot'), totalTokens: document.getElementById('totalTokens'), totalTokensCompact: document.getElementById('totalTokensCompact'), cost: document.getElementById('cost'), homePanel: document.getElementById('homePanel'), breakdown: document.getElementById('breakdown'), serviceStatusPanel: document.getElementById('serviceStatusPanel'), limitsPanel: document.getElementById('limitsPanel'), trendsPanel: document.getElementById('trendsPanel'), viewSwitcher: document.getElementById('viewSwitcher'), pinButton: document.getElementById('pinButton'), utilityActions: document.getElementById('utilityActions'), settingsButton: document.getElementById('settingsButton'), settingsPanel: document.getElementById('settingsPanel'), languageInput: document.getElementById('languageInput'), currencyInput: document.getElementById('currencyInput'), currencyRateRow: document.getElementById('currencyRateRow'), currencyRateModeAuto: document.getElementById('currencyRateModeAuto'), currencyRateModeManual: document.getElementById('currencyRateModeManual'), currencyRateManualField: document.getElementById('currencyRateManualField'), currencyRateOverrideInput: document.getElementById('currencyRateOverrideInput'), currencyRateStatus: document.getElementById('currencyRateStatus'), hubUrlInput: document.getElementById('hubUrlInput'), secretInput: document.getElementById('secretInput'), deviceIdInput: document.getElementById('deviceIdInput'), limitProviderCheckboxes: document.getElementById('limitProviderCheckboxes'), limitsRefreshInput: document.getElementById('limitsRefreshInput'), showLimitSourceInput: document.getElementById('showLimitSourceInput'), maskLimitAccountEmailsInput: document.getElementById('maskLimitAccountEmailsInput'), showLimitUsedInputs: Array.from(document.querySelectorAll('input[name="showLimitUsed"]')), liveDotInput: document.getElementById('liveDotInput'), toolIconsInput: document.getElementById('toolIconsInput'), floatingBubbleInput: document.getElementById('floatingBubbleInput'), floatingBubbleTriggerInputs: Array.from(document.querySelectorAll('input[name="floatingBubbleTrigger"]')), floatingBubbleTriggerRow: document.getElementById('floatingBubbleTriggerRow'), floatingBubbleContentInput: document.getElementById('floatingBubbleContentInput'), floatingBubbleContentRow: document.getElementById('floatingBubbleContentRow'), floatingBubbleComposer: document.getElementById('floatingBubbleComposer'), floatingBubbleContent: document.getElementById('floatingBubbleContent'), discordRpcInput: document.getElementById('discordRpcInput'), windowBehaviorInput: document.getElementById('windowBehaviorInput'), showTrayIconInput: document.getElementById('showTrayIconInput'), showTrayProviderBadgeInput: document.getElementById('showTrayProviderBadgeInput'), trayModeInput: document.getElementById('trayModeInput'), trayContentInput: document.getElementById('trayContentInput'), trayComposer: document.getElementById('trayComposer'), windowToggleShortcutValue: document.getElementById('windowToggleShortcutValue'), windowToggleShortcutClearButton: document.getElementById('windowToggleShortcutClearButton'), windowToggleShortcutNote: document.getElementById('windowToggleShortcutNote'), glassInput: document.getElementById('glassInput'), blurInput: document.getElementById('blurInput'), zoomInput: document.getElementById('zoomInput'), resetGlassButton: document.getElementById('resetGlassButton'), resetDepthButton: document.getElementById('resetDepthButton'), resetZoomButton: document.getElementById('resetZoomButton'), saveSettingsButton: document.getElementById('saveSettingsButton'), clientDisplayList: document.getElementById('clientDisplayList'), wslScanInput: document.getElementById('wslScanInput'), wslScanRow: document.getElementById('wslScanRow'), wslPanel: document.getElementById('wslPanel'), openConfigButton: document.getElementById('openConfigButton'), exportAutoInput: document.getElementById('exportAutoInput'), exportAutoDetails: document.getElementById('exportAutoDetails'), exportAutoStatus: document.getElementById('exportAutoStatus'), exportDirLabel: document.getElementById('exportDirLabel'), exportPickDirButton: document.getElementById('exportPickDirButton'), exportIntervalInput: document.getElementById('exportIntervalInput'), exportNowButton: document.getElementById('exportNowButton'), refreshButton: document.getElementById('refreshButton'), minButton: document.getElementById('minButton'), closeButton: document.getElementById('closeButton'), floatingBubbleTab: document.getElementById('floatingBubbleTab')
+  shell: document.querySelector('.shell'), status: document.getElementById('status'), liveDot: document.getElementById('liveDot'), tokenRateReveal: document.getElementById('tokenRateReveal'), totalTokens: document.getElementById('totalTokens'), totalTokensCompact: document.getElementById('totalTokensCompact'), cost: document.getElementById('cost'), homePanel: document.getElementById('homePanel'), breakdown: document.getElementById('breakdown'), serviceStatusPanel: document.getElementById('serviceStatusPanel'), limitsPanel: document.getElementById('limitsPanel'), trendsPanel: document.getElementById('trendsPanel'), viewSwitcher: document.getElementById('viewSwitcher'), pinButton: document.getElementById('pinButton'), utilityActions: document.getElementById('utilityActions'), settingsButton: document.getElementById('settingsButton'), settingsPanel: document.getElementById('settingsPanel'), languageInput: document.getElementById('languageInput'), currencyInput: document.getElementById('currencyInput'), currencyRateRow: document.getElementById('currencyRateRow'), currencyRateModeAuto: document.getElementById('currencyRateModeAuto'), currencyRateModeManual: document.getElementById('currencyRateModeManual'), currencyRateManualField: document.getElementById('currencyRateManualField'), currencyRateOverrideInput: document.getElementById('currencyRateOverrideInput'), currencyRateStatus: document.getElementById('currencyRateStatus'), hubUrlInput: document.getElementById('hubUrlInput'), secretInput: document.getElementById('secretInput'), deviceIdInput: document.getElementById('deviceIdInput'), limitProviderCheckboxes: document.getElementById('limitProviderCheckboxes'), limitsRefreshInput: document.getElementById('limitsRefreshInput'), showLimitSourceInput: document.getElementById('showLimitSourceInput'), maskLimitAccountEmailsInput: document.getElementById('maskLimitAccountEmailsInput'), showLimitUsedInputs: Array.from(document.querySelectorAll('input[name="showLimitUsed"]')), liveDotInput: document.getElementById('liveDotInput'), toolIconsInput: document.getElementById('toolIconsInput'), floatingBubbleInput: document.getElementById('floatingBubbleInput'), floatingBubbleTriggerInputs: Array.from(document.querySelectorAll('input[name="floatingBubbleTrigger"]')), floatingBubbleTriggerRow: document.getElementById('floatingBubbleTriggerRow'), floatingBubbleContentInput: document.getElementById('floatingBubbleContentInput'), floatingBubbleContentRow: document.getElementById('floatingBubbleContentRow'), floatingBubbleComposer: document.getElementById('floatingBubbleComposer'), floatingBubbleContent: document.getElementById('floatingBubbleContent'), discordRpcInput: document.getElementById('discordRpcInput'), windowBehaviorInput: document.getElementById('windowBehaviorInput'), showTrayIconInput: document.getElementById('showTrayIconInput'), showTrayProviderBadgeInput: document.getElementById('showTrayProviderBadgeInput'), trayModeInput: document.getElementById('trayModeInput'), trayContentInput: document.getElementById('trayContentInput'), trayComposer: document.getElementById('trayComposer'), windowToggleShortcutValue: document.getElementById('windowToggleShortcutValue'), windowToggleShortcutClearButton: document.getElementById('windowToggleShortcutClearButton'), windowToggleShortcutNote: document.getElementById('windowToggleShortcutNote'), glassInput: document.getElementById('glassInput'), blurInput: document.getElementById('blurInput'), zoomInput: document.getElementById('zoomInput'), resetGlassButton: document.getElementById('resetGlassButton'), resetDepthButton: document.getElementById('resetDepthButton'), resetZoomButton: document.getElementById('resetZoomButton'), saveSettingsButton: document.getElementById('saveSettingsButton'), clientDisplayList: document.getElementById('clientDisplayList'), wslScanInput: document.getElementById('wslScanInput'), wslScanRow: document.getElementById('wslScanRow'), wslPanel: document.getElementById('wslPanel'), openConfigButton: document.getElementById('openConfigButton'), exportAutoInput: document.getElementById('exportAutoInput'), exportAutoDetails: document.getElementById('exportAutoDetails'), exportAutoStatus: document.getElementById('exportAutoStatus'), exportDirLabel: document.getElementById('exportDirLabel'), exportPickDirButton: document.getElementById('exportPickDirButton'), exportIntervalInput: document.getElementById('exportIntervalInput'), exportNowButton: document.getElementById('exportNowButton'), refreshButton: document.getElementById('refreshButton'), minButton: document.getElementById('minButton'), closeButton: document.getElementById('closeButton'), floatingBubbleTab: document.getElementById('floatingBubbleTab')
 };
 Object.assign(els, {
+  appTitleMark: document.querySelector('.app-title-mark'),
   viewBackRow: document.getElementById('viewBackRow'),
   backHomeButton: document.getElementById('backHomeButton'),
   systemGlassInputs: Array.from(document.querySelectorAll('input[name="systemGlassOption"]')),
@@ -722,6 +723,77 @@ function hideTotalCompact() {
   if (!els.totalTokensCompact) return;
   els.totalTokensCompact.textContent = '';
   els.totalTokensCompact.classList.add('hidden');
+}
+function positiveNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+// Estimated output tokens per second of model-busy time — roughly the unit an inference
+// benchmark reports, so the number is sanity-checkable against a known model's streaming
+// speed. An estimate, not a measurement: tokscale times a message as a whole rather than
+// its decode phase, and does not break output out per timed message, so the collector counts
+// an entry's output whenever that entry reported a duration (see timedOutputTokens in usage.js).
+//
+// Output rather than total tokens because cache reads dominate the total (typically >90%)
+// and were never generated, which would inflate the rate by two orders of magnitude and
+// read as a bug.
+//
+// Numerator and denominator describe the same entries, so this stays correct when periods are
+// summed across clients and devices — an all-output numerator over a timed-only denominator
+// would read high on any device running a client that reports no durations. Both ride the same
+// tokscale scan as the headline total, so it never divides a live numerator by a stale
+// denominator — the reason it dropped History activeTimeMs.
+function tokenRatePerSecond(period) {
+  const durationMs = positiveNumber(period?.timedDurationMs);
+  const timedOutput = positiveNumber(period?.timedOutputTokens);
+  if (!durationMs || !timedOutput) return 0;
+  return timedOutput * 1000 / durationMs;
+}
+// Every token per minute of the same model-busy window — the burn framing rather than the
+// speed one. This needs no coverage correction: timedTokens is exactly what the timed
+// messages carried, so numerator and denominator describe the identical set of messages.
+function tokenBurnPerMinute(period) {
+  const durationMs = positiveNumber(period?.timedDurationMs);
+  const timed = positiveNumber(period?.timedTokens);
+  if (!durationMs || !timed) return 0;
+  return timed * 60000 / durationMs;
+}
+function renderTokenRate() {
+  if (!els.tokenRateReveal) return;
+  const period = state.stats?.periods?.[state.period];
+  const burn = state.settings?.tokenRateMode === 'burn';
+  const rate = burn ? tokenBurnPerMinute(period) : tokenRatePerSecond(period);
+  // formatCompact rounds, so a sub-0.5 rate would render as a bare "0". Treat that as no
+  // data and stay hidden rather than claim a zero pace.
+  const text = Math.round(rate) > 0
+    ? t(burn ? 'home.tokenRateBurn' : 'home.tokenRate', {
+      value: formatCompact(rate, effectiveCompactTokenUnits(), currentLocale())
+    })
+    : '';
+  els.tokenRateReveal.textContent = text;
+  els.tokenRateReveal.classList.toggle('has-value', Boolean(text));
+}
+// The title mark is the only pixel of the reveal that can take a click: a drag region does
+// not deliver mouse events, so this control and its hover target are the same no-drag island.
+//
+// Deliberately pointer-only, and the mark stays a non-focusable aria-hidden span. A focusable
+// control here is worse than no keyboard path: the window assigns focus to a control when it
+// is shown, and Chromium then derives :focus-visible from that activation rather than from
+// any click, so the reveal reopens with a focus ring on a window the user just summoned with
+// the pointer nowhere near the title. The renderer cannot even clean that up, because it
+// receives no blur, focus or visibilitychange event across a real hide and show. This is a
+// hover-only enhancement layered on a pointer affordance, not a keyboard path that regressed.
+function toggleTokenRateMode() {
+  const next = state.settings?.tokenRateMode === 'burn' ? 'speed' : 'burn';
+  // Repaint before the settings round trip. saveSettings re-syncs the entire settings form,
+  // which is orders of magnitude heavier than this label and would make the switch lag.
+  if (state.settings) state.settings.tokenRateMode = next;
+  renderTokenRate();
+  // Repaint again if the write failed: saveSettings re-reads settings from the main process on
+  // rejection, so state has already reverted to the persisted framing while the label is still
+  // showing the one the click asked for. Without this the label stays wrong until some later
+  // tick silently flips it back.
+  saveSettings({ tokenRateMode: next }).catch(() => renderTokenRate());
 }
 // Scale the exact total to fit the width it is actually given instead of clipping
 // it to an ellipsis. The compact chip (when shown) is flex:0 0 auto and claims its
@@ -4962,6 +5034,7 @@ function render() {
   }
   state.currentTotal = nextTotal;
   els.cost.textContent = formatCost(period.costUsd || 0);
+  renderTokenRate();
   if (!state.refreshBusy && !state.refreshFeedbackTimer) setRefreshButtonState('idle');
   els.shell.classList.toggle('session-mode', state.breakdown === 'session');
   els.shell.classList.toggle('home-mode', state.breakdown === 'home');
@@ -8246,9 +8319,15 @@ els.hubModeOptions.addEventListener('change', async (event) => {
   await refreshStats();
 });
 
+// Both, not just the mark: either one reveals the reading on hover, so a click that only
+// worked on one of them would leave the other looking broken.
+els.appTitleMark?.addEventListener('click', toggleTokenRateMode);
+els.liveDot?.addEventListener('click', toggleTokenRateMode);
+
 els.languageInput?.addEventListener('change', async () => {
   await saveSettings({ language: els.languageInput.value });
   if (!numberAnimHandle) updateTotalCompact(state.currentTotal);
+  renderTokenRate();
 });
 
 els.currencyInput?.addEventListener('change', async () => {
@@ -8455,10 +8534,12 @@ els.showCompactTotalTokensInput.addEventListener('change', async () => {
   );
   await saveAppearanceFromControls();
   if (!numberAnimHandle) updateTotalCompact(state.currentTotal);
+  renderTokenRate();
 });
 els.compactTokenUnitsInput?.addEventListener('change', async () => {
   await saveAppearanceFromControls();
   if (!numberAnimHandle) updateTotalCompact(state.currentTotal);
+  renderTokenRate();
 });
 window.addEventListener('resize', () => { if (!numberAnimHandle) fitTotalNumber(); });
 els.swapSettingsRefreshInput.addEventListener('change', () => {
