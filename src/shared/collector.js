@@ -150,7 +150,11 @@ function spawnTokscaleJson(userArgs, commandTimeoutMs) {
 // `antigravity sync`), separate from the IDE-backed `antigravity`. Widen the
 // tokscale --client filter so those sub-source rows aren't filtered out;
 // extractUsageFromTokscale's normalizeClientName folds them back into the umbrella
-// id. Unknown ids are dropped silently by tokscale, so this is safe on any 4.x.
+// id. Every alias must be a real tokscale client id: an unknown --client value is
+// rejected with exit 2 and takes the whole scan down with it (verified on 4.7.0
+// and 4.8.0), so this list is not a free-form place to invent sub-source names.
+// Clients tokscale doesn't know at all — `proma`, which we parse ourselves — are
+// stripped in collectUsageOnce before the filter is built, not dropped here.
 const TOKSCALE_CLIENT_ALIASES = { antigravity: ['antigravity-cli'] };
 
 function tokscaleClientFilter(clients) {
@@ -978,7 +982,16 @@ function clientWatchCandidates(clientsCsv) {
     path.join(home, '.config', 'Code', 'User', 'globalStorage', 'kilocode.kilo-code', 'tasks'),
     path.join(home, '.vscode-server', 'data', 'User', 'globalStorage', 'kilocode.kilo-code', 'tasks')
   );
-  add('micode', path.join(home, '.local', 'share', 'mimocode'));
+  // MiMo Code: tokscale 4.8.0 unions the XDG data dir with orca's hook-sandbox
+  // copy (scanner.rs `discover_micode_dbs_in_dirs`), and that copy can hold
+  // sessions the XDG one is missing. Watch both so an orca-driven install still
+  // refreshes in seconds; the orca root only exists on macOS in practice and a
+  // missing dir is dropped by watchClientRootsForClients.
+  add(
+    'micode',
+    path.join(home, '.local', 'share', 'mimocode'),
+    path.join(home, 'Library', 'Application Support', 'orca', 'mimocode-hooks', 'shared', 'data')
+  );
   add('zcode', path.join(home, '.zcode', 'projects'));
   // CodeBuddy (Tencent): tokscale reads the home-relative CLI/WebUI JSONL dir on
   // every platform, plus the IDE / VS Code extension logs under a platform-

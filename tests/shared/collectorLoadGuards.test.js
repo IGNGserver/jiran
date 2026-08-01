@@ -77,6 +77,26 @@ test('watchPathsForClients excludes the tokscale cache dirs our own syncs write'
   }
 });
 
+test('watchPathsForClients watches both MiMo Code roots tokscale scans', () => {
+  // tokscale 4.8.0 unions the XDG data dir with orca's hook-sandbox copy, and
+  // that copy can hold sessions the XDG one is missing. Watching only XDG would
+  // leave an orca-driven install without the seconds-level refresh.
+  const orcaRoot = path.join('Library', 'Application Support', 'orca', 'mimocode-hooks', 'shared', 'data');
+  const tmp = withTmpHome([path.join('.local', 'share', 'mimocode'), orcaRoot]);
+  const originalHomedir = os.homedir;
+  os.homedir = () => tmp;
+  try {
+    const { watchPathsForClients } = freshCollector();
+    const dirs = watchPathsForClients('micode');
+    assert.ok(dirs.includes(path.join(tmp, '.local', 'share', 'mimocode')));
+    assert.ok(dirs.includes(path.join(tmp, orcaRoot)));
+  } finally {
+    os.homedir = originalHomedir;
+    delete require.cache[collectorPath];
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('watchPathsForClients watches the Antigravity CLI data dir but not the IDE sync cache', () => {
   // antigravity is self-synced (its IDE cache is watch-excluded to avoid the
   // issue #15 loop), but the CLI writes parse-local SQLite we don't touch, so it
