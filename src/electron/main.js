@@ -22,6 +22,18 @@ const { exportFileSet, exportSignature, EXPORT_FILENAMES } = require('../shared/
 const { createDefaultTrayLayout, normalizeTrayLayout } = require('../shared/trayLayout');
 const motionPreferenceApi = require('./motionPreference');
 const { createClaudeWebFetch } = require('./claudeWebFetch');
+const {
+  expandedBoundsForCollapse,
+  normalWindowBounds,
+  persistWindowState,
+  rebuildWindowBounds,
+  restoreWindowMaximized,
+  restoreWindowMaximizedForReveal,
+  setWindowMaximizable,
+  shouldPersistWindowBounds,
+  shouldTrackWindowMaximized,
+  suspendWindowMaximized
+} = require('./windowState');
 
 // Install EPIPE suppression before anything that might log. Without this,
 // a closed parent pipe turns the next log call into an unhandled 'error'
@@ -338,6 +350,7 @@ function defaultSettings() {
     claudePrepaidBalanceEnabled: parseBoolean(process.env.TOKEN_MONITOR_CLAUDE_PREPAID_BALANCE, true),
     showLimitUsed: parseBoolean(process.env.TOKEN_MONITOR_SHOW_LIMIT_USED, false),
     windowBounds: null,
+    windowMaximized: false,
     zoomFactor: 1,
     showTrayIcon: true,
     trayMode: false,
@@ -1656,10 +1669,13 @@ function collapseFloatingBubble(plan) {
 }
 
 function maybeCollapseFloatingBubble(bounds) {
+  // The display comes from where the window actually sits, but the bounds the
+  // plan remembers as "expanded" must be the normal ones: collapsing a
+  // maximized window would otherwise persist the whole screen as its size.
   const display = displayForBounds(bounds);
   if (!display) return false;
   const collapsedArea = collapsedAreaForDisplay(display);
-  const plan = floatingBubbleCollapsePlan(bounds, display.workArea, settings, {
+  const plan = floatingBubbleCollapsePlan(expandedBoundsForCollapse(mainWindow, bounds), display.workArea, settings, {
     collapsed: floatingBubbleState.collapsed,
     suppressNextCollapse: floatingBubbleState.suppressNextCollapse,
     collapsedArea,
@@ -1710,6 +1726,7 @@ function expandFloatingBubble(options = {}) {
   sendFloatingBubbleState();
   if (options.focus !== false) {
     mainWindow.show();
+    restoreWindowMaximized(mainWindow, settings);
   }
   return true;
 }
@@ -1743,11 +1760,15 @@ function syncFloatingBubbleAvailability() {
 
 function persistBoundsSoon() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (mainWindow.isMinimized() || mainWindow.isFullScreen()) return;
+  if (!shouldPersistWindowBounds(mainWindow)) {
+    stopPersistBoundsTimer();
+    return;
+  }
   stopPersistBoundsTimer();
   persistBoundsTimer = setTimeout(() => {
     persistBoundsTimer = null;
     if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (!shouldPersistWindowBounds(mainWindow)) return;
     const next = mainWindow.getBounds();
     const prev = settings.windowBounds || {};
     if (settings?.trayMode) {
@@ -1925,6 +1946,7 @@ function readSettings() {
     }
     merged.showHomeLimitBars = parseBoolean(merged.showHomeLimitBars, false);
     merged.showHomeLimitProviderNames = parseBoolean(merged.showHomeLimitProviderNames, false);
+    merged.windowMaximized = parseBoolean(merged.windowMaximized, false);
     merged.automaticAppUpdates = parseBoolean(merged.automaticAppUpdates, false);
     if (saved.homeLimitProviderOrder !== undefined) {
       merged.homeLimitProviderOrder = migrateHomeLimitProviderOrder(saved.homeLimitProviderOrder);
@@ -2846,7 +2868,10 @@ function focusExistingWindow() {
   else {
     applyMacSpaceBehavior(false);
     if (floatingBubbleState.collapsed) expandFloatingBubble();
-    else mainWindow.show();
+    else {
+      mainWindow.show();
+      restoreWindowMaximized(mainWindow, settings);
+    }
   }
 }
 
@@ -3300,6 +3325,11 @@ function enterTrayMode() {
   applyMacActivationPolicy();
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (typeof mainWindow.setSkipTaskbar === 'function') mainWindow.setSkipTaskbar(true);
+    // settings.trayMode is already true here, so this unmaximize is ignored by
+    // the native handler and settings.windowMaximized keeps describing the
+    // window exitTrayMode() will hand back.
+    suspendWindowMaximized(mainWindow);
+    setWindowMaximizable(mainWindow, false);
     applyMacSpaceBehavior(true);
     mainWindow.hide();
   }
@@ -3309,6 +3339,7 @@ function exitTrayMode() {
   applyMacActivationPolicy({ mainWindowVisible: true });
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (typeof mainWindow.setSkipTaskbar === 'function') mainWindow.setSkipTaskbar(false);
+    setWindowMaximizable(mainWindow, true);
     applyMacSpaceBehavior(false);
     const restore = restoredBounds() || DEFAULT_WINDOW;
     mainWindow.setBounds({
@@ -3318,6 +3349,7 @@ function exitTrayMode() {
     });
     applyWindowSettings();
     mainWindow.show();
+    restoreWindowMaximized(mainWindow, settings);
   }
   if (!shouldCreateTray(settings)) destroyTray();
   else ensureTray();
@@ -3865,6 +3897,11 @@ function loadWindowFile(target, options = {}) {
     if (revealed) return;
     revealed = true;
     if (settings?.trayMode) return; // stay hidden until tray click
+    if (restoreWindowMaximizedForReveal(target, settings, {
+      restoreMaximized: options.restoreMaximized === true,
+      inactive: options.inactive === true,
+      collapsedFloatingBubble: options.collapsedFloatingBubble === true
+    })) return;
     revealWindow(target, { inactive: options.inactive === true });
   };
   const waitForContent = options.waitForContent === true;
@@ -3929,6 +3966,8 @@ function createWindow(boundsOverride, options = {}) {
     icon: APP_ICON_PATH,
     skipTaskbar: collapsedFloatingBubble || Boolean(settings?.trayMode),
     ...(collapsedFloatingBubble ? { fullscreenable: false, maximizable: false, minimizable: false } : {}),
+    // Keeps a popover unmaximizable across rebuilds, which never re-run enterTrayMode().
+    ...(settings?.trayMode ? { maximizable: false } : {}),
     ...floatingBubbleWindowChrome(process.platform, collapsedFloatingBubble),
     ...(process.platform === 'darwin' && glass ? { vibrancy: 'hud', visualEffectState: 'active' } : {}),
     ...(process.platform === 'win32' && glass && !windowsAccent ? { backgroundMaterial: 'acrylic' } : {}),
@@ -3951,6 +3990,22 @@ function createWindow(boundsOverride, options = {}) {
     console.warn('[window] AccentBlurBehind unavailable; falling back to Acrylic');
     try { win.setBackgroundMaterial('acrylic'); } catch (_) {}
   }
+  win.on('maximize', () => {
+    if (!shouldTrackWindowMaximized(settings, floatingBubbleState)) {
+      // A tray popover is sized from getBounds() on every open, so a maximized
+      // one would open full-screen. setMaximizable() covers Windows and macOS;
+      // it is a no-op on Linux, which is why this bounce still has to exist.
+      if (settings?.trayMode) suspendWindowMaximized(win);
+      return;
+    }
+    stopPersistBoundsTimer();
+    persistWindowState(settings, saveSettings, normalWindowBounds(win), true);
+  });
+  win.on('unmaximize', () => {
+    if (!shouldTrackWindowMaximized(settings, floatingBubbleState)) return;
+    persistWindowState(settings, saveSettings, normalWindowBounds(win), false);
+    persistBoundsSoon();
+  });
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedExternalUrl(url)) shell.openExternal(url);
     return { action: 'deny' };
@@ -3990,6 +4045,8 @@ function createWindow(boundsOverride, options = {}) {
   loadWindowFile(win, {
     waitForContent: options.waitForContent === true,
     inactive: options.inactive === true,
+    collapsedFloatingBubble,
+    restoreMaximized: !collapsedFloatingBubble,
     query: {
       ...floatingBubbleInitialRendererQuery(floatingBubbleState, {
         collapsedWindow: collapsedFloatingBubble,
@@ -4150,9 +4207,7 @@ function normalizeManualCookie(input) {
 
 function rebuildWindow() {
   if (!mainWindow) return;
-  const bounds = floatingBubbleState.collapsed && floatingBubbleState.expandedBounds
-    ? floatingBubbleState.expandedBounds
-    : mainWindow.getBounds();
+  const bounds = rebuildWindowBounds(mainWindow, floatingBubbleState);
   const wasFocused = mainWindow.isFocused();
   const old = mainWindow;
   floatingBubbleState.collapsed = false;
@@ -4240,6 +4295,7 @@ app.whenReady().then(() => {
     const previousCustomModelPricing = JSON.stringify(settings.customModelPricing || []);
     const normalizedCurrency = patch.currency !== undefined ? normalizeCurrency(patch.currency, settings.currency) : normalizeCurrency(settings.currency);
     const normalizedPatch = { ...patch, currency: normalizedCurrency };
+    delete normalizedPatch.windowMaximized;
     delete normalizedPatch.codexManagedAccounts;
     delete normalizedPatch.mimoManagedAccounts;
     delete normalizedPatch.openrouterProfiles;
@@ -4322,6 +4378,7 @@ app.whenReady().then(() => {
       maskLimitAccountEmails: parseBoolean(patch.maskLimitAccountEmails ?? settings.maskLimitAccountEmails, false),
       claudePrepaidBalanceEnabled: parseBoolean(patch.claudePrepaidBalanceEnabled ?? settings.claudePrepaidBalanceEnabled, true),
       showLimitUsed: parseBoolean(patch.showLimitUsed ?? settings.showLimitUsed, false),
+      windowMaximized: parseBoolean(settings.windowMaximized, false),
       zoomFactor: clampZoom(patch.zoomFactor ?? settings.zoomFactor),
       ...normalizeTrayModeSettings({
         showTrayIcon: patch.showTrayIcon ?? settings.showTrayIcon,
