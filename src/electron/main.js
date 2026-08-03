@@ -93,11 +93,14 @@ const {
 } = require('../shared/tokscaleUpdater');
 const {
   appUpdateInstallSupport,
+  classifyAppUpdateError,
   checkLatestRelease,
   deriveAppUpdateAvailability,
   downloadedAppUpdateMatchesLatest,
-  GITHUB_REPO,
+  latestFromUpdaterInfo,
   mergeLatestReleaseMetadata,
+  providerUpdateCheckAvailability,
+  resolveAppUpdateCheckError,
   shouldDownloadAutomaticAppUpdate,
   shouldSkipAppUpdateCheck
 } = require('../shared/appUpdater');
@@ -107,7 +110,6 @@ const opencodeWeb = require('../shared/opencodeWeb');
 const openrouterLimits = require('../shared/openrouterLimits');
 const thirdPartyLimits = require('../shared/thirdPartyLimits');
 const subscriptionDisplay = require('../shared/subscriptionDisplay');
-const semver = require('semver');
 const { normalizeCurrency, resolveEffectiveRates, configureRates } = require('../shared/currency');
 const { normalizeCompactTokenUnits } = require('../shared/compactTokens');
 const { fetchRates, isCacheStale } = require('../shared/exchangeRates');
@@ -4149,6 +4151,7 @@ async function downloadTokscaleFromNpm() {
 let appUpdateCheckInFlight = false;
 let appUpdateCheckPromise = null;
 let appUpdateLastError = null;
+let appUpdateLastAttemptAt = null;
 let appUpdateBackgroundTimer = null;
 let appUpdateNativeBusy = false;
 let appUpdateNativeConfigured = false;
@@ -4159,29 +4162,20 @@ let appUpdateNativeState = {
   error: null
 };
 
-function latestFromUpdaterInfo(info) {
-  if (!info || typeof info !== 'object') return null;
-  const version = semver.valid(info.version);
-  if (!version) return null;
-  return {
-    version,
-    tag: `v${version}`,
-    name: (typeof info.releaseName === 'string' && info.releaseName.trim()) ? info.releaseName : `v${version}`,
-    htmlUrl: `https://github.com/${GITHUB_REPO}/releases/tag/v${version}`,
-    publishedAt: typeof info.releaseDate === 'string' ? info.releaseDate : ''
-  };
-}
-
-function rememberLatestAppUpdate(latest, checkedAt = new Date().toISOString()) {
-  if (!latest) return null;
-  const merged = mergeLatestReleaseMetadata(settings?.appUpdate?.lastKnownLatest, latest);
+function rememberSuccessfulAppUpdateCheck(latest, checkedAt = new Date().toISOString(), { clearLatest = false } = {}) {
+  if (!latest && !clearLatest) return null;
+  const remembered = latest
+    ? mergeLatestReleaseMetadata(settings?.appUpdate?.lastKnownLatest, latest)
+    : null;
   settings.appUpdate = {
     ...(settings.appUpdate || {}),
     lastCheckedAt: checkedAt,
-    lastKnownLatest: merged
+    lastKnownLatest: remembered
   };
   saveSettings();
-  return merged;
+  appUpdateLastAttemptAt = checkedAt;
+  appUpdateLastError = null;
+  return remembered;
 }
 
 function setNativeAppUpdateState(patch = {}) {
@@ -4195,18 +4189,6 @@ function configureNativeAppUpdater() {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.logger = console;
-  autoUpdater.on('checking-for-update', () => {
-    setNativeAppUpdateState({ phase: 'checking', progress: null, error: null });
-  });
-  autoUpdater.on('update-available', (info) => {
-    const latest = rememberLatestAppUpdate(latestFromUpdaterInfo(info));
-    setNativeAppUpdateState({ phase: 'available', version: latest?.version || info?.version || null, progress: null, error: null });
-  });
-  autoUpdater.on('update-not-available', (info) => {
-    appUpdateNativeBusy = false;
-    const latest = rememberLatestAppUpdate(latestFromUpdaterInfo(info));
-    setNativeAppUpdateState({ phase: 'idle', version: latest?.version || null, progress: null, error: null });
-  });
   autoUpdater.on('download-progress', (progress) => {
     setNativeAppUpdateState({
       phase: 'downloading',
@@ -4220,9 +4202,39 @@ function configureNativeAppUpdater() {
     setNativeAppUpdateState({ phase: 'downloaded', version: latest?.version || info?.version || appUpdateNativeState.version || null, progress: 100, error: null });
   });
   autoUpdater.on('error', (error) => {
+    // Availability checks use the same provider but report through
+    // appUpdateLastError. Only a real download attempt owns installError.
+    if (!appUpdateNativeBusy) return;
     appUpdateNativeBusy = false;
     setNativeAppUpdateState({ phase: 'error', progress: null, error: error?.message || String(error || 'Update failed') });
   });
+}
+
+async function checkAppUpdateProvider() {
+  if (!app.isPackaged) return checkLatestRelease(app.getVersion());
+  const checkedAt = new Date().toISOString();
+  configureNativeAppUpdater();
+  const result = await autoUpdater.checkForUpdates();
+  const availability = providerUpdateCheckAvailability(result, app.getVersion());
+  if (!availability.valid) {
+    return {
+      ok: false,
+      newer: false,
+      latest: null,
+      error: 'Update metadata missing or invalid',
+      errorKind: 'metadata',
+      checkedAt
+    };
+  }
+  return {
+    ok: true,
+    newer: availability.newer,
+    latest: availability.latest,
+    clearLatest: availability.clearLatest,
+    error: null,
+    errorKind: null,
+    checkedAt
+  };
 }
 
 function deriveAppUpdateState() {
@@ -4245,8 +4257,10 @@ function deriveAppUpdateState() {
     showUpdateNotice: availability.showUpdateNotice,
     dismissedVersion,
     lastCheckedAt: block.lastCheckedAt || null,
+    lastAttemptAt: appUpdateLastAttemptAt,
     checking: appUpdateCheckInFlight,
-    lastError: appUpdateLastError,
+    lastError: appUpdateLastError?.message || null,
+    lastErrorKind: appUpdateLastError?.kind || null,
     installSupported: installSupport.supported,
     installSupportReason: installSupport.reason,
     installPhase: appUpdateNativeState.phase,
@@ -4279,11 +4293,10 @@ async function runAppUpdateCheck({ force = false, bypassCooldown = false } = {})
     if (force) sendAppUpdatePush();
     const activeResult = await appUpdateCheckPromise;
     if (force) {
+      appUpdateLastAttemptAt = activeResult?.checkedAt || new Date().toISOString();
+      appUpdateLastError = resolveAppUpdateCheckError(appUpdateLastError, activeResult, { force: true });
       if (activeResult?.ok) {
         if (activeResult.newer) restoreDismissedAppUpdate(activeResult.latest?.version);
-        appUpdateLastError = null;
-      } else {
-        appUpdateLastError = activeResult?.error || 'Update check failed';
       }
       sendAppUpdatePush();
     }
@@ -4301,24 +4314,35 @@ async function runAppUpdateCheck({ force = false, bypassCooldown = false } = {})
   }
   const checkTask = (async () => {
     appUpdateCheckInFlight = true;
-    appUpdateLastError = null;
+    appUpdateLastAttemptAt = new Date().toISOString();
     if (force) sendAppUpdatePush();
     let result;
     try {
-      result = await checkLatestRelease(app.getVersion());
+      result = await checkAppUpdateProvider();
+      appUpdateLastAttemptAt = result.checkedAt || appUpdateLastAttemptAt;
       if (result.ok) {
-        rememberLatestAppUpdate(result.latest, result.checkedAt);
+        rememberSuccessfulAppUpdateCheck(result.latest, result.checkedAt, { clearLatest: result.clearLatest });
         if (force && result.newer) restoreDismissedAppUpdate(result.latest?.version);
-        appUpdateLastError = null;
       } else {
-        appUpdateLastError = force ? (result.error || 'Update check failed') : null;
+        appUpdateLastError = resolveAppUpdateCheckError(appUpdateLastError, result, { force });
         if (!force) console.warn('App update check failed:', result.error);
       }
     } catch (error) {
-      const message = error.message || String(error);
-      appUpdateLastError = force ? message : null;
+      const classified = classifyAppUpdateError(error);
+      appUpdateLastError = resolveAppUpdateCheckError(appUpdateLastError, {
+        ok: false,
+        error: classified.message,
+        errorKind: classified.kind
+      }, { force });
       if (!force) console.warn('App update check threw:', error);
-      return { ok: false, newer: false, latest: null, error: message };
+      return {
+        ok: false,
+        newer: false,
+        latest: null,
+        error: classified.message,
+        errorKind: classified.kind,
+        checkedAt: appUpdateLastAttemptAt
+      };
     } finally {
       appUpdateCheckInFlight = false;
       sendAppUpdatePush();
@@ -4369,6 +4393,7 @@ async function downloadAndPrepareAppUpdate() {
     setNativeAppUpdateState({ phase: 'error', error: support.reason || 'unsupported-platform', progress: null });
     return deriveAppUpdateState();
   }
+  if (appUpdateCheckPromise) await appUpdateCheckPromise;
   if (appUpdateNativeBusy) return deriveAppUpdateState();
   const latest = settings?.appUpdate?.lastKnownLatest || null;
   if (downloadedAppUpdateMatchesLatest({
@@ -4376,19 +4401,26 @@ async function downloadAndPrepareAppUpdate() {
     downloadedVersion: appUpdateNativeState.version,
     latest
   })) return deriveAppUpdateState();
-  restoreDismissedAppUpdate(latest?.version);
   configureNativeAppUpdater();
   appUpdateNativeBusy = true;
   setNativeAppUpdateState({ phase: 'checking', progress: null, error: null });
   try {
     const result = await autoUpdater.checkForUpdates();
-    const info = result?.updateInfo || null;
-    const version = semver.valid(info?.version) || null;
-    if (!version || !semver.gt(version, app.getVersion())) {
+    const availability = providerUpdateCheckAvailability(result, app.getVersion());
+    if (!availability.valid) throw new Error('Update metadata missing or invalid');
+    const checkedAt = new Date().toISOString();
+    const latestFromCheck = rememberSuccessfulAppUpdateCheck(
+      availability.latest,
+      checkedAt,
+      { clearLatest: availability.clearLatest }
+    );
+    const version = latestFromCheck?.version || null;
+    if (!availability.newer || !version) {
       appUpdateNativeBusy = false;
       setNativeAppUpdateState({ phase: 'idle', version, progress: null, error: null });
       return deriveAppUpdateState();
     }
+    restoreDismissedAppUpdate(version);
     setNativeAppUpdateState({ phase: 'downloading', version, progress: 0, error: null });
     await autoUpdater.downloadUpdate();
   } catch (error) {
