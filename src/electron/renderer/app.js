@@ -964,12 +964,7 @@ function renderAppUpdatePill() {
   }
 }
 function releaseNoteGroupsForCurrentLocale(latest) {
-  const notes = latest?.releaseNotes;
-  if (!notes || typeof notes !== 'object') return [];
-  const preferred = currentLocale().startsWith('zh') ? notes.zh : notes.en;
-  if (Array.isArray(preferred) && preferred.length > 0) return preferred;
-  if (Array.isArray(notes.en) && notes.en.length > 0) return notes.en;
-  return Array.isArray(notes.zh) ? notes.zh : [];
+  return appUpdatePresentationApi.releaseNoteGroupsForLocale(latest?.releaseNotes, currentLocale());
 }
 function buildAppUpdateNoteGroupNodes(groups) {
   return groups.map((group) => {
