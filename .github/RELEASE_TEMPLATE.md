@@ -4,25 +4,24 @@
 
 <!-- app-update-notes:en:start -->
 ### Added
-- **Subscriptions:** In Settings > Subscriptions, record what you actually pay for each AI account, including recurring plans and top-ups, then see price, renewal or validity, monthly usage value, and balance burn details from the AI Tool Limits page. When a hub is configured, subscription changes sync to other devices in real time. (#304, #305)
-- **Localized App Updates:** App Updates now shows release notes in the selected interface language, with English, Simplified Chinese, Traditional Chinese, Korean, and Japanese support. (#311)
+- **Per-tool health details:** Settings > Tools now shows expandable details for each tracked AI tool, including its Source, Collection status, recent output, and counted Usage. You can re-scan a tool or show its source in the file manager when investigating missing or stale data. (#328, #331)
 
 ### Improved
-- **Compact token units:** Choose International (K/M/B) or East Asian units and get consistent token formatting across Home, Usage Dashboard, token-rate readings, Floating Bubble, tray text, custom tray layouts, and Discord Rich Presence. (#303)
-- **Token rate:** Short clicks still switch between output tok/s and total tok/min; holding the compact reading now shows a temporary animated boost and settles back to the current rate when released. (#306)
-- **Currency display:** Compact cost values now keep fractional precision and use localized units around thresholds without rounding values like $999.50 up to the next unit. (#307, #309)
+- **Antigravity usage:** Live tracking now refreshes Antigravity usage when its source data changes, including IDE-only installations, instead of waiting for the next scheduled collection. (#319)
+- **Tracked tools:** Drag-to-reorder is smoother: the entire tracked-tool row is now the reorder target, while Track and Show controls retain their existing actions. (#327)
 
 ### Fixed
-- **App Updates:** Packaged update checks no longer depend on GitHub REST API request quotas, and a failed check keeps the last known release visible with a specific error state. (#312)
+- **Trends (DAY):** The DAY preview now keeps the latest seven local calendar dates, including zero-use dates, and places today's live total on today's date instead of shifting it onto the last recorded day. (#335)
+- **Grok Build usage:** Grok session files with usage data no longer appear as zero or lose their token breakdown; input, output, cached-read, and reasoning tokens are now collected correctly. (#333)
 <!-- app-update-notes:en:end -->
 
 ## Download
 
-- **macOS Apple Silicon** — [Token-Monitor-0.40.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0-arm64.dmg)
-- **macOS Intel** — [Token-Monitor-0.40.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0-x64.dmg)
-- **Windows Installer** — [Token-Monitor-Setup-0.40.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-Setup-0.40.0.exe) (recommended)
-- **Windows Portable** — [Token-Monitor-0.40.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0.exe) (no install required)
-- **Linux x64** — [Token-Monitor-0.40.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.41.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0-arm64.dmg)
+- **macOS Intel** — [Token-Monitor-0.41.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0-x64.dmg)
+- **Windows Installer** — [Token-Monitor-Setup-0.41.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-Setup-0.41.0.exe) (recommended)
+- **Windows Portable** — [Token-Monitor-0.41.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0.exe) (no install required)
+- **Linux x64** — [Token-Monitor-0.41.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0.AppImage)
 
 <details>
 <summary><strong>First launch and other notes</strong></summary>
@@ -60,25 +59,24 @@ open-source: https://github.com/junhoyeo/tokscale
 
 <!-- app-update-notes:zh:start -->
 ### 新增
-- **订阅信息：** 在「设置 > 订阅信息」中，可为每个 AI 账号记录实际支付的费用，包括订阅和充值；在「AI 工具额度」页面悬停账号的方案标签，可查看费用、下次续费／有效至、本月用量与回本信息，充值账号还会显示当前余额、消耗速率和预计用尽时间。配置 Hub 后，一台设备的订阅信息会实时同步到其他设备。（#304、#305）
-- **多语言应用更新：** 「应用更新」现在会根据所选界面语言显示发布说明，支持英文、简体中文、繁体中文、韩文和日文。（#311）
+- **逐工具健康详情：** 「设置 > 工具」现在可展开查看每个已追踪 AI 工具的「来源」「采集」状态、最近产出和已计入的「用量」。遇到缺失或过旧的数据时，还可以重新扫描工具，或在文件管理器中显示其数据位置。（#328、#331）
 
 ### 改进
-- **Token 简写单位：** 可在「国际（K/M/B）」和「中文（万/亿）」之间选择，并在主页、使用仪表板、tok/s／tok/min 读数、悬浮小窗、托盘文字、自定义托盘布局和 Discord Rich Presence 中统一使用。（#303）
-- **Token rate：** 短按仍可在输出 tok/s 与总 tok/min 之间切换；按住紧凑读数会显示临时的动画加速，松开后回到当前速率。（#306）
-- **成本显示：** 紧凑成本现在保留小数精度，并在单位阈值附近使用本地化单位，不会把 $999.50 过早进位到下一个单位。（#307、#309）
+- **Antigravity 用量：** 支持实时追踪 Antigravity 的源数据，包括仅安装 IDE 的情况；用量会在活动发生后更新，不必等到下一次定时采集。（#319）
+- **工具列表：** 优化拖动排序体验：现在可以拖动整个工具行重新排序，同时保留「追踪」和「显示」控件原有的操作。（#327）
 
 ### 修复
-- **应用更新：** 已打包版本不再依赖 GitHub REST API 请求额度；检查失败时会保留上次已知的版本，并显示具体的错误状态。（#312）
+- **趋势（DAY）：** DAY 预览现在会保留最近七个本地日历日期，包括用量为零的日期，并将今天的实时总量显示在今天，而不是移到最后一个有记录的日期。（#335）
+- **Grok Build 用量：** 已修复含有用量数据的 Grok 会话文件显示为 0 或缺少 Tokens 明细的问题；现在可以正确采集输入、输出、缓存命中和推理 Tokens。（#333）
 <!-- app-update-notes:zh:end -->
 
 ## 下载
 
-- **macOS Apple Silicon** — [Token-Monitor-0.40.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0-arm64.dmg)
-- **macOS Intel** — [Token-Monitor-0.40.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0-x64.dmg)
-- **Windows 安装版** — [Token-Monitor-Setup-0.40.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-Setup-0.40.0.exe)（推荐）
-- **Windows 便携版** — [Token-Monitor-0.40.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0.exe)（免安装）
-- **Linux x64** — [Token-Monitor-0.40.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.41.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0-arm64.dmg)
+- **macOS Intel** — [Token-Monitor-0.41.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0-x64.dmg)
+- **Windows 安装版** — [Token-Monitor-Setup-0.41.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-Setup-0.41.0.exe)（推荐）
+- **Windows 便携版** — [Token-Monitor-0.41.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0.exe)（免安装）
+- **Linux x64** — [Token-Monitor-0.41.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0.AppImage)
 
 <details>
 <summary><strong>首次启动与其他说明</strong></summary>
@@ -110,7 +108,7 @@ https://github.com/junhoyeo/tokscale
 
 ---
 
-**Full Changelog:** [v0.39.0...v0.40.0](https://github.com/Javis603/token-monitor/compare/v0.39.0...v0.40.0)
+**Full Changelog:** [v0.40.0...v0.41.0](https://github.com/Javis603/token-monitor/compare/v0.40.0...v0.41.0)
 
 <details>
 <summary>繁體中文 · 한국어 · 日本語</summary>
@@ -124,25 +122,24 @@ https://github.com/junhoyeo/tokscale
 
 <!-- app-update-notes:zh-TW:start -->
 ### 新增
-- **訂閱資料：** 在「設定 > 訂閱資料」中，可為每個 AI 帳號記錄實際支付的費用，包括訂閱與儲值；在「AI 工具額度」頁面將游標移到帳號的方案標籤上，可查看費用、下次續費／有效至、本月用量與回本資訊，儲值帳號還會顯示目前餘額、消耗速率和預估用盡時間。設定 Hub 後，一台裝置的訂閱資料會即時同步到其他裝置。（#304、#305）
-- **多語系應用程式更新：** 「應用程式更新」現在會依照所選介面語言顯示版本資訊，支援英文、簡體中文、繁體中文、韓文與日文。（#311）
+- **逐工具健康詳情：** 「設定 > 工具」現在可展開查看每個已追蹤 AI 工具的「來源」「採集」狀態、最後產出和已計入的「用量」。遇到缺失或過舊的資料時，還可以重新掃描工具，或在檔案管理員中顯示其資料位置。（#328、#331）
 
 ### 改進
-- **Token 簡寫單位：** 可在「國際（K/M/B）」與「中文（萬/億）」之間選擇，並在主頁、使用儀表板、tok/s／tok/min 讀數、懸浮小窗、托盤文字、自訂托盤布局和 Discord Rich Presence 中統一使用。（#303）
-- **Token rate：** 短按仍可在輸出 tok/s 與總 tok/min 之間切換；按住精簡讀數會顯示暫時的動畫加速，放開後回到目前速率。（#306）
-- **成本顯示：** 精簡成本現在保留小數精度，並在單位門檻附近使用本地化單位，不會把 $999.50 提前進位到下一個單位。（#307、#309）
+- **Antigravity 用量：** 支援即時追蹤 Antigravity 的來源資料，包括僅安裝 IDE 的情況；用量會在活動發生後更新，不必等到下一次定時採集。（#319）
+- **工具列表：** 優化拖曳排序體驗：現在可以拖曳整個工具列重新排序，同時保留「追蹤」和「顯示」控制項原有的操作。（#327）
 
 ### 修復
-- **應用程式更新：** 已封裝版本不再依賴 GitHub REST API 請求額度；檢查失敗時會保留上次已知的版本，並顯示具體的錯誤狀態。（#312）
+- **趨勢（DAY）：** DAY 預覽現在會保留最近七個本地日曆日期，包括用量為零的日期，並將今天的即時總量顯示在今天，而不是移到最後一個有紀錄的日期。（#335）
+- **Grok Build 用量：** 已修正含有用量資料的 Grok 會話檔案顯示為 0 或缺少 Tokens 明細的問題；現在可以正確採集輸入、輸出、快取命中和推理 Tokens。（#333）
 <!-- app-update-notes:zh-TW:end -->
 
 ## 下載
 
-- **macOS Apple Silicon** — [Token-Monitor-0.40.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0-arm64.dmg)
-- **macOS Intel** — [Token-Monitor-0.40.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0-x64.dmg)
-- **Windows 安裝版** — [Token-Monitor-Setup-0.40.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-Setup-0.40.0.exe)（推薦）
-- **Windows 便攜版** — [Token-Monitor-0.40.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0.exe)（免安裝）
-- **Linux x64** — [Token-Monitor-0.40.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.41.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0-arm64.dmg)
+- **macOS Intel** — [Token-Monitor-0.41.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0-x64.dmg)
+- **Windows 安裝版** — [Token-Monitor-Setup-0.41.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-Setup-0.41.0.exe)（推薦）
+- **Windows 便攜版** — [Token-Monitor-0.41.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0.exe)（免安裝）
+- **Linux x64** — [Token-Monitor-0.41.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0.AppImage)
 
 </details>
 
@@ -155,25 +152,24 @@ https://github.com/junhoyeo/tokscale
 
 <!-- app-update-notes:ko:start -->
 ### 추가
-- **구독 정보:** 「설정 > 구독 정보」에서 각 AI 계정에 실제 지불한 금액을 구독과 충전으로 기록하고, 「AI 도구 한도」 페이지에서 요금, 다음 결제/유효 기간, 이번 달 사용량과 본전 대비 정보를 확인할 수 있습니다. 충전 계정에는 현재 잔액, 소진 속도와 소진 예상도 표시됩니다. Hub를 설정하면 한 기기의 구독 정보가 다른 기기에 실시간으로 동기화됩니다. (#304, #305)
-- **다국어 앱 업데이트:** 「앱 업데이트」가 선택한 인터페이스 언어의 릴리즈 노트를 표시하며 영어, 중국어 간체/번체, 한국어, 일본어를 지원합니다. (#311)
+- **도구별 상태 세부 정보:** 「설정 > 도구」에서 추적 중인 각 AI 도구의 「소스」, 「수집」 상태, 마지막 출력 및 집계된 「사용량」을 펼쳐 볼 수 있습니다. 데이터가 없거나 오래된 경우 도구를 다시 검사하거나 파일 관리자에서 데이터 위치를 볼 수 있습니다. (#328, #331)
 
 ### 개선
-- **토큰 축약 단위:** 「국제식 (K/M/B)」와 「한국식 (만/억)」을 선택할 수 있으며 홈, 사용 대시보드, tok/s/tok/min 표시, 플로팅 버블, 트레이 텍스트, 사용자 지정 트레이와 Discord Rich Presence에 동일하게 적용됩니다. (#303)
-- **토큰 속도 표시:** 짧게 클릭하면 출력 tok/s와 전체 tok/min을 계속 전환하고, 축약 수치를 누르고 있으면 임시 애니메이션 부스트가 표시된 뒤 손을 떼면 현재 속도로 돌아옵니다. (#306)
-- **비용 표시:** 축약 비용이 소수점 정밀도를 유지하고 단위 경계에서 현지화된 단위를 사용해 $999.50 같은 값이 다음 단위로 일찍 반올림되지 않습니다. (#307, #309)
+- **Antigravity 사용량:** 이제 Antigravity 소스 데이터를 실시간으로 추적하며, IDE만 설치된 경우도 포함됩니다. 사용량이 다음 예약 수집까지 기다리지 않고 활동 후 업데이트됩니다. (#319)
+- **도구 목록:** 드래그하여 순서를 바꾸는 방식을 개선했습니다. 이제 도구 행 자체를 드래그할 수 있으며 「추적」 및 「표시」 컨트롤은 기존 동작을 유지합니다. (#327)
 
 ### 수정
-- **앱 업데이트:** 패키지 버전의 업데이트 확인이 더 이상 GitHub REST API 요청 한도에 의존하지 않으며, 확인에 실패해도 마지막으로 확인한 버전을 유지하고 구체적인 오류 상태를 표시합니다. (#312)
+- **추이 (DAY):** DAY 미리보기가 사용량이 0인 날짜를 포함한 최근 7개의 현지 달력 날짜를 유지하고, 오늘의 실시간 합계를 마지막 기록 날짜가 아닌 오늘 날짜에 표시합니다. (#335)
+- **Grok Build 사용량:** 사용량 데이터가 있는 Grok 세션 파일이 0으로 표시되거나 토큰 내역이 누락되던 문제가 수정되어, 입력, 출력, 캐시 적중 및 추론 토큰이 이제 정상적으로 수집됩니다. (#333)
 <!-- app-update-notes:ko:end -->
 
 ## 다운로드
 
-- **macOS Apple Silicon** — [Token-Monitor-0.40.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0-arm64.dmg)
-- **macOS Intel** — [Token-Monitor-0.40.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0-x64.dmg)
-- **Windows 설치 버전** — [Token-Monitor-Setup-0.40.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-Setup-0.40.0.exe) (권장)
-- **Windows 포터블 버전** — [Token-Monitor-0.40.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0.exe) (설치 필요 없음)
-- **Linux x64** — [Token-Monitor-0.40.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.41.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0-arm64.dmg)
+- **macOS Intel** — [Token-Monitor-0.41.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0-x64.dmg)
+- **Windows 설치 버전** — [Token-Monitor-Setup-0.41.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-Setup-0.41.0.exe) (권장)
+- **Windows 포터블 버전** — [Token-Monitor-0.41.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0.exe) (설치 필요 없음)
+- **Linux x64** — [Token-Monitor-0.41.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0.AppImage)
 
 </details>
 
@@ -186,25 +182,24 @@ https://github.com/junhoyeo/tokscale
 
 <!-- app-update-notes:ja:start -->
 ### 追加
-- **サブスクリプション：** 「設定 > サブスクリプション」で各 AI アカウントに実際に支払った金額を、サブスクとチャージとして記録できます。「AIツール制限」ページで料金、次回請求／有効期限、今月の使用量と元が取れた倍率を確認でき、チャージでは現在の残高、消費ペース、枯渇予測も表示します。Hubを設定すると、1台で変更したサブスクリプションが他の端末へリアルタイムで同期されます。（#304、#305）
-- **多言語アップデート：** 「アップデート」で選択したインターフェース言語のリリースノートを表示し、英語、簡体字中国語、繁体字中国語、韓国語、日本語に対応します。（#311）
+- **ツールごとの状態詳細：** 「設定 > ツール」で追跡中の各 AI ツールについて、「ソース」「収集」状態、最終出力、集計された「使用量」を展開して確認できます。データがない、または古い場合は、ツールを再スキャンしたり、ファイルマネージャでデータの場所を表示したりできます。（#328、#331）
 
 ### 改善
-- **トークン短縮単位：** 「国際式（K/M/B）」と「日本式（万/億）」を選択でき、ホーム、使用状況ダッシュボード、tok/s／tok/min 表示、フローティングバブル、トレイテキスト、カスタムトレイ、Discord Rich Presence に統一して適用します。（#303）
-- **トークン速度表示：** 短くクリックすると出力 tok/s と合計 tok/min を切り替えられ、短縮表示を長押しすると一時的なアニメーション付きブーストが表示され、離すと現在の速度に戻ります。（#306）
-- **コスト表示：** 短縮コストが小数精度を保ち、単位の境界付近ではローカライズされた単位を使うため、$999.50 のような値が次の単位へ早く丸められません。（#307、#309）
+- **Antigravity の使用量：** Antigravity のソースデータをリアルタイムで追跡できるようになり、IDE だけがインストールされている場合にも対応します。使用量は次の定期収集を待たず、アクティビティ後に更新されます。（#319）
+- **ツールリスト：** ドラッグによる並び替えを改善し、ツールの行自体をドラッグできるようになりました。「追跡」と「表示」コントロールの既存の操作も維持されます。（#327）
 
 ### 修正
-- **アップデート：** パッケージ版の更新確認が GitHub REST API のリクエスト上限に左右されなくなり、確認に失敗しても前回確認したバージョンを保持して具体的なエラー状態を表示します。（#312）
+- **トレンド（DAY）：** DAY プレビューが使用量ゼロの日を含む直近7つのローカルカレンダー日を保持し、今日のリアルタイム合計を最後に記録された日ではなく今日の日付に表示します。（#335）
+- **Grok Build の使用量：** 使用量データを含む Grok セッションファイルが 0 と表示されたりトークン内訳が欠落したりする問題を修正し、入力、出力、キャッシュヒット、推論トークンを正しく収集できるようになりました。（#333）
 <!-- app-update-notes:ja:end -->
 
 ## ダウンロード
 
-- **macOS Apple Silicon** — [Token-Monitor-0.40.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0-arm64.dmg)
-- **macOS Intel** — [Token-Monitor-0.40.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0-x64.dmg)
-- **Windows インストーラー** — [Token-Monitor-Setup-0.40.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-Setup-0.40.0.exe)（推奨）
-- **Windows ポータブル版** — [Token-Monitor-0.40.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0.exe)（インストール不要）
-- **Linux x64** — [Token-Monitor-0.40.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.40.0/Token-Monitor-0.40.0.AppImage)
+- **macOS Apple Silicon** — [Token-Monitor-0.41.0-arm64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0-arm64.dmg)
+- **macOS Intel** — [Token-Monitor-0.41.0-x64.dmg](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0-x64.dmg)
+- **Windows インストーラー** — [Token-Monitor-Setup-0.41.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-Setup-0.41.0.exe)（推奨）
+- **Windows ポータブル版** — [Token-Monitor-0.41.0.exe](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0.exe)（インストール不要）
+- **Linux x64** — [Token-Monitor-0.41.0.AppImage](https://github.com/Javis603/token-monitor/releases/download/v0.41.0/Token-Monitor-0.41.0.AppImage)
 
 </details>
 
