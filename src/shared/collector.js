@@ -956,7 +956,12 @@ async function collectUsageOnce(options) {
     sourceChecks,
     wslStatus,
     observedAt: collectedAt,
-    lastActivityDays: mergeClientActivityDays(options.lastActivityDays, summary.history)
+    lastActivityDays: mergeClientActivityDays(
+      options.lastActivityDays,
+      summary.history,
+      today,
+      localTodayKey(collectedAt)
+    )
   });
   if (clientHealth) summary.clientHealth = clientHealth;
   return summary;
@@ -1284,6 +1289,19 @@ function watchIgnoreMatcher(clientsCsv) {
 // check id with same-kind paths collapsed by OR. clientDataDirPresence() is
 // derived from this rather than computed beside it, so the presence dot in the
 // UI and the health record can never disagree about what was found.
+function sourceRootExists(root) {
+  return root.id === 'vscode-workspace-storage'
+    ? hasCopilotChatSessions(root.dir)
+    : dirExists(root.dir);
+}
+
+function evaluatedClientSourceRoots(clientsCsv) {
+  return Object.fromEntries(Object.entries(clientSourceRoots(clientsCsv)).map(([client, roots]) => [
+    client,
+    roots.map((root) => ({ ...root, exists: sourceRootExists(root) }))
+  ]));
+}
+
 function clientSourceChecks(clientsCsv, options = {}) {
   const checks = {};
   const push = (client, id, exists) => {
@@ -1292,15 +1310,9 @@ function clientSourceChecks(clientsCsv, options = {}) {
     if (found) found.exists = found.exists || exists;
     else list.push({ id, exists });
   };
-  for (const [client, roots] of Object.entries(clientSourceRoots(clientsCsv))) {
+  for (const [client, roots] of Object.entries(evaluatedClientSourceRoots(clientsCsv))) {
     checks[client] = checks[client] || [];
-    for (const { id, dir } of roots) {
-      // workspaceStorage is shared by every VS Code extension. Count it as
-      // Copilot presence only when at least one workspace contains the
-      // chatSessions source Tokscale actually parses; the broader root is
-      // watched solely to catch a new workspace appearing after startup.
-      push(client, id, id === 'vscode-workspace-storage' ? hasCopilotChatSessions(dir) : dirExists(dir));
-    }
+    for (const { id, exists } of roots) push(client, id, exists);
   }
   // antigravity's watch candidate is only the IDE sync cache, which our own sync
   // writes. Its two real sources are separate checks so a health record can say
@@ -1322,6 +1334,27 @@ function clientSourceChecks(clientsCsv, options = {}) {
     if (Object.prototype.hasOwnProperty.call(checks, client)) push(client, 'wsl-home', true);
   }
   return checks;
+}
+
+// Every directory a tracked client's usage can come from on this machine, keyed
+// by client as {id, dir, exists} — the path-level table behind
+// clientSourceChecks(), before same-id roots are collapsed into one boolean.
+//
+// Only the diagnostics panel wants this shape: a user asking "is it looking
+// where I installed it" needs the paths, and a check id cannot answer that. The
+// self-synced clients are why it is not simply clientSourceRoots(): that table
+// holds antigravity's *sync cache*, which is ours and says nothing about which
+// Antigravity is installed — the IDE session roots and the CLI's own data dir
+// are the ones that answer it, and they are checks without being watch roots.
+function clientDiagnosticRoots(clientsCsv) {
+  const byClient = evaluatedClientSourceRoots(clientsCsv);
+  if (byClient.antigravity) {
+    byClient.antigravity.unshift(
+      ...antigravityDataRoots().map((dir) => ({ id: 'antigravity-ide-source', dir, exists: dirExists(dir) })),
+      { id: 'antigravity-cli-data', dir: antigravityCliDataDir(), exists: dirExists(antigravityCliDataDir()) }
+    );
+  }
+  return byClient;
 }
 
 // Whether each tracked client has at least one data directory on disk. Takes
@@ -1382,11 +1415,23 @@ function clientActivityDaysFromHistory(history) {
 // field. Merged per client rather than swapped wholesale: collectHistoryOnce()
 // deliberately survives one source failing while another succeeds, so a refresh
 // that returns only Proma's days must not erase what the last one knew about
-// Codex. A day only ever moves forward, so the fresh value wins where both hold
-// one.
-function mergeClientActivityDays(previous, history) {
+// Codex. Today's already-collected period is also authoritative for the date: it
+// closes the cadence gap without another graph scan. A day only ever moves
+// forward, so the newest value wins where sources overlap.
+function mergeClientActivityDays(previous, history, todayPeriod, todayKey) {
   const merged = { ...(previous || {}) };
-  for (const [client, day] of Object.entries(clientActivityDaysFromHistory(history))) {
+  const candidates = clientActivityDaysFromHistory(history);
+  const currentDay = String(todayKey || '').slice(0, 10);
+  if (currentDay) {
+    for (const [rawClient, tokens] of Object.entries(todayPeriod?.clients || {})) {
+      if (Number(tokens || 0) <= 0) continue;
+      const client = normalizeClientName(rawClient);
+      if (client && (!candidates[client] || currentDay > candidates[client])) {
+        candidates[client] = currentDay;
+      }
+    }
+  }
+  for (const [client, day] of Object.entries(candidates)) {
     // Per client, newest wins. A plain spread would let a fresh-but-older value
     // push a known day backwards — history is a rolling window and a refresh can
     // legitimately return a shorter one, so "fresh" does not imply "later".
@@ -1615,6 +1660,7 @@ function startCollector(options) {
   const intervalMs = clampTimerDelayMs(options.intervalMs, 5 * 60 * 1000);
   const watchUsePolling = resolveWatchUsePolling(options.watchUsePolling);
   const watchNativeForced = watchPollingEnvOverride() === false;
+  const trackedClients = new Set(normalizeClientsCsv(clients).split(',').filter(Boolean));
   const deviceOsInfo = options.osInfo === undefined
     ? hostOsInfo()
     : normalizeOsInfo(options.osInfo);
@@ -1629,6 +1675,10 @@ function startCollector(options) {
   // unless *every* tick folded into it asked for today-only, and deriving that
   // from a force flag would let a manual refresh quietly become a warm scan.
   let pendingTodayOnly = null;
+  // null means no pending scope yet; true means an all-client replay; otherwise
+  // this Set is the union of targeted today-only requests waiting behind the
+  // active tick. A broader request can upgrade this scope but never narrow it.
+  let pendingTargetClients = null;
   let pendingActivityRevision = null;
   let lastHistoryAt = 0;
   // Last full-scan snapshot; lets watch ticks scan only --today and derive
@@ -1720,10 +1770,8 @@ function startCollector(options) {
     } catch (_) {}
   }
 
-  function resolvePendingWaiters() {
-    const waiters = pendingWaiters;
-    pendingWaiters = [];
-    for (const resolve of waiters) resolve();
+  function resolveWaiters(waiters, result) {
+    for (const resolve of waiters) resolve(result);
   }
 
   async function performTick(reason, tickOptions = {}) {
@@ -1795,11 +1843,6 @@ function startCollector(options) {
                   ? mergePeriods(partial.allTime, wslAnchor.allTime)
                   : partial.allTime;
               }
-              // Only derive clientStatus when allTime is available; warm
-              // scans carry the previous status forward in main.js.
-              if (partial.allTime) {
-                preview.clientStatus = deriveClientStatus(clients, partial.allTime);
-              }
               onPreview(preview);
             }
           } catch (_) {
@@ -1868,6 +1911,18 @@ function startCollector(options) {
     }
   }
 
+  function mergePendingTargetScope(tickOptions) {
+    const todayOnly = tickOptions.todayOnly === true;
+    const targets = [...new Set(normalizeClientsCsv(tickOptions.targetClients).split(',').filter(Boolean))];
+    if (!todayOnly || targets.length === 0) {
+      pendingTargetClients = true;
+      return;
+    }
+    if (pendingTargetClients === true) return;
+    if (!(pendingTargetClients instanceof Set)) pendingTargetClients = new Set();
+    for (const client of targets) pendingTargetClients.add(client);
+  }
+
   async function runTick(reason, tickOptions = {}) {
     const tickActivityRevision = Number.isFinite(tickOptions.activityRevision)
       ? tickOptions.activityRevision
@@ -1881,6 +1936,7 @@ function startCollector(options) {
       pendingTodayOnly = pendingTodayOnly === null
         ? Boolean(tickOptions.todayOnly)
         : pendingTodayOnly && Boolean(tickOptions.todayOnly);
+      mergePendingTargetScope(tickOptions);
       pendingActivityRevision = pendingActivityRevision === null
         ? tickActivityRevision
         : Math.max(pendingActivityRevision, tickActivityRevision);
@@ -1888,7 +1944,7 @@ function startCollector(options) {
     }
     tickInFlight = true;
     try {
-      await performTick(reason, {
+      const initialResult = await performTick(reason, {
         ...effectiveTickOptions,
         acknowledgedSourceSync: sourceSyncQueue.acknowledge(effectiveTickOptions.forceSelfSync)
       });
@@ -1897,26 +1953,39 @@ function startCollector(options) {
         const forceSelfSync = pendingForceSelfSync;
         const sourceSelfSync = pendingSourceSelfSync;
         const todayOnly = pendingTodayOnly === true;
+        const targetClients = todayOnly && pendingTargetClients instanceof Set
+          ? [...pendingTargetClients]
+          : [];
         const activityRevision = pendingActivityRevision;
+        const waiters = pendingWaiters;
+        pendingWaiters = [];
         tickPending = false;
         pendingForceHistory = false;
         pendingForceSelfSync = null;
         pendingSourceSelfSync = null;
         pendingTodayOnly = null;
+        pendingTargetClients = null;
         pendingActivityRevision = null;
         const acknowledgedSourceSync = sourceSyncQueue.acknowledge(forceSelfSync);
-        await performTick('coalesced', {
+        const result = await performTick('coalesced', {
           forceHistory,
           forceSelfSync,
           sourceSelfSync,
           acknowledgedSourceSync,
           todayOnly,
+          targetClients,
           ...(activityRevision === null ? {} : { activityRevision })
         });
+        resolveWaiters(waiters, result === true);
       }
+      return initialResult === true;
     } finally {
       tickInFlight = false;
-      if (stopped || !tickPending) resolvePendingWaiters();
+      if (stopped && pendingWaiters.length > 0) {
+        const waiters = pendingWaiters;
+        pendingWaiters = [];
+        resolveWaiters(waiters, false);
+      }
     }
   }
 
@@ -2081,14 +2150,21 @@ function startCollector(options) {
   setupWatchers();
   loop();
 
+  // A rescan of one tool. Was cursor-only because a Cursor sign-in was the only
+  // caller; the machinery underneath was always per-client, so the guard was a
+  // narrower contract than the implementation. `targetClients` keeps the scan to
+  // the partition being asked about instead of every client's today.
   function refreshClient(clientId, refreshOptions = {}) {
     const normalized = String(clientId || '').trim().toLowerCase();
-    if (normalized !== 'cursor') {
+    if (!normalized || !trackedClients.has(normalized)) {
       throw new TypeError(`Unsupported targeted usage client: ${normalized || '(empty)'}`);
     }
     return runTick(`client:${normalized}`, {
       todayOnly: true,
-      forceSelfSync: refreshOptions.forceSync === true ? [normalized] : null
+      targetClients: [normalized],
+      // Only the self-synced clients have a sync to force; naming any other here
+      // would be read by nothing.
+      forceSelfSync: refreshOptions.forceSync === true && SELF_SYNCED_CLIENTS.has(normalized) ? [normalized] : null
     });
   }
 
@@ -2107,6 +2183,7 @@ module.exports = {
   collectUsageOnce,
   clientActivityDaysFromHistory,
   clientDataDirPresence,
+  clientDiagnosticRoots,
   clientSourceChecks,
   clientSourceRoots,
   clientWatchCandidates,

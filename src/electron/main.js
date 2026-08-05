@@ -40,7 +40,7 @@ const {
 installSafeStdout();
 const electronClaudeWebFetch = createClaudeWebFetch(net);
 const { DEFAULT_CLIENTS, KNOWN_CLIENTS, clientsCsvForSetting } = require('../shared/clientTracking');
-const { lookupModelPricing, normalizeHistoryIntervalMs } = require('../shared/collector');
+const { clientDiagnosticRoots, lookupModelPricing, normalizeHistoryIntervalMs } = require('../shared/collector');
 const { createDeviceRuntime } = require('../shared/deviceRuntime');
 const { customPricingPath } = require('../shared/tokscaleConfig');
 const { applyCustomPricing, normalizeCustomPricingSetting } = require('../shared/tokscaleCustomPricing');
@@ -173,6 +173,8 @@ const {
   usageConfigFromSettings
 } = require('./runtimeConfig');
 const {
+  canRefreshUsageRuntime,
+  drainPendingUsageClientRefreshes: drainPendingUsageClientRefreshQueue,
   runLimitInvalidation,
   runManualDeviceRefresh,
   settingsLimitInvalidationPlan
@@ -2341,6 +2343,10 @@ function drainPendingLimitInvalidations(runtime) {
 
 function refreshUsageClient(clientId, options = {}) {
   const client = String(clientId || '').trim().toLowerCase();
+  const tracked = trackedClientSet(clientsCsvForSetting(settings?.clients));
+  if (!client || !KNOWN_CLIENTS.split(',').includes(client) || !tracked.has(client)) {
+    throw new TypeError(`Unsupported targeted usage client: ${client || '(empty)'}`);
+  }
   if (!deviceRuntimeHandle) {
     pendingUsageClientRefreshes.set(client, { clientId: client, options: { ...options } });
     return Promise.resolve({ queued: true });
@@ -2348,14 +2354,31 @@ function refreshUsageClient(clientId, options = {}) {
   return Promise.resolve(deviceRuntimeHandle.refreshClient(client, options));
 }
 
-function drainPendingUsageClientRefreshes(runtime) {
-  const pending = [...pendingUsageClientRefreshes.values()];
-  pendingUsageClientRefreshes.clear();
-  for (const entry of pending) {
-    void Promise.resolve(runtime.refreshClient(entry.clientId, entry.options)).catch((error) => {
-      console.log(`[usage-runtime] pending client refresh failed: ${error.message}`);
+function bestEffortTrackedUsageRefresh(clientId, options = {}) {
+  const client = String(clientId || '').trim().toLowerCase();
+  const tracked = trackedClientSet(clientsCsvForSetting(settings?.clients));
+  if (
+    !tracked.has(client)
+    || !canRefreshUsageRuntime(mode, isExternalAgentActive)
+  ) return;
+  try {
+    void refreshUsageClient(client, options).catch((error) => {
+      console.log(`[usage-runtime] credential refresh failed: ${error.message}`);
     });
+  } catch (error) {
+    console.log(`[usage-runtime] credential refresh failed: ${error.message}`);
   }
+}
+
+function drainPendingUsageClientRefreshes(runtime) {
+  drainPendingUsageClientRefreshQueue(
+    pendingUsageClientRefreshes,
+    runtime,
+    (error) => {
+      console.log(`[usage-runtime] pending client refresh failed: ${error.message}`);
+    },
+    { enabled: canRefreshUsageRuntime(mode, isExternalAgentActive) }
+  );
 }
 
 function drainPendingRuntimeActions(runtime) {
@@ -2445,6 +2468,13 @@ function isExternalAgentActive() {
     process.kill(pid, 0);
     return true;
   } catch (_) { return false; }
+}
+
+function ownsUsageRuntime() {
+  return Boolean(
+    deviceRuntimeHandle
+    && canRefreshUsageRuntime(mode, isExternalAgentActive)
+  );
 }
 
 async function deleteDeviceFromHub(deviceId) {
@@ -4053,8 +4083,7 @@ async function fetchStats(options = {}) {
   // so folding them in would spawn the expensive `tokscale graph` — and the Cursor
   // and Antigravity sync subprocesses — on every one of them. Only the manual
   // refresh button opts in.
-  const canRefreshRuntime = mode === 'local' || !isExternalAgentActive();
-  if (force && deviceRuntimeHandle && canRefreshRuntime) {
+  if (force && ownsUsageRuntime()) {
     await runManualDeviceRefresh(deviceRuntimeHandle, {
       forceHistory: Boolean(options?.forceHistory),
       forceSelfSync: Boolean(options?.forceSelfSync),
@@ -4094,7 +4123,7 @@ function regenerateTokscalePricing() {
 
 async function refreshAfterPricingChange() {
   try {
-    if (deviceRuntimeHandle && (mode === 'local' || !isExternalAgentActive())) {
+    if (ownsUsageRuntime()) {
       await deviceRuntimeHandle.tick('manual', {});
     }
   } catch (error) {
@@ -5313,10 +5342,62 @@ app.whenReady().then(() => {
     osRelease: require('os').release(),
     isPackaged: app.isPackaged,
     userData: app.getPath('userData'),
+    // So the diagnostics panel can print ~/… instead of the user's account name.
+    homeDir: require('os').homedir(),
     sharedDataDir: sharedDataDir(),
     loginItemSupported: loginItemEnabledHere(),
     loginItemOpenAtLogin: currentLoginItemState()
   }));
+  // Where each tracked tool's data is read from on THIS machine. The absolute
+  // paths stay local by design — they carry the user's home directory and never
+  // go on the wire — so the renderer asks the main process for them instead.
+  //
+  // Probe only the client whose detail panel is open. The renderer caches the
+  // result for the current health snapshot, avoiding both eager filesystem work
+  // and path flicker when a stats tick rebuilds the panel.
+  ipcMain.handle('usage:clientSources', (_event, clientId) => {
+    const client = String(clientId || '').trim().toLowerCase();
+    const tracked = trackedClientSet(clientsCsvForSetting(settings?.clients));
+    if (!KNOWN_CLIENTS.split(',').includes(client) || !tracked.has(client)) return null;
+    try {
+      const seen = new Set();
+      const all = (clientDiagnosticRoots(client)[client] || [])
+        .filter((root) => {
+          const key = `${root.id}\0${root.dir}`;
+          return !seen.has(key) && seen.add(key);
+        })
+        .map((root) => ({ id: root.id, dir: root.dir, exists: root.exists === true }));
+      const sources = all.slice(0, 32);
+      return { sources, omittedCount: all.length - sources.length };
+    } catch (_) {
+      return null;
+    }
+  });
+  // Reveals one of those paths. The renderer sends a client id, never a path:
+  // anything it could send would otherwise become an arbitrary filesystem open.
+  ipcMain.handle('usage:revealClientSource', async (_event, clientId) => {
+    const client = String(clientId || '').trim().toLowerCase();
+    const tracked = trackedClientSet(clientsCsvForSetting(settings?.clients));
+    if (!KNOWN_CLIENTS.split(',').includes(client) || !tracked.has(client)) return false;
+    try {
+      const roots = clientDiagnosticRoots(client)[client] || [];
+      const target = roots.find((root) => root.exists);
+      if (!target) return false;
+      return await shell.openPath(target.dir) === '';
+    } catch (_) {
+      return false;
+    }
+  });
+  ipcMain.handle('usage:rescanClient', async (_event, clientId) => {
+    const client = String(clientId || '').trim().toLowerCase();
+    if (!client || !ownsUsageRuntime()) return false;
+    try {
+      return await refreshUsageClient(client, { forceSync: true }) === true;
+    } catch (error) {
+      console.log(`[usage-runtime] rescan failed: ${error.message}`);
+      return false;
+    }
+  });
   ipcMain.handle('clipboard:write', (_event, text) => {
     clipboard.writeText(String(text || ''));
     return true;
@@ -5358,7 +5439,7 @@ app.whenReady().then(() => {
       await cursorAuth.runCursorLogin(token);
       cursorStatusCache = { value: null, at: 0 };
       void queueLimitInvalidation({ provider: 'cursor' }, 'login', { clear: true });
-      void refreshUsageClient('cursor', { forceSync: true });
+      bestEffortTrackedUsageRefresh('cursor', { forceSync: true });
       return { ok: true, email: probeResult.user.email };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -5469,7 +5550,7 @@ app.whenReady().then(() => {
       await cursorAuth.runCursorLogout();
       cursorStatusCache = { value: null, at: 0 };
       void queueLimitInvalidation({ provider: 'cursor' }, 'logout', { clear: true });
-      void refreshUsageClient('cursor', { forceSync: true });
+      bestEffortTrackedUsageRefresh('cursor', { forceSync: true });
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };

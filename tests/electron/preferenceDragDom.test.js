@@ -19,6 +19,64 @@ function functionBody(source, name, nextName) {
   return source.slice(start, end);
 }
 
+test('tool diagnostics summarize complete health and render three semantic groups', () => {
+  const app = readRendererFile('app.js');
+  const css = readRendererFile('styles.css');
+  const summary = functionBody(app, 'settingsSectionSummary', 'renderSettingsSummaries');
+  const group = functionBody(app, 'clientHealthGroup', 'localDayKey');
+  const actions = functionBody(app, 'clientHealthActions', 'clientHealthPanel');
+  const panel = functionBody(app, 'clientHealthPanel', 'localWslStatus');
+  const statsStart = app.indexOf('function renderStatsUpdate(');
+  const statsEnd = app.indexOf('const statsRenderScheduler', statsStart);
+  assert.notEqual(statsStart, -1);
+  assert.notEqual(statsEnd, -1);
+  const stats = app.slice(statsStart, statsEnd);
+
+  assert.match(summary, /clientHealthCountsForTracked\([\s\S]*localClientHealth\(\)[\s\S]*enabledClientSet\(\)/);
+  assert.match(summary, /if \(counts\) return t\('settings\.summary\.toolsHealth'/);
+  assert.match(summary, /return t\('settings\.summary\.tools'/);
+  assert.match(group, /group\.id === 'source'/);
+  assert.match(group, /group\.id === 'collection'/);
+  assert.match(group, /pathInfo\.exists \? ' found' : pathInfo\.pending \? ' pending'/);
+  assert.match(actions, /role', 'status'/);
+  assert.match(actions, /aria-live', 'polite'/);
+  assert.match(actions, /state\.clientRescans\.snapshot\(clientId\)/);
+  assert.match(actions, /state\.clientRescans\.begin\(clientId\)/);
+  assert.match(actions, /state\.clientRescans\.finish\(clientId, requestId, succeeded\)/);
+  assert.match(actions, /rescan\.disabled = rescanState\.pending/);
+  assert.match(panel, /for \(const group of detail\.groups\)/);
+  assert.match(panel, /note\.group === group\.id/);
+  assert.match(stats, /renderSettingsSummaries\(\)/);
+  assert.match(cssRule(css, '.tool-health-group'), /grid-template-columns:\s*58px minmax\(0,\s*1fr\)/);
+  assert.match(cssRule(css, '.tool-health-group + .tool-health-group'), /border-top/);
+});
+
+test('tool diagnostics bind source values to the full health snapshot key', () => {
+  const app = readRendererFile('app.js');
+  const identity = functionBody(app, 'clientSourcesIdentity', 'exactLocalClientSources');
+  const exactReader = functionBody(app, 'exactLocalClientSources', 'localClientSources');
+  const reader = functionBody(app, 'localClientSources', 'loadClientSources');
+  const loader = functionBody(app, 'loadClientSources', 'refillOpenClientHealthPanel');
+  const expand = functionBody(app, 'setClientHealthExpanded', 'clientPeriodUsage');
+  const actions = functionBody(app, 'clientHealthActions', 'clientHealthPanel');
+
+  assert.match(identity, /deviceId[\s\S]*clientId[\s\S]*observedAt/);
+  assert.match(exactReader, /clientSourceCacheApi\.readClientSources/);
+  assert.match(reader, /state\.clientSourcesKey === key[\s\S]*readLatestClientSources/);
+  assert.match(loader, /clientSourceCacheApi\.clientSourceRequestKey\(identity\)/);
+  assert.doesNotMatch(loader, /deleteClientSources/);
+  assert.match(loader, /clientSourceCacheApi\.writeClientSources/);
+  assert.match(loader, /catch[\s\S]*state\.clientSourcesKey = ''[\s\S]*refillOpenClientHealthPanel\(\)/);
+  assert.match(loader, /return true;/);
+  assert.match(expand, /if \(open\)[\s\S]*loadClientSources\(row\.dataset\.client\)/);
+  assert.match(actions, /succeeded = await window\.tokenMonitor\.rescanClient\(clientId\) === true/);
+  assert.match(actions, /if \(succeeded\) loadClientSources/);
+  assert.match(actions, /rescan\.id = `toolHealthRescan-\$\{clientId\}`/);
+  assert.match(actions, /reveal\.id = `toolHealthReveal-\$\{clientId\}`/);
+  assert.match(actions, /exactLocalClientSources\(clientId\)/);
+  assert.doesNotMatch(app, /clientSourceIds/);
+});
+
 function cssRule(source, selector) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = source.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
@@ -57,6 +115,8 @@ test('handle-based preference drag does not animate row transforms during pointe
 });
 
 test('tool preference controls place compact actions beside the note without duplicate headers', () => {
+  const app = readRendererFile('app.js');
+  const body = functionBody(app, 'renderToolPreferencesNow', 'connectLimitProviderCheckboxName');
   const html = readRendererFile('index.html');
   const group = html.match(/<div class="settings-subgroup settings-tools-subgroup">[\s\S]*?<div id="clientDisplayList"/)?.[0] || '';
   assert.match(html, /<div class="settings-group settings-collapsible-group settings-tools-group"/);
@@ -73,9 +133,12 @@ test('tool preference controls place compact actions beside the note without dup
   const css = readRendererFile('styles.css');
   assert.match(cssRule(css, '.settings-note-row'), /grid-template-columns:\s*minmax\(0,\s*1fr\) auto/);
   assert.match(cssRule(css, '.settings-note-row'), /align-items:\s*center/);
-  // Three action cells since the drag handle left: track, visibility, pin.
-  assert.match(cssRule(css, '.tool-preference-row'), /grid-template-columns:\s*minmax\(0,\s*1fr\) repeat\(3,\s*22px\)/);
+  // The track checkbox gets its own leading cell; visibility and pin stay on the right.
+  assert.match(cssRule(css, '.tool-preference-row'), /grid-template-columns:\s*22px minmax\(0,\s*1fr\) repeat\(2,\s*22px\)/);
   assert.match(cssRule(css, '.tool-preference-actions'), /display:\s*contents/);
+  assert.match(body, /actions\.append\(visibility, pin\);/);
+  assert.match(body, /row\.append\(track, labelGroup, actions(?:, panel)?\);/);
+  assert.doesNotMatch(body, /actions\.append\(track/);
   assert.doesNotMatch(css, /\.tool-preference-head/);
   assert.doesNotMatch(css, /\.tool-preference-legend-/);
 });
@@ -107,25 +170,43 @@ test('tool preference rows drag from the row itself, not a handle', () => {
   assert.doesNotMatch(i18n, /'settings\.tools\.reorderClient':/);
 });
 
-// The rows are rebuilt on every stats tick. replaceChildren() would take the row
-// under the pointer with it, and later the expanded panel too.
-test('the tool list repaints without destroying its live rows', () => {
+// Token-only stats pushes keep the live rows and expanded panel in place; health
+// changes refill only the open panel instead of rebuilding the whole tool list.
+test('the tool list skips unchanged row renders and refreshes only open health details', () => {
   const app = readRendererFile('app.js');
-  const defer = functionBody(app, 'renderToolPreferences', 'renderToolPreferencesNow');
+  const defer = functionBody(app, 'renderToolPreferences', 'toolPreferenceRenderSignature');
   assert.match(defer, /if \(clientPreferenceRowDrag\.deferRender\(\)\) return;/);
   assert.match(defer, /return preserveSettingsPanelScroll\(renderToolPreferencesNow\);/);
 
+  const signature = functionBody(app, 'toolPreferenceRenderSignature', 'renderToolPreferencesNow');
+  assert.match(signature, /\[\.\.\.enabledClientSet\(\)\]\.sort\(\)/);
+  assert.doesNotMatch(signature, /trackedClients/);
+  assert.match(signature, /healthRows: KNOWN_CLIENTS\.map/);
+  assert.match(signature, /health\?\.clients\?\.\[id\]\?\.overall/);
+  assert.doesNotMatch(signature, /periods/);
+
   const body = functionBody(app, 'renderToolPreferencesNow', 'connectLimitProviderCheckboxName');
+  const fill = functionBody(app, 'fillClientHealthPanel', 'clientHealthGroup');
+  assert.match(body, /state\.toolPreferenceRenderSignature === renderSignature/);
+  assert.match(body, /state\.toolPreferenceDetailSignature !== detailSignature/);
+  assert.match(body, /state\.settings\?\.currencyRatesEffective \|\| null/);
+  assert.match(body, /state\.toolPreferenceSourceSignature !== sourceSignature/);
+  assert.match(body, /loadClientSources\(state\.clientHealthExpanded\);\s*refillOpenClientHealthPanel\(\);/);
+  assert.match(body, /else \{\s*refillOpenClientHealthPanel\(\);\s*\}/);
+  assert.match(body, /visibility\.id = `toolVisibility-\$\{id\}`/);
+  assert.match(body, /pin\.id = `toolPin-\$\{id\}`/);
+  assert.match(body, /const focusedId = document\.activeElement\?\.id \|\| ''/);
+  assert.match(body, /document\.getElementById\(focusedId\)\?\.focus/);
+  assert.match(body, /return;/);
   assert.doesNotMatch(body, /replaceChildren/);
-  const snapshot = body.indexOf('const previousRows = Array.from(els.clientDisplayList.children);');
-  const append = body.indexOf('els.clientDisplayList.appendChild(row);');
-  const drop = body.indexOf('for (const row of previousRows) row.remove();');
-  assert.ok(snapshot !== -1, 'the existing rows should be captured before the rebuild');
-  assert.ok(append > snapshot, 'new rows are appended alongside the old ones');
-  assert.ok(drop > append, 'the old rows are dropped only once the new ones exist');
-  // Focus does not survive the swap on its own, and the checkbox now owns the
-  // keyboard reorder, so a second arrow press needs it back.
-  assert.match(body, /document\.getElementById\(focusedId\)\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(fill, /patchRenderedNode\(current, next\)/);
+  assert.match(fill, /else container\.replaceChildren\(next\)/);
+
+  const localSources = functionBody(app, 'localClientSources', 'loadClientSources');
+  assert.match(localSources, /exactLocalClientSources\(clientId\)/);
+  assert.match(localSources, /const pendingSources = key && state\.clientSourcesKey === key/);
+  assert.match(localSources, /exactSources \?\? clientSourceCacheApi\.readLatestClientSources/);
+  assert.match(localSources, /exists: false, pending: true/);
 });
 
 test('the tool preference row carries the drag transform contract', () => {
@@ -142,7 +223,7 @@ test('the tool preference row carries the drag transform contract', () => {
 test('a press on the tool row own controls never arms a drag', () => {
   const app = readRendererFile('app.js');
   // The checkbox sits inside a label, which is a hit target of its own.
-  assert.match(app, /const CLIENT_PREFERENCE_DRAG_EXCLUDED = 'button, input, select, textarea, a, label, \.accordion-animated-container';/);
+  assert.match(app, /const CLIENT_PREFERENCE_DRAG_EXCLUDED = 'button:not\(\.tool-preference-main\), input, select, textarea, a, label, \.accordion-animated-container';/);
   const wiring = app.slice(app.indexOf('const clientPreferenceRowDrag = '), app.indexOf('function renderToolPreferences('));
   assert.match(wiring, /dragExcluded: CLIENT_PREFERENCE_DRAG_EXCLUDED,/);
   assert.match(wiring, /rowSelector: '\.tool-preference-row\[data-client\]',/);

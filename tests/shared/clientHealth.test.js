@@ -17,6 +17,7 @@ const {
 } = require('../../src/shared/clientHealth');
 const {
   clientActivityDaysFromHistory,
+  clientDiagnosticRoots,
   clientSourceChecks,
   clientSourceRoots,
   clientWatchCandidates,
@@ -348,6 +349,31 @@ test('clientSourceChecks collapses same-kind roots into one entry', () => {
   }
 });
 
+test('diagnostic roots expose antigravity native sources without treating them as watch roots', () => {
+  const diagnostics = clientDiagnosticRoots('antigravity').antigravity;
+  assert.deepEqual(diagnostics.map(({ id }) => id), [
+    'antigravity-ide-source',
+    'antigravity-ide-source',
+    'antigravity-ide-source',
+    'antigravity-cli-data',
+    'tokscale-antigravity-cache'
+  ]);
+  assert.deepEqual(
+    diagnostics.slice(0, 3).map(({ dir }) => dir.split(/[\\/]/).at(-1)),
+    ['antigravity', 'antigravity-ide', 'antigravity-backup']
+  );
+  assert.equal(diagnostics[3].dir.split(/[\\/]/).at(-1), 'conversations');
+  for (const root of diagnostics) {
+    assert.equal(typeof root.dir, 'string');
+    assert.equal(typeof root.exists, 'boolean');
+  }
+  assert.deepEqual(
+    clientWatchCandidates('antigravity').antigravity,
+    clientSourceRoots('antigravity').antigravity.map(({ dir }) => dir),
+    'the native source roots add diagnostics, not duplicate watches'
+  );
+});
+
 // Every `overall` turns on whether a directory exists, so the filesystem is
 // stated rather than depended on: a developer machine with Claude installed and
 // a CI runner without it must not disagree about the same input.
@@ -553,6 +579,33 @@ test('a partial history refresh updates the days it knows and keeps the rest', (
   assert.equal(mergeClientActivityDays(previous, {
     daily: [{ date: '2026-08-04', perClient: { codex: { tokens: 9 } } }]
   }).codex, '2026-08-04');
+});
+
+test('today usage advances activity without waiting for the next history scan', () => {
+  const previous = { codex: '2026-08-04', claude: '2026-08-03' };
+  const days = mergeClientActivityDays(
+    previous,
+    { daily: [{ date: '2026-08-04', perClient: { antigravity: { tokens: 8 } } }] },
+    { clients: { codex: 12, 'antigravity-cli': 9, claude: 0 } },
+    '2026-08-05'
+  );
+  assert.deepEqual(days, {
+    codex: '2026-08-05',
+    claude: '2026-08-03',
+    antigravity: '2026-08-05'
+  });
+});
+
+test('today usage cannot move a known activity day backwards', () => {
+  assert.deepEqual(
+    mergeClientActivityDays(
+      { codex: '2026-08-06' },
+      null,
+      { clients: { codex: 12 } },
+      '2026-08-05'
+    ),
+    { codex: '2026-08-06' }
+  );
 });
 
 test('the hub keeps a valid health record and drops an unusable one', () => {
