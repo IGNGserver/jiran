@@ -28,7 +28,7 @@ const {
 const { collectWslUsage: collectWslUsageImpl, emptyWslBundle, probeWslState: probeWslStateImpl } = require('./wslUsage');
 const { hermesProfileWatchDirs, resolveHermesHome } = require('./hermesProfiles');
 const { mergeHistories, parseGraphResult, normalizeHistory } = require('./history');
-const { retainDailyHistory } = require('./dailyHistoryArchive');
+const { retainDailyHistory, retainLiveDailyHistory } = require('./dailyHistoryArchive');
 const cursorAuth = require('./cursorAuth');
 const { findSessionFiles, codexSessionFile } = require('./sessionFiles');
 const opencodeSession = require('./opencodeSession');
@@ -658,6 +658,7 @@ async function collectHistoryOnce(options) {
     try {
       const retainedGraph = retainDailyHistory(rawGraphs, {
         ...(options.dailyHistoryArchiveOptions || {}),
+        liveDays: options.dailyHistoryLiveDays,
         todayKey,
         capDays,
         writeEnabled: options.dailyHistoryArchiveWriteEnabled
@@ -728,6 +729,7 @@ async function collectUsageOnce(options) {
   let today = emptyPeriod();
   let month = emptyPeriod();
   let allTime = emptyPeriod();
+  let dailyHistoryLiveDays = options.dailyHistoryLiveDays;
   let todayPartitions = null;
   const anchor = options.todayOnlyAnchor;
   const anchorUsed = Boolean(
@@ -901,6 +903,28 @@ async function collectUsageOnce(options) {
   month = mergePeriods(windowsPeriods.month, wslBundle.month);
   allTime = mergePeriods(windowsPeriods.allTime, wslBundle.allTime);
 
+  // The renderer intentionally uses the live today period while a day is in
+  // progress. Callers that do not defer capture persist the largest complete
+  // live snapshot here; startCollector defers it until after transformUsage so
+  // the saved value matches the period delivered to the renderer.
+  if (
+    options.historyEnabled !== false
+    && options.dailyHistoryArchiveEnabled
+    && options.deferLiveHistoryCapture !== true
+  ) {
+    try {
+      const retainedLive = retainLiveDailyHistory(today, {
+        ...(options.dailyHistoryArchiveOptions || {}),
+        liveDays: dailyHistoryLiveDays,
+        todayKey: localTodayKey(collectedAt),
+        writeEnabled: options.dailyHistoryArchiveWriteEnabled
+      });
+      dailyHistoryLiveDays = retainedLive.liveDays || {};
+    } catch (error) {
+      if (typeof options.logger === 'function') options.logger(`daily live history archive failed: ${error.message}`);
+    }
+  }
+
   // WSL attribution (Windows only; null elsewhere). detected = markers found,
   // withData = clients whose WSL scan or local parser returned tokens. The gap
   // is the diagnostic (e.g. Hermes detected but unreadable over 9P).
@@ -970,6 +994,7 @@ async function collectUsageOnce(options) {
       dailyHistoryArchiveEnabled: options.dailyHistoryArchiveEnabled,
       dailyHistoryArchiveWriteEnabled: options.dailyHistoryArchiveWriteEnabled,
       dailyHistoryArchiveOptions: options.dailyHistoryArchiveOptions,
+      dailyHistoryLiveDays,
       onHistoryStatus: options.onHistoryStatus,
       logger: options.logger
     });
@@ -1743,6 +1768,10 @@ function startCollector(options) {
   // rather than kept as a second copy, so the two cannot drift; a restart simply
   // relearns them from the first tick, which always includes history.
   let activityDaysAnchor = {};
+  // Keep the highest complete live day in this collector even when another
+  // process owns the shared archive. A watch tick can then hand its value to a
+  // later full/history tick instead of losing it at the tick boundary.
+  let liveDailyHistoryDays = {};
   let lastFullScanAt = 0;
   let pendingWaiters = [];
   let debounceTimer = null;
@@ -1899,6 +1928,11 @@ function startCollector(options) {
         agentRuntime,
         osInfo: deviceOsInfo,
         includeHistory,
+        // Capture after the runtime's transformUsage hook so the archive uses
+        // the same today period that the user actually sees. The process-local
+        // liveDays overlay is passed into any graph scan that happens first.
+        deferLiveHistoryCapture: true,
+        dailyHistoryLiveDays: liveDailyHistoryDays,
         onHistoryStatus: includeHistory ? (status) => {
           lastHistoryAttemptAt = Date.parse(status.attemptedAt) || lastHistoryAttemptAt;
           const successAt = Date.parse(status.successAt);
@@ -2002,7 +2036,35 @@ function startCollector(options) {
           wslStatusAnchor = captured.wslStatus || null;
         }
       }
-      await onUpdate?.(summary, reason);
+      const transformedSummary = await onUpdate?.(summary, reason);
+      const visibleSummary = transformedSummary && typeof transformedSummary === 'object'
+        ? transformedSummary
+        : summary;
+      if (historyEnabled !== false && options.dailyHistoryArchiveEnabled) {
+        try {
+          const visibleAt = visibleSummary.updatedAt || summary.updatedAt;
+          const visibleDate = visibleAt ? new Date(visibleAt) : new Date();
+          const visibleDateKey = Number.isFinite(visibleDate.getTime())
+            ? localTodayKey(visibleDate)
+            : todayKey;
+          const retainedLive = retainLiveDailyHistory(visibleSummary.today, {
+            ...(options.dailyHistoryArchiveOptions || {}),
+            liveDays: liveDailyHistoryDays,
+            todayKey: visibleDateKey,
+            // Watch ticks update the in-memory maximum on every refresh, but
+            // only full/history ticks write it. This avoids a disk write for
+            // every few-second watch event without dropping the value before
+            // the next tick or local-day rollover.
+            writeEnabled: !anchored || includeHistory
+              || anchor?.dateKey !== visibleDateKey
+              ? options.dailyHistoryArchiveWriteEnabled
+              : false
+          });
+          liveDailyHistoryDays = retainedLive.liveDays || {};
+        } catch (error) {
+          log(`daily live history archive failed: ${error.message}`);
+        }
+      }
       const tickFinishedAt = Date.now();
       lastTickSuccessAt = tickFinishedAt;
       lastTickDurationMs = Math.max(0, tickFinishedAt - tickStartedAt);
