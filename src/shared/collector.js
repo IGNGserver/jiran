@@ -11,7 +11,9 @@ const { appVersion } = require('./appVersion');
 const { normalizeClientsCsv } = require('./clientTracking');
 const {
   CLIENT_HEALTH_VERSION,
+  MAX_SYNC_DETAIL_INPUT_LENGTH,
   MAX_DIAGNOSTICS_PER_CLIENT,
+  classifyClientSyncDetailCode,
   deriveClientOverall
 } = require('./clientHealth');
 const { tokscalePackageNameForPlatform, tokscalePlatformKey } = require('./tokscalePlatform');
@@ -532,7 +534,11 @@ async function maybeSyncCursor(clientsCsv, logger, options = {}) {
     selfSyncThrottle.completeAttempt('cursor', attempt, false);
   } catch (err) {
     if (typeof logger === 'function') logger(`cursor sync failed: ${err.message}`);
-    selfSyncThrottle.completeAttempt('cursor', attempt, true);
+    selfSyncThrottle.completeAttempt('cursor', attempt, true, '', {
+      failureStage: err?.syncFailureStage,
+      detailCode: err?.syncDetailCode || classifyClientSyncDetailCode({ client: 'cursor', text: err?.message }),
+      exitCode: err?.syncExitCode
+    });
     options.onFailure?.('cursor');
   }
 }
@@ -561,7 +567,11 @@ async function maybeSyncAntigravity(clientsCsv, logger, home = os.homedir(), opt
       selfSyncThrottle.completeAttempt('antigravity', attempt, false);
     } catch (err) {
       if (typeof logger === 'function') logger(`antigravity sync failed: ${err.message}`);
-      selfSyncThrottle.completeAttempt('antigravity', attempt, true);
+      selfSyncThrottle.completeAttempt('antigravity', attempt, true, '', {
+        failureStage: err?.syncFailureStage,
+        detailCode: err?.syncDetailCode || classifyClientSyncDetailCode({ client: 'antigravity', text: err?.message }),
+        exitCode: err?.syncExitCode
+      });
       options.onFailure?.('antigravity');
     }
     return;
@@ -586,22 +596,38 @@ async function maybeSyncAntigravity(clientsCsv, logger, home = os.homedir(), opt
     // The failure code reaches the health record; stderr only ever reaches the
     // local log, since it is neither translatable nor reliably free of the
     // user's paths.
-    const settle = (failed, code = '') => {
+    const settle = (failed, code = '', details = {}) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
-      selfSyncThrottle.completeAttempt('antigravity', attempt, failed, code);
+      selfSyncThrottle.completeAttempt('antigravity', attempt, failed, code, details);
       if (failed) options.onFailure?.('antigravity');
       resolve();
     };
-    timer = setTimeout(() => { child.kill('SIGTERM'); settle(true, 'sync-timeout'); }, 30000);
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', () => settle(true, 'sync-spawn-failed'));
+    timer = setTimeout(() => {
+      child.kill('SIGTERM');
+      settle(true, 'sync-timeout', { failureStage: 'timeout' });
+    }, 30000);
+    child.stderr.on('data', (chunk) => {
+      if (stderr.length >= MAX_SYNC_DETAIL_INPUT_LENGTH) return;
+      const remaining = MAX_SYNC_DETAIL_INPUT_LENGTH - stderr.length;
+      stderr += chunk.toString().slice(0, remaining);
+    });
+    child.on('error', (err) => settle(true, 'sync-spawn-failed', {
+      failureStage: 'spawn',
+      detailCode: classifyClientSyncDetailCode({ client: 'antigravity', text: err?.message })
+    }));
     child.on('close', (code) => {
       if (code !== 0 && !settled && typeof logger === 'function') {
         logger(`antigravity sync exited ${code}: ${stderr.trim().slice(0, 200)}`);
       }
-      settle(code !== 0, 'sync-exit-error');
+      settle(code !== 0, 'sync-exit-error', {
+        failureStage: code !== 0 ? 'process-exit' : null,
+        detailCode: code !== 0
+          ? classifyClientSyncDetailCode({ client: 'antigravity', text: stderr })
+          : null,
+        exitCode: code
+      });
     });
     child.stdin?.end();
   });
@@ -1550,6 +1576,11 @@ function deriveClientHealth(clientsCsv, allTimePeriod, options = {}) {
     // is the answer to "why is today still 0", not a fault report.
     if (sync?.lastAttemptAt) entry.collection.lastAttemptAt = new Date(sync.lastAttemptAt).toISOString();
     if (sync?.lastSuccessAt) entry.collection.lastSuccessAt = new Date(sync.lastSuccessAt).toISOString();
+    if (sync?.state === 'failed') {
+      if (sync.failureStage) entry.collection.syncFailureStage = sync.failureStage;
+      if (sync.detailCode) entry.collection.syncDetailCode = sync.detailCode;
+      if (sync.exitCode !== null && sync.exitCode !== undefined) entry.collection.syncExitCode = sync.exitCode;
+    }
     const activityDay = activityDays[client];
     if (activityDay) entry.data.lastActivityDay = activityDay;
     const overall = deriveClientOverall(entry);
