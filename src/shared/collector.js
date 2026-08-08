@@ -1047,6 +1047,68 @@ function dirExists(dir) {
   try { return fs.statSync(dir).isDirectory(); } catch (_) { return false; }
 }
 
+function fileExists(file) {
+  try { return fs.statSync(file).isFile(); } catch (_) { return false; }
+}
+
+function nonBlankEnvPath(name, fallback) {
+  const value = process.env[name];
+  return typeof value === 'string' && value.trim() ? value : fallback;
+}
+
+function xdgDataHome(home) {
+  return nonBlankEnvPath('XDG_DATA_HOME', path.join(home, '.local', 'share'));
+}
+
+function tokscaleHeadlessRoots(home) {
+  const configured = nonBlankEnvPath('TOKSCALE_HEADLESS_DIR', null);
+  if (configured) return [configured];
+  return [
+    path.join(home, '.config', 'tokscale', 'headless'),
+    path.join(home, 'Library', 'Application Support', 'tokscale', 'headless')
+  ];
+}
+
+function copilotExporterPath() {
+  const configured = process.env.COPILOT_OTEL_FILE_EXPORTER_PATH;
+  if (typeof configured !== 'string') return null;
+  const trimmed = configured.trim();
+  return trimmed ? path.resolve(trimmed) : null;
+}
+
+function hasWatchableParent(file) {
+  return path.dirname(file) !== path.parse(file).root;
+}
+
+// The one derivation of the custom Copilot OTel exporter, shared by the source
+// table, the watcher's ignore matcher and the attribution map. It used to exist
+// in two places that canonicalised differently before comparing against
+// ~/.copilot/otel, and the two answers diverge as soon as any part of that path
+// is a symlink — which either leaves the exporter's parent watched with no
+// pruning at all, or silently drops the exporter's own events.
+//
+// tokscale reads exactly the file this env var names (`path.is_file()`, no glob,
+// no directory walk), so the watch is pinned to that one file. Anything under
+// ~/.copilot/otel is already covered recursively and returns null here.
+function copilotExporterWatch(home) {
+  const file = copilotExporterPath();
+  if (!file || !hasWatchableParent(file)) return null;
+  const otelRoot = path.resolve(canonicalWatchPath(path.join(home, '.copilot', 'otel')));
+  const canonicalFile = canonicalWatchFilePath(file);
+  if (canonicalFile.startsWith(otelRoot + path.sep)) return null;
+  return { file, canonicalFile, dir: path.dirname(file) };
+}
+
+function clineCliSessionRoot(home) {
+  const sessionDataDir = nonBlankEnvPath('CLINE_SESSION_DATA_DIR', null);
+  if (sessionDataDir) return sessionDataDir;
+  const dataDir = nonBlankEnvPath('CLINE_DATA_DIR', null);
+  if (dataDir) return path.join(dataDir, 'sessions');
+  const clineDir = nonBlankEnvPath('CLINE_DIR', null);
+  if (clineDir) return path.join(clineDir, 'data', 'sessions');
+  return path.join(home, '.cline', 'data', 'sessions');
+}
+
 function hasCopilotChatSessions(workspaceRoot) {
   try {
     return fs.readdirSync(workspaceRoot, { withFileTypes: true })
@@ -1071,22 +1133,52 @@ function clientSourceRoots(clientsCsv) {
   const enabled = new Set(String(clientsCsv || '').split(',').map((value) => value.trim().toLowerCase()).filter(Boolean));
   const byClient = {};
   const add = (client, ...roots) => {
-    if (enabled.has(client)) byClient[client] = roots.map(([id, dir]) => ({ id, dir }));
+    if (enabled.has(client)) {
+      byClient[client] = roots.map(([id, dir, sourcePath]) => ({
+        id,
+        dir,
+        ...(sourcePath ? { sourcePath } : {})
+      }));
+    }
   };
   add('claude', ['claude-projects', path.join(home, '.claude', 'projects')], ['claude-transcripts', path.join(home, '.claude', 'transcripts')]);
-  add('codex', ['codex-sessions', path.join(home, '.codex', 'sessions')]);
+  const codexHome = nonBlankEnvPath('CODEX_HOME', path.join(home, '.codex'));
+  add(
+    'codex',
+    ['codex-sessions', path.join(codexHome, 'sessions')],
+    ['codex-sessions', path.join(codexHome, 'archived_sessions')],
+    ...tokscaleHeadlessRoots(home).map((root) => ['codex-sessions', path.join(root, 'codex')])
+  );
   const hermesHome = resolveHermesHome({ env: process.env, homeDir: home });
   add('hermes', ['hermes-home', hermesHome], ...hermesProfileWatchDirs(hermesHome).map((dir) => ['hermes-profile', dir]));
-  // Within the default OpenCode data root, Tokscale 4.10.0 reads the direct
+  // Within the default OpenCode data root, Tokscale reads the direct
   // opencode*.db family and the legacy storage/message/*/*.json source. The
   // watcher prunes the rest of this broad app data root below.
-  add('opencode', ['opencode-data', path.join(home, '.local', 'share', 'opencode')]);
+  //
+  // Only the roots tokscale declares as `PathRoot::XdgData` go through this —
+  // opencode, zed and micode (clients.rs), plus the CodeBuddy extension logs it
+  // resolves via `dirs::data_local_dir()`. Kiro's CLI database is deliberately
+  // NOT one of them: tokscale spells it as a home-relative literal
+  // (`{home}/.local/share/kiro-cli/data.sqlite3`, scanner.rs), so following XDG
+  // there would watch a directory it never reads. The split is upstream's, not
+  // an oversight — check clients.rs before adding or removing a root here.
+  const xdgHome = xdgDataHome(home);
+  add('opencode', ['opencode-data', path.join(xdgHome, 'opencode')]);
   add('openclaw', ['openclaw-agents', path.join(home, '.openclaw', 'agents')]);
   add('cursor', ['tokscale-cursor-cache', path.join(home, '.config', 'tokscale', 'cursor-cache')]);
   add('antigravity', ['tokscale-antigravity-cache', path.join(home, '.config', 'tokscale', 'antigravity-cache')]);
-  add('kimi', ['kimi-sessions', path.join(home, '.kimi', 'sessions')], ['kimi-code-sessions', path.join(process.env.KIMI_CODE_HOME || path.join(home, '.kimi-code'), 'sessions')]);
+  // A whitespace-only KIMI_CODE_HOME counts as unset, matching tokscale: it
+  // joins `sessions` onto the raw value, so a blank export would resolve to the
+  // root-level /sessions and hide the real one.
+  const kimiCodeHome = nonBlankEnvPath('KIMI_CODE_HOME', path.join(home, '.kimi-code'));
+  add('kimi', ['kimi-sessions', path.join(home, '.kimi', 'sessions')], ['kimi-code-sessions', path.join(kimiCodeHome, 'sessions')]);
   add('qwen', ['qwen-projects', path.join(home, '.qwen', 'projects')]);
-  add('grok', ['grok-sessions', path.join(process.env.GROK_HOME || path.join(home, '.grok'), 'sessions')]);
+  const grokHome = nonBlankEnvPath('GROK_HOME', path.join(home, '.grok'));
+  add(
+    'grok',
+    ['grok-sessions', path.join(grokHome, 'sessions')],
+    ['grok-unified-log', path.join(grokHome, 'logs'), path.join(grokHome, 'logs', 'unified.jsonl')]
+  );
   // Tokscale 4.5.2 also parses VS Code Copilot Chat JSONL under each
   // workspaceStorage/*/chatSessions directory. Watch the workspaceStorage roots
   // so newly created workspaces are picked up; watchIgnoreMatcher prunes every
@@ -1099,11 +1191,19 @@ function clientSourceRoots(clientsCsv) {
       : []),
     path.join(home, 'AppData', 'Roaming', 'Code', 'User', 'workspaceStorage')
   ];
-  add(
-    'copilot',
-    ['copilot-otel', path.join(home, '.copilot', 'otel')],
+  const copilotOtelRoot = path.join(home, '.copilot', 'otel');
+  const copilotRoots = [
+    ['copilot-otel', copilotOtelRoot],
+    ['copilot-data', path.join(home, '.copilot'), path.join(home, '.copilot', 'data.db')],
     ...[...new Set(copilotWorkspaceRoots)].map((dir) => ['vscode-workspace-storage', dir])
-  );
+  ];
+  // The parent is the watch root because the exporter file may not exist yet;
+  // the exact file is the source. watchAttributionRootsForClients() keeps that
+  // parent from becoming a copilot attribution prefix — it is an arbitrary
+  // user-chosen directory and can be $HOME.
+  const exporter = copilotExporterWatch(home);
+  if (exporter) copilotRoots.push(['copilot-otel-exporter', exporter.dir, exporter.file]);
+  add('copilot', ...copilotRoots);
   add('pi', ['pi-sessions', path.join(home, '.pi', 'agent', 'sessions')], ['omp-sessions', path.join(home, '.omp', 'agent', 'sessions')]);
   // Zed: tokscale reads the XdgData root on every platform AND the native macOS
   // (Application Support) / Windows (LOCALAPPDATA) roots (see tokscale scanner.rs
@@ -1111,7 +1211,7 @@ function clientSourceRoots(clientsCsv) {
   // seconds-level refresh and a correct waiting/missing status.
   add(
     'zed',
-    ['zed-threads', path.join(home, '.local', 'share', 'zed', 'threads')],
+    ['zed-threads', path.join(xdgHome, 'zed', 'threads')],
     ['zed-threads', path.join(home, 'Library', 'Application Support', 'Zed', 'threads')],
     ['zed-threads', path.join(process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'Zed', 'threads')]
   );
@@ -1132,22 +1232,48 @@ function clientSourceRoots(clientsCsv) {
   // missing dir is dropped by watchClientRootsForClients.
   add(
     'micode',
-    ['mimocode-data', path.join(home, '.local', 'share', 'mimocode')],
+    ['mimocode-data', path.join(xdgHome, 'mimocode')],
     ['mimocode-orca-data', path.join(home, 'Library', 'Application Support', 'orca', 'mimocode-hooks', 'shared', 'data')]
   );
-  add('zcode', ['zcode-projects', path.join(home, '.zcode', 'projects')]);
+  const zcodeDbDir = path.join(home, '.zcode', 'cli', 'db');
+  add(
+    'zcode',
+    ['zcode-projects', path.join(home, '.zcode', 'projects')],
+    ['zcode-cli-db', zcodeDbDir, path.join(zcodeDbDir, 'db.sqlite')]
+  );
   // CodeBuddy (Tencent): tokscale reads the home-relative CLI/WebUI JSONL dir on
   // every platform, plus the IDE / VS Code extension logs under a platform-
   // specific CodeBuddyExtension/Logs root (scanner.rs). Watch both so CLI and
   // IDE usage each refresh in seconds; the shared Code/logs tree is deliberately
   // not watched (too broad for polling — full ticks still scan it). No --home
   // host-DB fallback, so every root is safe to watch cross-platform.
-  const codebuddyExtLogs = process.platform === 'win32'
-    ? path.join(process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'CodeBuddyExtension', 'Logs')
-    : process.platform === 'darwin'
-      ? path.join(home, 'Library', 'Application Support', 'CodeBuddyExtension', 'Logs')
-      : path.join(home, '.local', 'share', 'CodeBuddyExtension', 'Logs');
-  add('codebuddy', ['codebuddy-projects', path.join(home, '.codebuddy', 'projects')], ['codebuddy-extension-logs', codebuddyExtLogs]);
+  // Two extension-log roots, because tokscale scans two (scanner.rs). It seeds
+  // the list with the home-relative Windows-shaped path on EVERY platform, and
+  // only then adds the native `dirs::data_local_dir()` root — so a home carried
+  // over from Windows is scanned on macOS/Linux too, and watching only the
+  // native one would let the periodic scan see usage the watcher never does.
+  //
+  // `dirs::data_local_dir()` is %LOCALAPPDATA% on Windows, Application Support
+  // on macOS, and the XDG data home on Linux, so the Linux arm follows
+  // XDG_DATA_HOME rather than a hardcoded .local/share. Being a `dirs` lookup
+  // rather than a path literal is why it does not appear in tokscale's strings.
+  //
+  // On Windows the two normally resolve to the same directory and the Set
+  // collapses them; elsewhere watchClientRootsForClients drops whichever is
+  // absent, which is the usual case for the Windows-shaped one.
+  const codebuddyExtLogRoots = [
+    path.join(home, 'AppData', 'Local', 'CodeBuddyExtension', 'Logs'),
+    process.platform === 'win32'
+      ? path.join(process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'), 'CodeBuddyExtension', 'Logs')
+      : process.platform === 'darwin'
+        ? path.join(home, 'Library', 'Application Support', 'CodeBuddyExtension', 'Logs')
+        : path.join(xdgHome, 'CodeBuddyExtension', 'Logs')
+  ];
+  add(
+    'codebuddy',
+    ['codebuddy-projects', path.join(home, '.codebuddy', 'projects')],
+    ...[...new Set(codebuddyExtLogRoots)].map((dir) => ['codebuddy-extension-logs', dir])
+  );
   // WorkBuddy (Tencent): watch only the detailed session dir (projects/*.jsonl,
   // the preferred source) — not the whole ~/.workbuddy app home, whose config /
   // auth churn would add polling load and spurious ticks with no usage change.
@@ -1194,7 +1320,8 @@ function clientSourceRoots(clientsCsv) {
     ['cline-tasks', path.join(home, '.config', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'tasks')],
     ['cline-tasks', path.join(home, 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'tasks')],
     ['cline-tasks', path.join(process.env.APPDATA || path.join(home, 'AppData', 'Roaming'), 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'tasks')],
-    ['cline-tasks', path.join(home, '.vscode-server', 'data', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'tasks')]
+    ['cline-tasks', path.join(home, '.vscode-server', 'data', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'tasks')],
+    ['cline-cli-sessions', clineCliSessionRoot(home)]
   );
   return byClient;
 }
@@ -1204,7 +1331,13 @@ function clientSourceRoots(clientsCsv) {
 function clientWatchCandidates(clientsCsv) {
   const byClient = {};
   for (const [client, roots] of Object.entries(clientSourceRoots(clientsCsv))) {
-    byClient[client] = roots.map((root) => root.dir);
+    // The Copilot data root already keeps its `otel/` child through the
+    // matcher below. Keep that child as a diagnostic/source check, but do not
+    // hand both nested paths to chokidar or it may install two native watches
+    // over the same tree.
+    byClient[client] = roots
+      .filter((root) => !(client === 'copilot' && root.id === 'copilot-otel'))
+      .map((root) => root.dir);
   }
   return byClient;
 }
@@ -1268,6 +1401,34 @@ function watchPathsForClients(clientsCsv) {
   return [...new Set(Object.values(watchClientRootsForClients(clientsCsv)).flat())];
 }
 
+// The same roots, but as attribution prefixes rather than watch targets. The two
+// differ in exactly one place: a custom Copilot exporter has to be *watched* by
+// its parent directory (the file can appear later), while attributing by that
+// parent would be wrong — it is an arbitrary user-chosen path, and one pointing
+// at a file in $HOME would make every other client's event also target copilot,
+// turning each targeted scan into a two-client scan. The exact file attributes
+// instead. The parent survives only when another copilot source already owns it
+// (an exporter written straight into ~/.copilot), so `otel/` keeps its prefix.
+// Takes the watch roots when the caller already has them: setupWatchers() needs
+// both maps from one probe, and deriving them from two separate dirExists sweeps
+// would let a directory created between the two land in one map and not the
+// other — the same "two derivations of one thing" trap the exporter had.
+function watchAttributionRootsForClients(clientsCsv, watchRoots = null) {
+  const rootsByClient = watchRoots || watchClientRootsForClients(clientsCsv);
+  const exporter = copilotExporterWatch(os.homedir());
+  if (!exporter || !rootsByClient.copilot) return rootsByClient;
+  const exporterDir = path.resolve(exporter.dir);
+  const ownedByOtherSource = new Set(
+    (clientSourceRoots(clientsCsv).copilot || [])
+      .filter((root) => root.id !== 'copilot-otel-exporter')
+      .map((root) => path.resolve(root.dir))
+  );
+  const copilot = rootsByClient.copilot
+    .filter((root) => path.resolve(root) !== exporterDir || ownedByOtherSource.has(exporterDir));
+  copilot.push(exporter.canonicalFile);
+  return { ...rootsByClient, copilot: [...new Set(copilot)] };
+}
+
 function clientsForWatchPath(filePath, rootsByClient) {
   if (!filePath) return [];
   const resolved = path.resolve(filePath);
@@ -1306,6 +1467,18 @@ const OPENCODE_DB_WATCH_PATTERN = /^opencode(?:-[A-Za-z0-9._-]+)?\.db(?:-(?:wal|
 // The home root itself stays watched so a freshly created database or sidecar
 // still surfaces on the next top-level readdir.
 const MICODE_DB_WATCH_PATTERN = /^mimocode(?:-[A-Za-z0-9._-]+)?\.db(?:-(?:wal|shm))?$/;
+// Kiro CLI and Zed expose one SQLite database at a known path. Keep their
+// parent dirs watched so the database can appear after startup, but do not
+// recurse through the application data trees around them.
+const KIRO_DB_WATCH_PATTERN = /^data\.sqlite3(?:-(?:wal|shm))?$/;
+const ZED_DB_WATCH_PATTERN = /^threads\.db(?:-(?:wal|shm))?$/;
+const COPILOT_DB_WATCH_PATTERN = /^data\.db(?:-(?:wal|shm))?$/;
+const ZCODE_DB_WATCH_PATTERN = /^db\.sqlite(?:-(?:wal|shm))?$/;
+const GROK_UNIFIED_LOG_FILE = 'unified.jsonl';
+// Tokscale scans only these two CodeBuddy extension log subtrees. Keep their
+// recursive layout intact, but prune unrelated siblings under Logs before
+// chokidar allocates watches for them.
+const CODEBUDDY_EXTENSION_SOURCE_DIRS = new Set(['CodeBuddyIDE', 'VSCode']);
 // Which parts of an Antigravity IDE home are worth an event. Not "what tokscale
 // parses" — tokscale gets the token data over RPC from the running language
 // server and only reads `brain/`+`conversations/` to enumerate session ids.
@@ -1336,6 +1509,16 @@ function watchIgnoreMatcher(clientsCsv) {
   const copilotRoots = (candidates.copilot || [])
     .filter((dir) => path.basename(dir) === 'workspaceStorage')
     .map((dir) => path.resolve(canonicalWatchPath(dir)));
+  const copilotDataRoots = (candidates.copilot || [])
+    .filter((dir) => path.basename(dir) === '.copilot')
+    .map((dir) => path.resolve(canonicalWatchPath(dir)));
+  const copilotDataRootSet = new Set(copilotDataRoots);
+  const copilotExporter = copilotExporterWatch(os.homedir());
+  const canonicalCopilotExporter = copilotExporter ? copilotExporter.canonicalFile : null;
+  const copilotExporterRoots = copilotExporter
+    ? [path.resolve(canonicalWatchPath(copilotExporter.dir))]
+    : [];
+  const copilotExporterRootSet = new Set(copilotExporterRoots);
   const antigravityEnabled = String(clientsCsv || '').split(',').map((value) => value.trim().toLowerCase()).includes('antigravity');
   const antigravityRoots = antigravityEnabled
     ? antigravityDataRoots().map((dir) => path.resolve(canonicalWatchPath(dir)))
@@ -1345,9 +1528,91 @@ function watchIgnoreMatcher(clientsCsv) {
   const opencodeRootSet = new Set(opencodeRoots);
   const micodeRoots = (candidates.micode || []).map((dir) => path.resolve(canonicalWatchPath(dir)));
   const micodeRootSet = new Set(micodeRoots);
-  if (hermesRoots.length === 0 && copilotRoots.length === 0 && antigravityRoots.length === 0 && opencodeRoots.length === 0 && micodeRoots.length === 0) return undefined;
+  const kiroCliRoots = (candidates.kiro || [])
+    .filter((dir) => path.basename(dir) === 'kiro-cli')
+    .map((dir) => path.resolve(canonicalWatchPath(dir)));
+  const kiroCliRootSet = new Set(kiroCliRoots);
+  const zedRoots = (candidates.zed || [])
+    .filter((dir) => path.basename(dir) === 'threads')
+    .map((dir) => path.resolve(canonicalWatchPath(dir)));
+  const zedRootSet = new Set(zedRoots);
+  const codebuddyExtensionRoots = (candidates.codebuddy || [])
+    .filter((dir) => path.basename(dir) === 'Logs')
+    .map((dir) => path.resolve(canonicalWatchPath(dir)));
+  const codebuddyExtensionRootSet = new Set(codebuddyExtensionRoots);
+  const grokUnifiedRoots = (candidates.grok || [])
+    .filter((dir) => path.basename(dir) === 'logs')
+    .map((dir) => path.resolve(canonicalWatchPath(dir)));
+  const grokUnifiedRootSet = new Set(grokUnifiedRoots);
+  const zcodeDbRoots = (candidates.zcode || [])
+    .filter((dir) => path.basename(dir) === 'db')
+    .map((dir) => path.resolve(canonicalWatchPath(dir)));
+  const zcodeDbRootSet = new Set(zcodeDbRoots);
+  const boundedWatchRootSet = new Set([
+    ...hermesRoots,
+    ...copilotRoots,
+    ...copilotDataRoots,
+    ...antigravityRoots,
+    ...opencodeRoots,
+    ...micodeRoots,
+    ...grokUnifiedRoots,
+    ...zcodeDbRoots,
+    ...kiroCliRoots,
+    ...zedRoots,
+    ...codebuddyExtensionRoots
+  ]);
+  // `ignored` is global to the chokidar instance, while the roots below may
+  // overlap. Keep every non-Copilot recursive source in the union before the
+  // custom exporter branch gets a chance to prune its parent directory. The
+  // bounded roots above are handled by their client-specific branches below;
+  // self-synced cache roots are never handed to chokidar in the first place.
+  const antigravityCliRoots = antigravityEnabled && dirExists(antigravityCliDataDir())
+    ? [path.resolve(canonicalWatchPath(antigravityCliDataDir()))]
+    : [];
+  const recursiveWatchRootSet = new Set([
+    ...Object.entries(candidates)
+      .filter(([client]) => client !== 'copilot' && !SELF_SYNCED_CLIENTS.has(client))
+      .flatMap(([, roots]) => roots)
+      .map((dir) => path.resolve(canonicalWatchPath(dir)))
+      .filter((dir) => !boundedWatchRootSet.has(dir)),
+    ...antigravityCliRoots
+  ]);
+  if (
+    hermesRoots.length === 0
+    && copilotRoots.length === 0
+    && copilotDataRoots.length === 0
+    && copilotExporterRoots.length === 0
+    && antigravityRoots.length === 0
+    && opencodeRoots.length === 0
+    && micodeRoots.length === 0
+    && kiroCliRoots.length === 0
+    && zedRoots.length === 0
+    && codebuddyExtensionRoots.length === 0
+    && grokUnifiedRoots.length === 0
+    && zcodeDbRoots.length === 0
+  ) return undefined;
   return (target) => {
     const resolved = path.resolve(target);
+    // These explicit exporter paths/parents are roots in their own right. A
+    // broad bounded client root (for example OpenCode) must not prune either
+    // one before its own source-specific branch gets to classify the path.
+    if (canonicalCopilotExporter && resolved === canonicalCopilotExporter) return false;
+    if (copilotExporterRootSet.has(resolved)) return false;
+    // `ignored` is global to the chokidar instance, so a recursive source that
+    // sits *inside* a bounded client's root has to stay visible — an explicit
+    // CODEX_HOME or CLINE_SESSION_DATA_DIR nested under another client's data
+    // root would otherwise be pruned by that client's rule.
+    //
+    // That nested case is the only overlap this guarantees, and it is the only
+    // one covered by a test. Overlap between roots is NOT resolved in general:
+    // a recursive root equal to a bounded root loses (it is filtered out of the
+    // set above), a recursive root that is an *ancestor* of a bounded root wins
+    // and cancels that client's pruning entirely, and two bounded roots resolve
+    // by whichever branch below is written first. All three need a specificity
+    // rule this ordered chain cannot express — see the table-driven follow-up.
+    for (const root of recursiveWatchRootSet) {
+      if (resolved === root || resolved.startsWith(root + path.sep)) return false;
+    }
     // Every explicit watch root stays watched — the home dir AND each profile
     // dir. A profile dir lives under the home root, so the child-prune below
     // would otherwise ignore it (basename isn't a db file) before we recognise
@@ -1355,6 +1620,17 @@ function watchIgnoreMatcher(clientsCsv) {
     if (hermesRootSet.has(resolved)) return false;
     for (const root of hermesRoots) {
       if (resolved.startsWith(root + path.sep)) return !HERMES_DB_FILES.has(path.basename(resolved));
+    }
+    if (copilotDataRootSet.has(resolved)) return false;
+    for (const root of copilotDataRoots) {
+      if (!resolved.startsWith(root + path.sep)) continue;
+      // The exporter file and its parent already returned above, so neither can
+      // reach this branch — do not re-test them here. Two earlier copies of that
+      // rule lived in this loop and only ever restated the top of the function.
+      const parts = path.relative(root, resolved).split(path.sep);
+      if (parts[0] === 'otel') return false;
+      if (parts.length === 1) return !COPILOT_DB_WATCH_PATTERN.test(parts[0]);
+      return true;
     }
     for (const root of copilotRoots) {
       if (resolved === root) return false;
@@ -1407,6 +1683,50 @@ function watchIgnoreMatcher(clientsCsv) {
       if (path.dirname(resolved) !== root) return true;
       return !MICODE_DB_WATCH_PATTERN.test(path.basename(resolved));
     }
+    if (grokUnifiedRootSet.has(resolved)) return false;
+    for (const root of grokUnifiedRoots) {
+      if (!resolved.startsWith(root + path.sep)) continue;
+      // The dual-source Grok scanner derives exactly logs/unified.jsonl from
+      // each Grok home. Keep the log parent visible for a file created later,
+      // but do not recurse through unrelated log files.
+      if (path.dirname(resolved) !== root) return true;
+      return path.basename(resolved) !== GROK_UNIFIED_LOG_FILE;
+    }
+    if (zcodeDbRootSet.has(resolved)) return false;
+    for (const root of zcodeDbRoots) {
+      if (!resolved.startsWith(root + path.sep)) continue;
+      // ZCode v2 is a direct SQLite path, not a recursive project source.
+      // Keep WAL/SHM as event signals without treating them as databases.
+      if (path.dirname(resolved) !== root) return true;
+      return !ZCODE_DB_WATCH_PATTERN.test(path.basename(resolved));
+    }
+    if (kiroCliRootSet.has(resolved)) return false;
+    for (const root of kiroCliRoots) {
+      if (!resolved.startsWith(root + path.sep)) continue;
+      // Tokscale opens only the direct data.sqlite3 path. Keep the parent
+      // watched so a fresh install or a recreated database is discovered, but
+      // never recurse into other kiro-cli runtime files and directories.
+      if (path.dirname(resolved) !== root) return true;
+      return !KIRO_DB_WATCH_PATTERN.test(path.basename(resolved));
+    }
+    if (zedRootSet.has(resolved)) return false;
+    for (const root of zedRoots) {
+      if (!resolved.startsWith(root + path.sep)) continue;
+      // Tokscale resolves threads/threads.db directly. WAL/SHM remain live
+      // write signals even though they are not parsed as separate databases.
+      if (path.dirname(resolved) !== root) return true;
+      return !ZED_DB_WATCH_PATTERN.test(path.basename(resolved));
+    }
+    if (codebuddyExtensionRootSet.has(resolved)) return false;
+    for (const root of codebuddyExtensionRoots) {
+      if (!resolved.startsWith(root + path.sep)) continue;
+      const parts = path.relative(root, resolved).split(path.sep);
+      return !CODEBUDDY_EXTENSION_SOURCE_DIRS.has(parts[0]);
+    }
+    for (const root of copilotExporterRoots) {
+      if (!resolved.startsWith(root + path.sep)) continue;
+      return true;
+    }
     return false; // paths outside the bounded client roots are never ignored
   };
 }
@@ -1416,15 +1736,28 @@ function watchIgnoreMatcher(clientsCsv) {
 // derived from this rather than computed beside it, so the presence dot in the
 // UI and the health record can never disagree about what was found.
 function sourceRootExists(root) {
+  if (root.sourcePath) return fileExists(root.sourcePath);
   return root.id === 'vscode-workspace-storage'
     ? hasCopilotChatSessions(root.dir)
     : dirExists(root.dir);
 }
 
+// `dir` is what the diagnostics panel prints, so for an exact-file source it has
+// to be the file `exists` actually answered for. Printing the watch parent while
+// `exists` probed a file inside it makes the panel report a directory that is
+// plainly there as missing — the one question the panel exists to answer. The
+// watch root stays available to the watcher through clientWatchCandidates(),
+// which reads clientSourceRoots() directly; `sourcePath` rides along so a reveal
+// can tell a file from a directory without stat-ing it again.
 function evaluatedClientSourceRoots(clientsCsv) {
   return Object.fromEntries(Object.entries(clientSourceRoots(clientsCsv)).map(([client, roots]) => [
     client,
-    roots.map((root) => ({ ...root, exists: sourceRootExists(root) }))
+    roots.map((root) => ({
+      id: root.id,
+      dir: root.sourcePath || root.dir,
+      ...(root.sourcePath ? { sourcePath: root.sourcePath } : {}),
+      exists: sourceRootExists(root)
+    }))
   ]));
 }
 
@@ -1760,6 +2093,14 @@ function canonicalWatchPath(dir) {
   if (process.platform !== 'win32') return dir;
   try { return fs.realpathSync.native(dir); }
   catch (_) { return dir; }
+}
+
+// The exporter file may not exist when the watcher starts, so canonicalise its
+// existing parent and append the original basename instead of realpathing the
+// file itself. This keeps exact-file matching in the same path space as the
+// canonical directory root handed to chokidar on Windows.
+function canonicalWatchFilePath(file) {
+  return path.join(path.resolve(canonicalWatchPath(path.dirname(file))), path.basename(file));
 }
 
 function watcherOptions(usePolling, ignored) {
@@ -2316,8 +2657,20 @@ function startCollector(options) {
     // Canonicalise before anything derives from these roots, so the paths handed
     // to chokidar and the paths clientsForWatchPath matches against are the same
     // strings. Resolving only one of the two would silently break attribution.
+    // One dirExists sweep feeds both maps: probing twice would let a directory
+    // created between the sweeps land in the watch list and not the attribution
+    // list, or the reverse.
+    const watchRoots = watchClientRootsForClients(clients);
     const rootsByClient = Object.fromEntries(
-      Object.entries(watchClientRootsForClients(clients))
+      Object.entries(watchRoots)
+        .map(([client, dirs]) => [client, dirs.map(canonicalWatchPath)])
+    );
+    // Watch targets and attribution prefixes are the same list everywhere except
+    // a custom Copilot exporter, whose parent must be watched without becoming a
+    // copilot prefix. Canonicalised through the same function so both still
+    // compare equal to the paths chokidar reports.
+    const attributionRootsByClient = Object.fromEntries(
+      Object.entries(watchAttributionRootsForClients(clients, watchRoots))
         .map(([client, dirs]) => [client, dirs.map(canonicalWatchPath)])
     );
     // A subset of the same roots, matched separately so a write to a client's
@@ -2347,7 +2700,7 @@ function startCollector(options) {
             ? activityRevision
             : Math.max(pendingActivityRevision, activityRevision);
         }
-        const eventClients = clientsForWatchPath(filePath, rootsByClient);
+        const eventClients = clientsForWatchPath(filePath, attributionRootsByClient);
         for (const client of clientsForWatchPath(filePath, sourceSyncRootsByClient)) {
           sourceSyncQueue.record(client);
         }
@@ -2492,6 +2845,7 @@ module.exports = {
   clientDiagnosticRoots,
   clientSourceChecks,
   clientSourceRoots,
+  clientsForWatchPath,
   clientWatchCandidates,
   computePeriodWindows,
   configFingerprint,
@@ -2527,6 +2881,7 @@ module.exports = {
   tokscaleCommand,
   tokscaleClientFilter,
   TOKSCALE_CLIENT_ALIASES,
+  watchAttributionRootsForClients,
   watcherOptions,
   watchIgnoreMatcher,
   watchPathsForClients
