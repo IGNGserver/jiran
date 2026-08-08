@@ -1060,12 +1060,24 @@ function xdgDataHome(home) {
   return nonBlankEnvPath('XDG_DATA_HOME', path.join(home, '.local', 'share'));
 }
 
+// Where tokscale looks for captured `codex exec --json` output. Both defaults
+// are scanned on every platform — upstream pushes them with no cfg gate, so the
+// Application Support one is not a macOS variant of the .config one — and
+// TOKSCALE_HEADLESS_DIR replaces the pair rather than adding to it
+// (scanner.rs `headless_roots_with_env_strategy`). Neither default follows
+// XDG_CONFIG_HOME: upstream spells the .config path as a literal.
+//
+// `optional` marks a root whose absence carries no information. Nobody has
+// these unless they opted into a capture workflow, so the diagnostics panel
+// hides them when they are missing rather than showing them struck through
+// beside a real "Codex wrote nothing here". A configured root is the opposite:
+// the user named that path, so its absence is exactly what they want to see.
 function tokscaleHeadlessRoots(home) {
   const configured = nonBlankEnvPath('TOKSCALE_HEADLESS_DIR', null);
-  if (configured) return [configured];
+  if (configured) return [{ dir: configured, optional: false }];
   return [
-    path.join(home, '.config', 'tokscale', 'headless'),
-    path.join(home, 'Library', 'Application Support', 'tokscale', 'headless')
+    { dir: path.join(home, '.config', 'tokscale', 'headless'), optional: true },
+    { dir: path.join(home, 'Library', 'Application Support', 'tokscale', 'headless'), optional: true }
   ];
 }
 
@@ -1134,10 +1146,11 @@ function clientSourceRoots(clientsCsv) {
   const byClient = {};
   const add = (client, ...roots) => {
     if (enabled.has(client)) {
-      byClient[client] = roots.map(([id, dir, sourcePath]) => ({
+      byClient[client] = roots.map(([id, dir, sourcePath, optional]) => ({
         id,
         dir,
-        ...(sourcePath ? { sourcePath } : {})
+        ...(sourcePath ? { sourcePath } : {}),
+        ...(optional ? { optional: true } : {})
       }));
     }
   };
@@ -1147,7 +1160,7 @@ function clientSourceRoots(clientsCsv) {
     'codex',
     ['codex-sessions', path.join(codexHome, 'sessions')],
     ['codex-sessions', path.join(codexHome, 'archived_sessions')],
-    ...tokscaleHeadlessRoots(home).map((root) => ['codex-sessions', path.join(root, 'codex')])
+    ...tokscaleHeadlessRoots(home).map(({ dir, optional }) => ['codex-sessions', path.join(dir, 'codex'), null, optional])
   );
   const hermesHome = resolveHermesHome({ env: process.env, homeDir: home });
   add('hermes', ['hermes-home', hermesHome], ...hermesProfileWatchDirs(hermesHome).map((dir) => ['hermes-profile', dir]));
@@ -1686,6 +1699,7 @@ function evaluatedClientSourceRoots(clientsCsv) {
       id: root.id,
       dir: root.sourcePath || root.dir,
       ...(root.sourcePath ? { sourcePath: root.sourcePath } : {}),
+      ...(root.optional ? { optional: true } : {}),
       exists: sourceRootExists(root)
     }))
   ]));
@@ -1735,6 +1749,24 @@ function clientSourceChecks(clientsCsv, options = {}) {
 // holds antigravity's *sync cache*, which is ours and says nothing about which
 // Antigravity is installed — the IDE session roots and the CLI's own data dir
 // are the ones that answer it, and they are checks without being watch roots.
+// What the diagnostics panel should list, which is not everything probed. An
+// optional root that is absent is dropped here, in the main process, so the
+// flag never crosses IPC: the renderer flattens cached sources to
+// `exists: false, pending: true` while a re-probe is in flight, and any
+// visibility rule that reads `exists` downstream of that would blink an
+// existing capture directory out of the panel and back on every snapshot.
+// Deciding it where `exists` is still the answer to a real stat() is the only
+// place the question can be asked once.
+//
+// clientDiagnosticRoots() stays faithful for callers that want every probed
+// root — the reveal handler picks from it and selects on `exists` itself.
+function visibleDiagnosticRoots(clientsCsv) {
+  return Object.fromEntries(Object.entries(clientDiagnosticRoots(clientsCsv)).map(([client, roots]) => [
+    client,
+    roots.filter((root) => !(root.optional === true && root.exists !== true))
+  ]));
+}
+
 function clientDiagnosticRoots(clientsCsv) {
   const byClient = evaluatedClientSourceRoots(clientsCsv);
   if (byClient.antigravity) {
@@ -2773,6 +2805,7 @@ module.exports = {
   clientActivityDaysFromHistory,
   clientDataDirPresence,
   clientDiagnosticRoots,
+  visibleDiagnosticRoots,
   clientSourceChecks,
   clientSourceRoots,
   clientsForWatchPath,
