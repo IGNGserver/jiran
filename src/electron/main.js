@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, nativeImage, net, Notification, screen, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
-const { defaultDeviceId, generateHubSecret, lanIpv4Addresses, loadDotEnv, pidFilePath, sharedDataDir } = require('../shared/config');
+const { defaultDeviceId, generateHubSecret, lanIpv4Addresses, loadDotEnv, pidFilePath, readJson, sharedDataDir } = require('../shared/config');
 const {
   CredentialStore,
   credentialSettingsForRenderer,
@@ -42,6 +42,8 @@ installSafeStdout();
 const electronClaudeWebFetch = createClaudeWebFetch(net);
 const { DEFAULT_CLIENTS, KNOWN_CLIENTS, clientsCsvForSetting } = require('../shared/clientTracking');
 const { clientDiagnosticRoots, lookupModelPricing, normalizeHistoryIntervalMs, visibleDiagnosticRoots } = require('../shared/collector');
+const { deviceRecordFromAnchor } = require('../shared/anchorSeed');
+const { sendWhenRendererReady } = require('./deferredWindowSend');
 const { createDeviceRuntime } = require('../shared/deviceRuntime');
 const { createDiagnosticJournal } = require('../shared/diagnosticJournal');
 const { createDiagnosticReportGenerator } = require('./diagnostics');
@@ -2167,24 +2169,29 @@ function updateSessionUsageArchive(summary, now) {
   return next;
 }
 
-function summaryWithArchivedClientUsage(summary) {
-  const now = sessionUsageArchiveDate(summary);
+// Read-only projection of both archives onto a summary. Un-tracked clients and
+// retained sessions add to the period totals, not just to the breakdowns, so
+// anything rendered without this reads low. Takes the session archive as an
+// argument because capturing into it is a separate decision, see below.
+function summaryWithArchivesApplied(summary, sessionArchive, now) {
   const withArchivedClients = applyArchivedClientUsage(summary, settings?.archivedClientUsage, {
     activeClients: settings?.clients,
     now
   });
-  let visibleSummary = withArchivedClients;
-  if (settings?.sessionUsageArchiveEnabled === false) {
-    return settings?.projectsEnabled === false ? visibleSummary : applyProjectRollups(visibleSummary);
-  }
+  const visibleSummary = settings?.sessionUsageArchiveEnabled === false
+    ? withArchivedClients
+    : applySessionUsageArchive(withArchivedClients, sessionArchive, { now });
+  return settings?.projectsEnabled === false ? visibleSummary : applyProjectRollups(visibleSummary);
+}
+
+function summaryWithArchivedClientUsage(summary) {
+  const now = sessionUsageArchiveDate(summary);
+  if (settings?.sessionUsageArchiveEnabled === false) return summaryWithArchivesApplied(summary, null, now);
   if (isExternalAgentActive()) {
     sessionUsageArchive = null;
-    visibleSummary = applySessionUsageArchive(withArchivedClients, ensureSessionUsageArchiveLoaded(), { now });
-  } else {
-    const sessionArchive = updateSessionUsageArchive(summary, now);
-    visibleSummary = applySessionUsageArchive(withArchivedClients, sessionArchive, { now });
+    return summaryWithArchivesApplied(summary, ensureSessionUsageArchiveLoaded(), now);
   }
-  return settings?.projectsEnabled === false ? visibleSummary : applyProjectRollups(visibleSummary);
+  return summaryWithArchivesApplied(summary, updateSessionUsageArchive(summary, now), now);
 }
 
 function applyMacActivationPolicy(state = {}) {
@@ -3318,20 +3325,33 @@ function injectLocalDeviceStatus(stats) {
   return stats;
 }
 
-function sendPush(payload) {
+// Two options, both for the cold-start seed and neither for live stats.
+// `skipExport` keeps a republished snapshot from spending the auto-export
+// interval that this run's first real scan needs. `deferToRenderer` waits for
+// the renderer to finish loading, and is deliberately not the default: a live
+// push that lands mid-load is already covered by the refreshStats() the renderer
+// runs on init, so deferring every one of them would only queue a listener per
+// frame against a slow load and then replay a burst of superseded stats.
+function sendPush(payload, options = {}) {
   const previousHistoryRevision = statsHistoryRevision(latestStats);
   if (payload?.data?.stats) {
     injectLocalDeviceStatus(payload.data.stats);
     latestStats = payload.data.stats;
     syncTrayCodexActiveAccount();
     updateTrayDisplay();
-    if (settings.exportAutoEnabled && settings.exportDir && Date.now() - lastExportAt >= exportIntervalMs()) {
+    if (!options.skipExport && settings.exportAutoEnabled && settings.exportDir && Date.now() - lastExportAt >= exportIntervalMs()) {
       lastExportAt = Date.now();
       writeExportTo(settings.exportDir, payload.data.stats.periods, { skipUnchanged: true })
         .catch((err) => console.warn(`[export] auto-export failed: ${err.message}`));
     }
   }
-  if (mainWindow && !mainWindow.isDestroyed()) {
+  if (options.deferToRenderer) {
+    // Only while it is still the newest thing published. A slow load can outlast
+    // the first real collection, and delivering the queued snapshot then would
+    // walk the numbers backwards until the next push.
+    const deferred = payload?.data?.stats;
+    sendMainWindowEvent('stats:push', payload, () => !deferred || latestStats === deferred);
+  } else if (mainWindow && !mainWindow.isDestroyed()) {
     try { mainWindow.webContents.send('stats:push', payload); } catch (_) {}
   }
   if (payload?.data?.stats) {
@@ -3467,16 +3487,67 @@ function stopLocalCollector(options = {}) {
   localStats = null;
 }
 
+// Show the last full scan's totals while the first one of this run is still
+// going, instead of zeros for the tens of seconds it takes. deviceRecordFromAnchor
+// owns the trust rules; anything it rejects leaves the renderer on its normal
+// wait-for-real-data path.
+function primeLocalStatsFromAnchor(usageOptions) {
+  // Cold start only. startMode() re-enters here on structural settings changes
+  // as well, and there the numbers already collected are newer than any anchor.
+  if (lastCollectedDevice) return;
+  const deviceRecord = deviceRecordFromAnchor(
+    readJson(path.join(sharedDataDir(), 'collector-anchor.json'), null),
+    {
+      envelope: electronDeviceEnvelope(),
+      clients: usageOptions.clients,
+      allTimeSince: usageOptions.allTimeSince,
+      projectsEnabled: usageOptions.projectsEnabled,
+      wslScanEnabled: usageOptions.wslScanEnabled,
+      wslSupported: process.platform === 'win32',
+      hostname: os.hostname(),
+      platform: `${process.platform}-${process.arch}`
+    }
+  );
+  if (!deviceRecord) return;
+  // The anchor holds raw collector output, while everything the renderer is ever
+  // shown has been through the archives first. Project the same way or the seed
+  // reads low for anyone with an un-tracked client or retained sessions, and then
+  // jumps when the first scan lands. Read-only on purpose: the capture step
+  // records a fresh observation, and an anchor from hours ago is not one.
+  const visible = summaryWithArchivesApplied(
+    deviceRecord,
+    settings?.sessionUsageArchiveEnabled === false ? null : ensureSessionUsageArchiveLoaded(),
+    sessionUsageArchiveDate(deviceRecord)
+  );
+  localDevice = visible;
+  localStats = withHistoryPreview(aggregateDevices([visible], 0), [visible]);
+  // Through the normal publisher, not straight to the renderer: the tray reads
+  // what sendPush sets, and in tray mode the window is hidden, so a seed that
+  // only reached the renderer would leave the one visible surface on zero.
+  // This one waits for the renderer: it is the only stats push whose whole point
+  // is to be on screen before the first scan, so it cannot be left to the
+  // refreshStats() that covers the rest. It must also not spend the export
+  // interval this run's first live scan needs on a snapshot it is republishing.
+  sendPush({
+    event: 'stats',
+    data: { type: 'stats', reason: 'anchor', stats: localStats, at: deviceRecord.receivedAt }
+  }, { skipExport: true, deferToRenderer: true });
+}
+
 function startLocalCollector() {
   stopLocalCollector();
   mode = 'local';
   sendStatus(false, { reason: 'collecting' });
+  // One config object for both, so the fingerprint the seed validates against
+  // cannot drift from the one the collector will compute.
+  const usageOptions = electronUsageConfig('collector');
+  primeLocalStatsFromAnchor(usageOptions);
   deviceRuntimeHandle = createDeviceRuntime({
     envelope: electronDeviceEnvelope(),
     initialLimits: lastCollectedDevice?.limits,
     limitsOptions: electronLimitsConfig(),
     transformUsage: summaryWithArchivedClientUsage,
-    usageOptions: electronUsageConfig('collector'),
+    usageOptions,
     progressive: true,
     onRecord: (summary, meta) => {
       const reason = meta.reason;
@@ -3865,14 +3936,11 @@ function trayMenuLocale() {
   return resolveLocale(settings?.language || 'auto', preferredLanguages);
 }
 
-function sendMainWindowEvent(channel, payload) {
+// `isStillCurrent`, when given, is re-checked after the wait: see
+// deferredWindowSend.js.
+function sendMainWindowEvent(channel, payload, isStillCurrent) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  const send = () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    try { mainWindow.webContents.send(channel, payload); } catch (_) {}
-  };
-  if (mainWindow.webContents.isLoading()) mainWindow.webContents.once('did-finish-load', send);
-  else send();
+  sendWhenRendererReady(mainWindow.webContents, channel, payload, isStillCurrent);
 }
 
 async function refreshFromTray() {
