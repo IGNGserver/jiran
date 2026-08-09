@@ -919,13 +919,6 @@ function formatUpdatedAge(value) {
 function versionText(value) {
   return value ? `v${value}` : 'unknown';
 }
-function appUpdateActionMode(s) {
-  if (!s) return '';
-  if (s.downloaded) return 'install';
-  if (!s.hasUpdate) return '';
-  if (s.installSupported) return 'download';
-  return s.latest?.htmlUrl ? 'release' : '';
-}
 function setAppUpdatePillDisclosure(available) {
   const action = els.appUpdatePillAction;
   if (available) {
@@ -942,7 +935,7 @@ function renderAppUpdatePill() {
   const s = state.appUpdate;
   const pill = els.appUpdatePill;
   if (!pill) return;
-  const mode = appUpdateActionMode(s);
+  const mode = appUpdatePresentationApi.appUpdateActionMode(s);
   const version = s?.latest?.version || s?.installVersion || '';
   if (!s || !mode || !version || !s.showUpdateNotice) {
     pill.classList.add('hidden');
@@ -1010,7 +1003,7 @@ function buildAppUpdateNoteGroupNodes(groups) {
 function renderAppUpdatePopover(s) {
   const version = s?.latest?.version || '';
   const groups = releaseNoteGroupsForCurrentLocale(s?.latest);
-  const mode = appUpdateActionMode(s);
+  const mode = appUpdatePresentationApi.appUpdateActionMode(s);
   if (!version || groups.length === 0 || !mode) {
     if (els.appUpdatePopover.matches(':popover-open')) els.appUpdatePopover.hidePopover();
     els.appUpdatePopoverTitle.textContent = '';
@@ -1080,7 +1073,7 @@ function renderSettingsAppUpdateRow() {
     els.appUpdateLatest.textContent = status
       ? t('settings.appUpdate.latestWithStatus', { version: displayVersion, status })
       : `v${displayVersion}`;
-    const actionMode = appUpdateActionMode(s);
+    const actionMode = appUpdatePresentationApi.appUpdateActionMode(s);
     els.appUpdateViewReleaseButton.classList.toggle('hidden', !actionMode);
     els.appUpdateViewReleaseButton.disabled = Boolean(s.installBusy);
     els.appUpdateViewReleaseButton.textContent = actionMode === 'install'
@@ -1096,18 +1089,25 @@ function renderSettingsAppUpdateRow() {
         : t('settings.common.notChecked');
     els.appUpdateViewReleaseButton.classList.add('hidden');
   }
-  els.appUpdateCheckButton.disabled = Boolean(s.checking || s.installBusy);
+  // installRetryBlocked as well as busy: the main process stops running checks once
+  // an attempt is spent, so without this the button would sit live and do nothing.
+  // It is not folded into installBusy, which would disable View release along with
+  // it and take away the one path a spent attempt leaves working.
+  els.appUpdateCheckButton.disabled = Boolean(s.checking || s.installBusy || s.installRetryBlocked);
   els.appUpdateCheckButton.textContent = s.checking ? t('settings.appUpdate.checking') : t('settings.appUpdate.check');
   renderAppUpdateNotes(s);
   if (s.installPhase === 'downloading') {
     const percent = Number.isFinite(s.installProgress) ? Math.round(s.installProgress) : 0;
     els.appUpdateMessage.textContent = t('settings.appUpdate.downloading', { percent });
     els.appUpdateMessage.classList.remove('error');
+  } else if (s.installStarting) {
+    els.appUpdateMessage.textContent = t('settings.appUpdate.installStarting');
+    els.appUpdateMessage.classList.remove('error');
   } else if (s.downloaded) {
     els.appUpdateMessage.textContent = t('settings.appUpdate.ready');
     els.appUpdateMessage.classList.remove('error');
   } else if (s.installError) {
-    els.appUpdateMessage.textContent = t('settings.appUpdate.installError');
+    els.appUpdateMessage.textContent = t(appUpdatePresentationApi.appUpdateInstallErrorMessageKey(s.installErrorKind));
     els.appUpdateMessage.classList.add('error');
   } else if (s.lastError) {
     const error = t(presentation.errorKey);
@@ -10394,7 +10394,7 @@ els.floatingBubbleTab.addEventListener('keydown', (event) => {
 });
 
 async function runAppUpdateAction() {
-  const mode = appUpdateActionMode(state.appUpdate);
+  const mode = appUpdatePresentationApi.appUpdateActionMode(state.appUpdate);
   if (mode === 'install') {
     state.appUpdate = await window.tokenMonitor.installAppUpdate();
   } else if (mode === 'download') {
@@ -10412,7 +10412,7 @@ async function runAppUpdateAction() {
 
 els.appUpdatePillAction.addEventListener('click', async () => {
   if (!renderAppUpdatePopover(state.appUpdate) || typeof els.appUpdatePopover.showPopover !== 'function') {
-    if (appUpdateActionMode(state.appUpdate) === 'install') {
+    if (appUpdatePresentationApi.appUpdateActionMode(state.appUpdate) === 'install') {
       const url = state.appUpdate?.latest?.htmlUrl;
       if (url) await window.tokenMonitor.openExternal(url);
       return;

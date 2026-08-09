@@ -42,6 +42,54 @@ function appUpdateInstallSupport({
   return { supported: false, reason: 'unsupported-platform' };
 }
 
+// How long an install attempt may sit unconfirmed before we conclude the
+// installer never took over. quitAndInstall() returns void and the failure paths
+// emit nothing, so still being alive is the only failure signal there is. The
+// bound has to clear a working install by a wide margin: expiring on one would
+// hand the quit flags back mid-install, and on macOS it also burns the session's
+// one install attempt.
+//
+// NsisUpdater and AppImageUpdater run install() synchronously and emit the
+// hand-off from a setImmediate, so a working install is gone within a tick.
+//
+// macOS is far slower, for a reason easy to miss. We run with autoInstallOnAppQuit
+// off, so MacUpdater does not involve Squirrel at download time (updateDownloaded
+// only calls checkForUpdates when that flag is on). quitAndInstall() therefore
+// always takes the branch that starts Squirrel from scratch: it pulls the
+// already-downloaded zip back through electron-updater's local proxy, validates
+// the signature and stages the swap, and only then hands off. The pull is
+// localhost and quick; the validation and staging are not. Seconds to tens of
+// seconds is normal, so the bound is minutes. At that distance expiry does mean
+// something has genuinely stalled, which is why it is reported on every platform.
+//
+// singleUseAttempt is the other half, and it is a property of the call rather
+// than of any outcome. MacUpdater.quitAndInstall() attaches an anonymous
+// nativeUpdater 'update-downloaded' listener before it starts Squirrel, and
+// nothing ever detaches it: not an error, which only warns and re-emits, and not
+// a timeout. So on macOS the first call is the only one this process may safely
+// make, however it ends. BaseUpdater instead resets quitAndInstallCalled whenever
+// install() returns false or throws, leaving nothing behind, so Windows and Linux
+// can retry a failed attempt.
+function updateInstallQuitPolicy(platform = process.platform) {
+  return platform === 'darwin'
+    ? { graceMs: 5 * 60 * 1000, singleUseAttempt: true }
+    : { graceMs: 10 * 1000, singleUseAttempt: false };
+}
+
+// Which recovery a terminal install failure can honestly advise. Three places ask
+// it -- the stall report, an updater error and a synchronous throw -- and letting
+// each answer separately is how a stall came to advise a restart on the platforms
+// where the guard had already handed the attempt back. Only the guard knows, and
+// only once it has ended the attempt, so `spent` is passed in rather than derived.
+//
+// Restarting is the recovery of last resort: it is the only one where the attempt
+// cannot be repeated, and offering it where an install is still one press away
+// sends the user the long way round.
+function installFailureErrorKind({ spent = false, stalled = false } = {}) {
+  if (stalled) return spent ? 'installer-did-not-start-spent' : 'installer-did-not-start';
+  return spent ? 'install-spent-by-failure' : null;
+}
+
 function parseTag(tag) {
   if (typeof tag !== 'string') return null;
   const trimmed = tag.trim();
@@ -504,6 +552,10 @@ function shouldDownloadAutomaticAppUpdate({
     && updateState.dismissedVersion !== updateState.latest?.version
     && !updateState.downloaded
     && !updateState.installBusy
+    // A spent attempt can never be installed in this process, so downloading again
+    // on every background check would be a repeating download of an artifact
+    // nothing can use.
+    && !updateState.installRetryBlocked
   );
 }
 
@@ -572,6 +624,8 @@ async function checkLatestRelease(currentVersion) {
 
 module.exports = {
   appUpdateInstallSupport,
+  installFailureErrorKind,
+  updateInstallQuitPolicy,
   parseTag,
   parseLatestReleasePayload,
   latestFromUpdaterInfo,
