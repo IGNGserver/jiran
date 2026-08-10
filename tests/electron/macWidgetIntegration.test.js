@@ -30,6 +30,10 @@ const widgetProject = fs.readFileSync(
   'utf8'
 );
 const widgetBuildSource = fs.readFileSync(path.join(root, 'scripts', 'build-macos-widget.js'), 'utf8');
+const widgetReloaderSource = fs.readFileSync(
+  path.join(root, 'scripts', 'TokenMonitorWidgetReloader.swift'),
+  'utf8'
+);
 const widgetLocalization = JSON.parse(fs.readFileSync(
   path.join(root, 'native', 'macos', 'TokenMonitorWidget', 'Localizable.xcstrings'),
   'utf8'
@@ -115,6 +119,129 @@ test('Widget ownership advances producer lifetime only for mode transitions', ()
     mainSource,
     /reloadSnapshot: \(work, options\) => requestMacWidgetReload\(\{\s*widgetKind: work\.widgetKind,\s*isCurrent: options\.isCurrent,/
   );
+});
+
+test('starts the runtime immediately and holds only Widget publication until host registration settles', () => {
+  const readyStart = mainSource.indexOf('app.whenReady().then(() => {');
+  const readyEnd = mainSource.indexOf("ipcMain.handle('settings:get'", readyStart);
+  assert.ok(readyStart >= 0 && readyEnd > readyStart, 'ready callback should exist');
+  const readySource = mainSource.slice(readyStart, readyEnd);
+  const settingsIndex = readySource.indexOf('ensureSettingsLoaded();');
+  const recoveryStartIndex = readySource.indexOf(
+    'const widgetRecovery = recoverMacWidgetLaunchServicesRegistration({'
+  );
+  const windowIndex = readySource.indexOf('createWindow();');
+  const modeIndex = readySource.indexOf('startMode();');
+  const recoveryCompletionIndex = readySource.indexOf('void widgetRecovery.finally(() => {');
+  assert.ok(settingsIndex >= 0 && recoveryStartIndex > settingsIndex);
+  assert.ok(windowIndex > recoveryStartIndex);
+  assert.ok(modeIndex > windowIndex && recoveryCompletionIndex > modeIndex);
+  assert.doesNotMatch(readySource, /await widgetRecovery/);
+  assert.match(
+    readySource,
+    /startMode\(\);\s*void widgetRecovery\.finally\(\(\) => \{\s*app\.removeListener\('before-quit', abortWidgetRecovery\);\s*if \(!widgetRecoveryAbort\.signal\.aborted\) \{\s*macWidgetPublicationReady = true;\s*macWidgetSnapshotController\?\.resume\(\);\s*\}\s*\}\);/
+  );
+  assert.match(mainSource, /let macWidgetPublicationReady = false;/);
+  assert.match(
+    mainSource,
+    /createMacWidgetSnapshotController\(\{\s*startPaused: !macWidgetPublicationReady,/
+  );
+  assert.match(readySource, /platform: process\.platform/);
+  assert.match(readySource, /isPackaged: app\.isPackaged/);
+  assert.match(readySource, /resourcesPath: process\.resourcesPath/);
+  assert.match(readySource, /userDataPath: app\.getPath\('userData'\)/);
+});
+
+function executeMacWidgetRecoveryWiring() {
+  const bootstrapStart = mainSource.indexOf('const widgetRecoveryAbort = new AbortController();');
+  const loggerIndex = mainSource.indexOf('logger: (message) => console.warn(message)', bootstrapStart);
+  const recoveryCallEnd = mainSource.indexOf('});', loggerIndex) + 3;
+  assert.ok(bootstrapStart >= 0 && loggerIndex > bootstrapStart && recoveryCallEnd > loggerIndex, 'recovery bootstrap should exist');
+  const finallyStart = mainSource.indexOf('void widgetRecovery.finally(() => {');
+  const finallyEnd = mainSource.indexOf('\n  });', finallyStart) + '\n  });'.length;
+  assert.ok(finallyStart >= 0 && finallyEnd > finallyStart, 'recovery settle should exist');
+  const script = `${mainSource.slice(bootstrapStart, recoveryCallEnd)}\n${mainSource.slice(finallyStart, finallyEnd)}`;
+
+  let resolveRecovery;
+  const recoveryPromise = new Promise((resolve) => { resolveRecovery = resolve; });
+  const calls = { once: [], removeListener: [], resumed: 0 };
+  let beforeQuitHandler;
+  const context = vm.createContext({
+    AbortController,
+    console: { warn() {} },
+    process: { platform: 'darwin', resourcesPath: '/acceptance/resources' },
+    app: {
+      isPackaged: true,
+      getPath: (name) => (name === 'userData' ? '/acceptance/user-data' : undefined),
+      once: (event, handler) => { calls.once.push(event); beforeQuitHandler = handler; },
+      removeListener: (event) => { calls.removeListener.push(event); }
+    },
+    recoverMacWidgetLaunchServicesRegistration: (options) => {
+      calls.recoveryOptions = options;
+      return recoveryPromise;
+    },
+    macWidgetPublicationReady: false,
+    macWidgetSnapshotController: { resume: () => { calls.resumed += 1; } }
+  });
+  vm.runInContext(script, context);
+  return {
+    calls,
+    context,
+    fireBeforeQuit: () => beforeQuitHandler(),
+    resolveRecovery,
+    assertRecoveryOptions() {
+      const options = calls.recoveryOptions;
+      assert.ok(options, 'recovery should be invoked with the packaged wiring options');
+      assert.equal(options.platform, 'darwin');
+      assert.equal(options.isPackaged, true);
+      assert.equal(options.resourcesPath, '/acceptance/resources');
+      assert.equal(options.userDataPath, '/acceptance/user-data');
+      assert.ok(options.signal instanceof AbortSignal);
+      assert.equal(typeof options.logger, 'function');
+    }
+  };
+}
+
+test('main wiring resumes Widget publication when host registration settles on any outcome', async () => {
+  for (const outcome of [
+    { status: 'completed' },
+    { status: 'failed', reason: 'launch-failed' },
+    { status: 'failed', reason: 'timed-out' },
+    { status: 'skipped', reason: 'already-completed' }
+  ]) {
+    const execution = executeMacWidgetRecoveryWiring();
+    execution.assertRecoveryOptions();
+    assert.deepEqual(execution.calls.once, ['before-quit']);
+    execution.resolveRecovery(outcome);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(execution.context.macWidgetPublicationReady, true, `${outcome.status} settle should unblock Widget publication`);
+    assert.equal(execution.calls.resumed, 1, `${outcome.status} settle should resume the snapshot controller`);
+    assert.deepEqual(execution.calls.removeListener, ['before-quit']);
+  }
+});
+
+test('main wiring holds Widget publication when the app quits before registration settles', async () => {
+  const execution = executeMacWidgetRecoveryWiring();
+  execution.fireBeforeQuit();
+  execution.resolveRecovery({ status: 'completed' });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(execution.context.macWidgetPublicationReady, false);
+  assert.equal(execution.calls.resumed, 0);
+  assert.deepEqual(execution.calls.removeListener, ['before-quit']);
+});
+
+test('LaunchServices recovery delegates current-host registration to the public native API', () => {
+  const recoverySource = fs.readFileSync(
+    path.join(root, 'src', 'electron', 'macWidgetLaunchServicesRecovery.js'),
+    'utf8'
+  );
+  assert.match(recoverySource, /const REGISTER_HOST_ARGUMENTS = Object\.freeze\(\['--mode', 'register-host'\]\);/);
+  assert.match(recoverySource, /REGISTER_HOST_ARGUMENTS/);
+  assert.doesNotMatch(recoverySource, /lsregister|chronod|killall|pkill|\['-u'|\b-reset\b|\b-kill\b/);
+  assert.match(widgetReloaderSource, /LSRegisterURL\(hostAppURL as CFURL, true\)/);
+  assert.match(widgetReloaderSource, /Array\(CommandLine\.arguments\.dropFirst\(\)\) == \["--mode", "register-host"\]/);
+  assert.match(widgetReloaderSource, /resourcesURL\.lastPathComponent == "Resources"/);
+  assert.match(widgetReloaderSource, /contentsURL\.lastPathComponent == "Contents"/);
 });
 
 test('a history setting refresh projects local OpenCode quota before scheduling the Widget', () => {
