@@ -160,6 +160,11 @@ const {
 } = require('./macWidgetBridge');
 const { createMacWidgetSnapshotController } = require('./macWidgetSnapshotController');
 const { macWidgetHistorySourceKey, resolveMacWidgetHistory } = require('./macWidgetHistory');
+const {
+  macWidgetHistoryCachePath,
+  readMacWidgetHistoryCache,
+  writeMacWidgetHistoryCache
+} = require('./macWidgetHistoryStore');
 const { parseMacWidgetDeepLink } = require('./macWidgetDeepLink');
 const { createMacWidgetLaunchServicesRecovery } = require('./macWidgetLaunchServicesRecovery');
 const { projectLimitStatsForDisplay } = require('./limitStatsPresentation');
@@ -3480,13 +3485,17 @@ function captureMacWidgetWork({ stats, owner }) {
   // who does have a Widget.
   if (macWidgetDemand && !macWidgetDemand.isInstalled()) return null;
   const resolverConfig = Object.freeze({ ...historyResolverOptions() });
+  const sourceKey = macWidgetHistorySourceKey(resolverConfig);
   return {
     stats,
     owner: Object.freeze({
       epoch: owner.epoch,
-      sourceKey: macWidgetHistorySourceKey(resolverConfig)
+      sourceKey
     }),
     resolverConfig,
+    historyCachePath: completeHistorySource(resolverConfig) === 'remote'
+      ? macWidgetHistoryCachePath(app.getPath('userData'), sourceKey)
+      : null,
     presentation: macWidgetPresentation(),
     snapshotPath: widget.snapshotPath,
     widgetKind: widget.widgetKind
@@ -3504,6 +3513,19 @@ function ensureMacWidgetSnapshotController() {
       sourceKey: work.owner.sourceKey,
       revision: work.stats?.historyRevision,
       fetchHistory: () => resolveCompleteHistory(work.resolverConfig),
+      ...(work.historyCachePath ? {
+        loadCachedHistory: () => readMacWidgetHistoryCache(
+          work.historyCachePath,
+          work.owner.sourceKey,
+          { logger: (message) => console.warn(message) }
+        ),
+        saveCachedHistory: (history) => writeMacWidgetHistoryCache(
+          work.historyCachePath,
+          work.owner.sourceKey,
+          history,
+          { logger: (message) => console.warn(message) }
+        )
+      } : {}),
       minIntervalMs: completeHistorySource(work.resolverConfig) === 'remote' ? undefined : 0,
       logger: (message) => console.warn(message)
     }),
