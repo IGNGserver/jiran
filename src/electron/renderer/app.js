@@ -4378,15 +4378,21 @@ function renderProviderWindows(provider, color) {
   if (provider.provider === 'codex') {
     const session = windowForKind(provider, 'session');
     const weekly = windowForKind(provider, 'weekly');
+    const monthly = windowForKind(provider, 'billing');
     if (session) {
       const sessionNode = limitWindowNode(session.label || 'Session', session, color, 0.95);
-      if (!weekly) sessionNode.classList.add('limit-window-wide');
+      if (!weekly && !monthly) sessionNode.classList.add('limit-window-wide');
       windows.append(sessionNode);
     }
     if (weekly) {
       const weeklyNode = limitWindowNode(weekly.label || 'Weekly', weekly, color, 0.68);
-      if (!session) weeklyNode.classList.add('limit-window-wide');
+      if (!session && !monthly) weeklyNode.classList.add('limit-window-wide');
       windows.append(weeklyNode);
+    }
+    if (monthly) {
+      const monthlyNode = limitWindowNode(monthly.label || 'Monthly', monthly, color, 0.68);
+      monthlyNode.classList.add('limit-window-wide');
+      windows.append(monthlyNode);
     }
     const resetNode = codexResetCreditsNode(provider.resetCredits);
     if (resetNode) windows.append(resetNode);
@@ -10656,6 +10662,7 @@ window.tokenMonitor.onTokscalePush?.((payload) => {
 
 function renderStatsUpdate() {
   render();
+  renderCodexAccounts();
   renderSettingsSummaries();
   renderLimitProviderCheckboxes();
   renderToolPreferences();
@@ -12011,6 +12018,7 @@ function renderCodexAccounts() {
     empty.textContent = t('settings.codex.empty');
     listEl.append(empty);
   } else {
+    const codexProviders = localProviderStatuses('codex');
     for (const account of accounts) {
       const enabled = account.enabled !== false;
       const row = document.createElement('div');
@@ -12050,7 +12058,11 @@ function renderCodexAccounts() {
         : account.workspaceLabel;
       const accountMetadata = [
         workspaceLabel,
-        enabled ? limitProviderPresentationApi.limitProviderDisplayLabel(account.accountLabel) : t('settings.codex.disabled')
+        enabled
+          ? limitProviderPresentationApi.limitProviderDisplayLabel(
+            accountIdentityApi.codexManagedAccountPlanLabel(account, codexProviders)
+          )
+          : t('settings.codex.disabled')
       ].filter((value, index, values) => value && values.indexOf(value) === index);
       info.textContent = accountMetadata.join(' · ');
       info.title = accountMetadata.join(' · ');
