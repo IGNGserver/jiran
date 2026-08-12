@@ -6,12 +6,15 @@
     typeof module === 'object' && module.exports ? require('./trayText') : root?.TokenMonitorTrayText,
     typeof module === 'object' && module.exports
       ? require('./limitBalanceDisplay')
-      : root?.TokenMonitorLimitBalanceDisplay
+      : root?.TokenMonitorLimitBalanceDisplay,
+    typeof module === 'object' && module.exports
+      ? require('./compactMoney')
+      : root?.TokenMonitorCompactMoney
   );
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.TokenMonitorTrayLayout = api;
-})(typeof window !== 'undefined' ? window : globalThis, function createTrayLayoutApi(currencyApi, trayTextApi, balanceDisplay) {
-  const VERSION = 2;
+})(typeof window !== 'undefined' ? window : globalThis, function createTrayLayoutApi(currencyApi, trayTextApi, balanceDisplay, compactMoneyApi) {
+  const VERSION = 3;
   const MAX_ITEMS = 12;
   const STYLE_IDS = Object.freeze([
     'appIcon',
@@ -45,6 +48,7 @@
   const BAR_ICON_MODES = new Set(['app', 'first', 'second', 'none']);
   const SPACER_SIZES = new Set(['narrow', 'regular', 'wide']);
   const SPACER_VARIANTS = new Set(['space', 'dot']);
+  const COST_FORMATS = new Set(['compact', 'full']);
   const PERIODS = new Set(['today', 'month', 'allTime']);
   const WINDOW_PRESETS = new Set(['primary', 'secondary', 'session', 'weekly', 'billing']);
 
@@ -107,6 +111,23 @@
     };
   }
 
+  function normalizeCostDisplay(input = {}, defaults = {}) {
+    const format = clean(input.costFormat, 24);
+    const defaultFormat = COST_FORMATS.has(defaults.costFormat) ? defaults.costFormat : 'compact';
+    const defaultDecimals = defaults.costDecimals === 'auto' ? 'auto' : 2;
+    const decimals = input.costDecimals === 'auto'
+      ? 'auto'
+      : input.costDecimals === null || input.costDecimals === '' || input.costDecimals === undefined
+        ? defaultDecimals
+        : finite(input.costDecimals);
+    return {
+      costFormat: COST_FORMATS.has(format) ? format : defaultFormat,
+      costDecimals: decimals === 'auto'
+        ? 'auto'
+        : decimals === null ? defaultDecimals : Math.max(0, Math.min(4, Math.round(decimals)))
+    };
+  }
+
   function normalizeSource(input, fallbackWindow = 'primary') {
     const source = input && typeof input === 'object' ? input : {};
     const provider = clean(source.provider, 48).toLowerCase();
@@ -122,21 +143,25 @@
   }
 
   function infoRowDefaults(metric = 'percent', window = 'primary') {
-    return {
+    const row = {
       ...sourceDefaults(window),
       metric: INFO_METRICS.has(metric) ? metric : 'percent',
       period: 'today'
     };
+    return row.metric === 'cost' ? { ...row, ...normalizeCostDisplay() } : row;
   }
 
-  function normalizeInfoRow(input, fallbackMetric = 'percent', fallbackWindow = 'primary') {
+  function normalizeInfoRow(input, fallbackMetric = 'percent', fallbackWindow = 'primary', options = {}) {
     const row = input && typeof input === 'object' ? input : {};
     const metric = clean(row.metric, 24);
-    return {
+    const normalized = {
       ...normalizeSource(row, fallbackWindow),
       metric: INFO_METRICS.has(metric) ? metric : fallbackMetric,
       period: PERIODS.has(row.period) ? row.period : 'today'
     };
+    return normalized.metric === 'cost'
+      ? { ...normalized, ...normalizeCostDisplay(row, options.costDefaults) }
+      : normalized;
   }
 
   function normalizeBarIcon(value, rowCount = 1) {
@@ -275,7 +300,7 @@
       cost: 'cost',
       account: 'account'
     }[styleId];
-    return {
+    const item = {
       id,
       type: 'text',
       style: styleId,
@@ -284,9 +309,10 @@
       period: 'today',
       source: sourceDefaults()
     };
+    return metric === 'cost' ? { ...item, ...normalizeCostDisplay() } : item;
   }
 
-  function normalizeItem(input, index = 0) {
+  function normalizeItem(input, index = 0, options = {}) {
     if (!input || typeof input !== 'object') return null;
     const type = clean(input.type, 24);
     if (!ITEM_TYPES.has(type)) return null;
@@ -354,7 +380,8 @@
         const normalizedRows = rows.map((row, rowIndex) => normalizeInfoRow(
           row,
           rowIndex === 0 ? 'percent' : 'reset',
-          'primary'
+          'primary',
+          options
         ));
         while (normalizedRows.length < 2) {
           normalizedRows.push(infoRowDefaults(normalizedRows.length === 0 ? 'percent' : 'reset'));
@@ -414,7 +441,7 @@
       };
     }
     const period = PERIODS.has(input.period) ? input.period : 'today';
-    return {
+    const normalized = {
       id,
       type,
       style: STYLE_SET.has(style) ? style : metric,
@@ -423,6 +450,9 @@
       period,
       source: normalizeSource(input.source)
     };
+    return metric === 'cost'
+      ? { ...normalized, ...normalizeCostDisplay(input, options.costDefaults) }
+      : normalized;
   }
 
   function uniqueItemId(value, usedIds) {
@@ -453,8 +483,12 @@
     }
     const items = [];
     const usedIds = new Set();
+    const sourceVersion = finite(input.version);
+    const normalizeOptions = sourceVersion === null || sourceVersion < VERSION
+      ? { costDefaults: { costFormat: 'full', costDecimals: 'auto' } }
+      : {};
     for (const candidate of Array.isArray(input.items) ? input.items : []) {
-      const item = normalizeItem(candidate, items.length);
+      const item = normalizeItem(candidate, items.length, normalizeOptions);
       if (!item) continue;
       item.id = uniqueItemId(item.id, usedIds);
       usedIds.add(item.id);
@@ -749,6 +783,24 @@
     return String(number);
   }
 
+  function formatCost(value, item, options) {
+    const display = normalizeCostDisplay(item);
+    if (!compactMoneyApi?.formatCompactCurrencyFromUsd) {
+      return currencyApi?.formatCurrencyFromUsd?.(value, options.currency || 'USD')
+        || String(Number(value) || 0);
+    }
+    return compactMoneyApi.formatCompactCurrencyFromUsd(
+      value,
+      options.currency || 'USD',
+      options.compactTokenUnits,
+      options.locale || options.language || 'en',
+      {
+        compact: display.costFormat !== 'full',
+        fractionDigits: display.costDecimals
+      }
+    );
+  }
+
   function resolveTextItem(item, stats, options) {
     if (item.metric === 'custom') {
       const text = clean(item.text, 40);
@@ -758,9 +810,7 @@
       const period = stats?.periods?.[item.period] || {};
       const text = item.metric === 'tokens'
         ? formatCompactNumber(period.totalTokens, options)
-        : currencyApi?.formatCurrencyFromUsd
-          ? currencyApi.formatCurrencyFromUsd(period.costUsd, options.currency || 'USD')
-          : String(Number(period.costUsd) || 0);
+        : formatCost(period.costUsd, item, options);
       return { ...item, available: true, text };
     }
     const selection = selectSource(stats, item.source, options);
@@ -837,6 +887,7 @@
           if (item.metric === 'mixed') {
             const rows = item.rows.map((source) => {
               const resolved = resolveTextItem({
+                ...source,
                 type: 'text',
                 style: source.metric,
                 metric: source.metric,

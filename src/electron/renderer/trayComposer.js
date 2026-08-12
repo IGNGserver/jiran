@@ -51,6 +51,12 @@
     return { ...item, period };
   }
 
+  function costDisplayPatch(item, rowIndex, patch) {
+    return Array.isArray(item?.rows)
+      ? sourcePatch(item, rowIndex, patch)
+      : { ...item, ...patch };
+  }
+
   function accountModeSourcePatch(source, accounts, accountMode) {
     if (accountMode !== 'specific') {
       return { accountMode, accountKey: '', window: source.window };
@@ -629,6 +635,32 @@
       ];
     }
 
+    function costDisplayEditors(item, rowIndex = 0) {
+      const source = Array.isArray(item.rows) ? sourceForItem(item, rowIndex) : item;
+      return [
+        picker(
+          l('trayComposer.costFormat', 'Cost format'),
+          [
+            { value: 'compact', label: l('trayComposer.costFormat.compact', 'Compact') },
+            { value: 'full', label: l('trayComposer.costFormat.full', 'Full number') }
+          ],
+          source.costFormat,
+          (costFormat) => updateItem(item, costDisplayPatch(item, rowIndex, { costFormat }))
+        ),
+        picker(
+          l('trayComposer.costDecimals', 'Decimal places'),
+          [
+            { value: 'auto', label: l('trayComposer.costDecimals.auto', 'Automatic') },
+            ...[0, 1, 2, 3, 4].map((value) => ({ value, label: String(value) }))
+          ],
+          source.costDecimals,
+          (costDecimals) => updateItem(item, costDisplayPatch(item, rowIndex, {
+            costDecimals: costDecimals === 'auto' ? 'auto' : Number(costDecimals)
+          }))
+        )
+      ];
+    }
+
     function sourceEditor(item, rowIndex, title = '', options = {}) {
       const source = sourceForItem(item, rowIndex);
       const section = document.createElement('section');
@@ -657,6 +689,7 @@
           currentPeriod,
           (period) => updateItem(item, periodItemPatch(item, rowIndex, period))
         ));
+        if (metric === 'cost') section.append(...costDisplayEditors(item, rowIndex));
         return section;
       }
 
@@ -998,6 +1031,7 @@
             item.period,
             (period) => updateItem(item, { ...item, period })
           ));
+          if (item.metric === 'cost') popover.append(...costDisplayEditors(item));
         } else {
           popover.append(sourceEditor(item, 0, '', {
             includeValue: item.metric === 'percent' || item.metric === 'percentReset'
@@ -1248,6 +1282,7 @@
 
   return {
     accountModeSourcePatch,
+    costDisplayPatch,
     createTrayComposer,
     duplicateTrayLayoutItem,
     handlePickerDocumentScroll,
