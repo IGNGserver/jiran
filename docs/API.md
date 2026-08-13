@@ -56,6 +56,9 @@ Example payload:
   "historyAvailable": true,
   "trackedClients": ["codex"],
   "today": {
+    "capabilities": {
+      "tokenComponents": true
+    },
     "totalTokens": 1234,
     "costUsd": 0.01,
     "cacheReadTokens": 1100,
@@ -206,9 +209,13 @@ The collector satisfies that bound by construction, but the hub and the Worker n
 
 All three are additive over append-only messages, which keeps them exact under the delta path a watch-triggered scan uses to carry a `today` rescan into `month` and `allTime`. The one case where `timedOutputTokens` and a full rescan can disagree is a session that spans the boundary and starts or stops reporting durations partway through, since a rescan then re-gates the whole session on its combined state; the next full scan reconciles it. Closing even that needs a per-message timed-output counter from tokscale.
 
+Each native period may include `capabilities.tokenComponents`. Current producers set it to `true` when cache read/write and output were derived from individual Tokscale rows, and to `false` when any part of the period has only aggregate provenance. Partial periods retain their known components and carry the unsupported remainder in `unclassifiedTokens`, `clientUnclassifiedTokens`, and `modelUnclassifiedTokens`; consumers display that remainder as `Unclassified` instead of silently treating it as cache miss. When an aggregate remainder has no Tool or Model identity, consumers expose a synthetic `Unclassified` attribution row so the visible breakdown still adds up to the period total. Session archives preserve aggregate and Tool components, but a session spanning multiple models leaves its Model components unclassified rather than guessing a proportional split. A missing marker remains accepted for older DAY / MONTH / TOTAL payloads, but fixed-range live-day derivation requires explicit `true` or explicit unclassified fields. Device aggregation and retained client/session restoration preserve these fields and propagate incomplete provenance fail closed.
+
 `trackedClients` is optional but recommended for agents and widgets. When it is present, the hub treats omitted clients as intentionally not collected in this payload and preserves their previous usage for that device. This keeps "tracking" as "collect future data" rather than "hide existing history".
 
 `historyAvailable` is an explicit boolean capability for retained History. Current producers send it on every usage snapshot: `true` means History collection is enabled, while `false` means disabled. Fixed-range readers require both `historyAvailable: true` and a retained `history` object; a missing capability (including records passed through an older Hub) is unavailable rather than an inferred zero. The `history` field itself remains interval-gated: omission means "no History update this tick", explicit `null` means unavailable, and an object replaces the retained History.
+
+Current History daily rows may also carry `cacheReadTokens`, `cacheWriteTokens`, `outputTokens`, `unclassifiedTokens`, and the same fields inside each `perClient` / `perModel` entry. `tokenComponentsAvailable: true` means the entire row has exact component provenance. Missing provenance does not change the exact total tokens, cost, Tool, or Model attribution: fixed ranges retain every known cache/output component and place only the unsupported remainder in `unclassifiedTokens` instead of treating it as zero or cache miss. The local daily archive keeps component provenance permanently, while sync payloads keep detailed components only for the latest 30 days because WEEK / 7D / 30D never need older detail and `/api/ingest` has a 1 MiB ceiling. If even that additive detail would push a device payload over its budget, serialization drops the component fields before any existing project or session detail.
 
 Current agents and widgets include `osName` and, when known, `osVersion` so device details can show a user-facing operating-system release. macOS uses the product version from Electron or `sw_vers`; Windows uses the product family and display version from the registry; Linux uses the distribution name and version from `os-release`. Detection failures fall back to an explicitly labelled Windows build or Linux kernel release. The hub continues to accept older payloads without these fields.
 
