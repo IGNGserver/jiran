@@ -324,6 +324,17 @@
       'settings.home.activeDaysWindow': 'Active days range',
       'settings.home.activeDaysWindow.all': 'All time',
       'settings.home.activeDaysWindow.year': 'Last 12 months',
+      'periodRange.settingsTitle': 'Default usage range',
+      'periodRange.settingsNote': 'Choose the default usage range shown on Home. On Home, click the selected period at the top again to open the menu and switch quickly.',
+      'periodRange.month': 'This month',
+      'periodRange.week': 'This week',
+      'periodRange.last7': 'Last 7 days',
+      'periodRange.last30': 'Last 30 days',
+      'periodRange.loading': 'Loading history…',
+      'periodRange.historyDisabled': 'Enable History to use WEEK, 7D and 30D.',
+      'periodRange.historyUnavailable': 'History is temporarily unavailable.',
+      'periodRange.sessionUnavailable': 'Session details are not available for this range.',
+      'periodRange.projectUnavailable': 'Project details are not available for this range.',
       'settings.home.hideModule': 'Hide {name} from Home',
       'settings.home.showModule': 'Show {name} on Home',
       'settings.home.reorderModule': 'Drag to reorder {name} on Home. Use Up/Down keys to move.',
@@ -1567,6 +1578,17 @@
       'settings.home.activeDaysWindow': '活躍天數範圍',
       'settings.home.activeDaysWindow.all': '全部時間',
       'settings.home.activeDaysWindow.year': '近 12 個月',
+      'periodRange.settingsTitle': '預設統計範圍',
+      'periodRange.settingsNote': '選擇主畫面預設顯示的統計範圍。也可在主畫面再次點擊上方目前選取的時段，開啟選單快速切換。',
+      'periodRange.month': '本月',
+      'periodRange.week': '本星期',
+      'periodRange.last7': '最近 7 日',
+      'periodRange.last30': '最近 30 日',
+      'periodRange.loading': '正在載入歷史記錄…',
+      'periodRange.historyDisabled': '請啟用歷史記錄以使用 WEEK、7D 與 30D。',
+      'periodRange.historyUnavailable': '歷史記錄暫時無法使用。',
+      'periodRange.sessionUnavailable': '此範圍不提供會話明細。',
+      'periodRange.projectUnavailable': '此範圍不提供專案明細。',
       'settings.home.hideModule': '從主頁隱藏 {name}',
       'settings.home.showModule': '在主頁顯示 {name}',
       'settings.home.reorderModule': '拖曳排序主頁的 {name}，也可用上下鍵移動。',
@@ -2810,6 +2832,17 @@
       'settings.home.activeDaysWindow': '活跃天数范围',
       'settings.home.activeDaysWindow.all': '全部时间',
       'settings.home.activeDaysWindow.year': '近 12 个月',
+      'periodRange.settingsTitle': '默认统计范围',
+      'periodRange.settingsNote': '选择主界面默认显示的统计范围。也可在主界面再次点击上方当前选中的时段，打开菜单快速切换。',
+      'periodRange.month': '本月',
+      'periodRange.week': '本周',
+      'periodRange.last7': '最近 7 天',
+      'periodRange.last30': '最近 30 天',
+      'periodRange.loading': '正在加载历史记录…',
+      'periodRange.historyDisabled': '请启用历史记录以使用 WEEK、7D 与 30D。',
+      'periodRange.historyUnavailable': '历史记录暂时无法使用。',
+      'periodRange.sessionUnavailable': '此范围不提供会话明细。',
+      'periodRange.projectUnavailable': '此范围不提供项目明细。',
       'settings.home.hideModule': '从主页隐藏 {name}',
       'settings.home.showModule': '在主页显示 {name}',
       'settings.home.reorderModule': '拖拽排序主页的 {name}，也可用上下键移动。',
@@ -4240,6 +4273,17 @@
       'settings.home.activeDaysWindow': '활성 일수 범위',
       'settings.home.activeDaysWindow.all': '전체 기간',
       'settings.home.activeDaysWindow.year': '최근 12개월',
+      'periodRange.settingsTitle': '기본 통계 범위',
+      'periodRange.settingsNote': '홈 화면에 기본으로 표시할 통계 범위를 선택합니다. 홈 화면에서 상단의 현재 선택된 기간을 다시 누르면 메뉴를 열어 빠르게 전환할 수 있습니다.',
+      'periodRange.month': '이번 달',
+      'periodRange.week': '이번 주',
+      'periodRange.last7': '최근 7일',
+      'periodRange.last30': '최근 30일',
+      'periodRange.loading': '기록을 불러오는 중…',
+      'periodRange.historyDisabled': 'WEEK, 7D, 30D를 사용하려면 기록을 활성화하세요.',
+      'periodRange.historyUnavailable': '기록을 일시적으로 사용할 수 없습니다.',
+      'periodRange.sessionUnavailable': '이 범위에는 세션 세부 정보가 없습니다.',
+      'periodRange.projectUnavailable': '이 범위에는 프로젝트 세부 정보가 없습니다.',
       'settings.home.hideModule': '홈에서 {name} 숨기기',
       'settings.home.hideProvider': '홈 한도에서 {name} 숨기기',
       'settings.home.limitProviders': '홈 한도 제공자',
@@ -5483,6 +5527,17 @@
       'settings.home.activeDaysWindow': 'アクティブ日数範囲',
       'settings.home.activeDaysWindow.all': '全期間',
       'settings.home.activeDaysWindow.year': '過去12ヶ月',
+      'periodRange.settingsTitle': '既定の集計範囲',
+      'periodRange.settingsNote': 'ホーム画面に既定で表示する集計範囲を選びます。ホーム画面で上部の選択中の期間をもう一度押すと、メニューを開いてすばやく切り替えられます。',
+      'periodRange.month': '今月',
+      'periodRange.week': '今週',
+      'periodRange.last7': '過去7日間',
+      'periodRange.last30': '過去30日間',
+      'periodRange.loading': '履歴を読み込み中…',
+      'periodRange.historyDisabled': 'WEEK、7D、30D を使うには履歴を有効にしてください。',
+      'periodRange.historyUnavailable': '履歴を一時的に利用できません。',
+      'periodRange.sessionUnavailable': 'この範囲ではセッション詳細を利用できません。',
+      'periodRange.projectUnavailable': 'この範囲ではプロジェクト詳細を利用できません。',
       'settings.home.hideModule': 'ホームから {name} を非表示',
       'settings.home.hideProvider': 'ホームの上限から {name} を非表示',
       'settings.home.limitProviders': 'ホームの上限プロバイダー',
@@ -6264,6 +6319,21 @@
     return 'en';
   }
 
+  // Translation dictionaries intentionally collapse regional variants such as
+  // en-GB to `en`. Calendar rules must keep that region, though: it determines
+  // whether a locale's week starts on Sunday or Monday.
+  function resolveRegionalLocale(preferredLanguages) {
+    const languages = Array.isArray(preferredLanguages) ? preferredLanguages : [preferredLanguages];
+    for (const item of languages) {
+      const tag = String(item || '').replace(/_/g, '-').trim();
+      if (!tag || tag.toLowerCase() === 'auto') continue;
+      try {
+        return new Intl.Locale(tag).toString();
+      } catch (_) { /* try the next regional preference */ }
+    }
+    return 'en';
+  }
+
   function translate(locale, key, params = {}) {
     const resolved = normalizeLanguage(locale) === 'auto' ? 'en' : normalizeLanguage(locale);
     const template = MESSAGES[resolved]?.[key] ?? MESSAGES.en[key] ?? key;
@@ -6303,5 +6373,13 @@
     return resolved;
   }
 
-  return { LANGUAGE_OPTIONS, MESSAGES, applyTranslations, normalizeLanguage, resolveLocale, translate };
+  return {
+    LANGUAGE_OPTIONS,
+    MESSAGES,
+    applyTranslations,
+    normalizeLanguage,
+    resolveLocale,
+    resolveRegionalLocale,
+    translate
+  };
 });

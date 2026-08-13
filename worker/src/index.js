@@ -3,7 +3,7 @@ import subscriptionDisplay from './shared/subscriptionDisplay.js';
 import currency from './shared/currency.js';
 import { aggregateDevices, mergeDeviceRecord, aggregateHistory } from './shared/usage.js';
 import { DEFAULT_STALE_AFTER_MS } from './shared/syncUploadInterval.js';
-import { historyPreview, historyRevision } from './shared/history.js';
+import { deviceHistoryRevision, historyPreview, historyRevision } from './shared/history.js';
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -93,6 +93,7 @@ export class HubDO {
     const history = aggregateHistory(devices);
     stats.historyPreview = historyPreview(history);
     stats.historyRevision = historyRevision(history);
+    stats.deviceHistoryRevision = deviceHistoryRevision(devices);
     return stats;
   }
 
@@ -166,6 +167,7 @@ export class HubDO {
       if (!this.publicStatsEnabled) return jsonResponse(404, { error: 'not_found' });
       const stats = await this.getStats();
       const { devices, limits, periods, ...rest } = stats;
+      delete rest.deviceHistoryRevision;
       return jsonResponse(200, {
         ok: true,
         source: 'cloudflare-worker',

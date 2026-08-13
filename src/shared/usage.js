@@ -342,7 +342,15 @@ function normalizePeriodWindows(value) {
     result[periodName] = { endsAt };
     if (window.key) result[periodName].key = String(window.key);
   }
-  return Object.keys(result).length ? result : null;
+  if (!Object.keys(result).length) return null;
+  const timeZone = String(value.timeZone || '').trim().slice(0, 128);
+  if (timeZone) {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone }).format(0);
+      result.timeZone = timeZone;
+    } catch (_) { /* omit invalid IANA zones */ }
+  }
+  return result;
 }
 
 function detectModel(obj, client = detectClient(obj)) {
@@ -782,7 +790,13 @@ function normalizeDeviceRecord(record) {
     if (omitted) normalized.periodProjectsOmitted = omitted;
   }
   if (hasOwn(record, 'syncUploadIntervalMs')) normalized.syncUploadIntervalMs = normalizeSyncUploadIntervalMs(record.syncUploadIntervalMs);
-  if (hasOwn(record, 'history')) normalized.history = coerceHistory(record.history);
+  if (hasOwn(record, 'historyAvailable')) normalized.historyAvailable = record.historyAvailable === true;
+  if (hasOwn(record, 'history')) {
+    // An explicit null means History is disabled/unavailable. Preserve that
+    // wire distinction; an omitted field means "no History update this tick"
+    // and an object is the retained History payload.
+    normalized.history = record.history === null ? null : coerceHistory(record.history);
+  }
   if (hasOwn(record, 'periodWindows')) {
     const windows = normalizePeriodWindows(record.periodWindows);
     if (windows) normalized.periodWindows = windows;
@@ -947,6 +961,9 @@ function mergeDeviceRecord(existing, incoming) {
     if (hasOwn(normalizedExisting, 'allTimeProjectsIncomplete')) normalizedIncoming.allTimeProjectsIncomplete = normalizedExisting.allTimeProjectsIncomplete;
     if (hasOwn(normalizedExisting, 'sessionDetailsOmitted')) normalizedIncoming.sessionDetailsOmitted = normalizedExisting.sessionDetailsOmitted;
     if (hasOwn(normalizedExisting, 'periodProjectsOmitted')) normalizedIncoming.periodProjectsOmitted = normalizedExisting.periodProjectsOmitted;
+    if (!hasOwn(normalizedIncoming, 'historyAvailable') && hasOwn(normalizedExisting, 'historyAvailable')) {
+      normalizedIncoming.historyAvailable = normalizedExisting.historyAvailable;
+    }
     if (!hasOwn(normalizedIncoming, 'syncUploadIntervalMs') && hasOwn(normalizedExisting, 'syncUploadIntervalMs')) {
       normalizedIncoming.syncUploadIntervalMs = normalizedExisting.syncUploadIntervalMs;
     }

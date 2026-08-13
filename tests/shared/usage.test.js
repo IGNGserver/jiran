@@ -974,16 +974,23 @@ test('normalizeDeviceRecord carries a history field when present', () => {
   assert.equal(rec.history.daily[0].tokens, 5);
   const bare = normalizeDeviceRecord({ deviceId: 'm1' });
   assert.equal('history' in bare, false);
+  const unavailable = normalizeDeviceRecord({ deviceId: 'm1', history: null });
+  assert.equal(unavailable.history, null);
+  const capable = normalizeDeviceRecord({ deviceId: 'm1', historyAvailable: true });
+  assert.equal(capable.historyAvailable, true);
+  assert.equal(Object.hasOwn(normalizeDeviceRecord({ deviceId: 'm1' }), 'historyAvailable'), false);
 });
 
 test('mergeDeviceRecord preserves prior history when the incoming post omits it', () => {
   const existing = normalizeDeviceRecord({
     deviceId: 'm1',
     today: { totalTokens: 1, costUsd: 0, clients: {}, clientCosts: {} },
+    historyAvailable: true,
     history: { daily: [{ date: '2026-06-07', tokens: 5 }], monthly: [], summary: { totalTokens: 5 } }
   });
   const merged = mergeDeviceRecord(existing, { deviceId: 'm1', limitsOnly: true });
   assert.equal(merged.history.daily[0].tokens, 5);
+  assert.equal(merged.historyAvailable, true);
 });
 
 test('mergeDeviceRecord clears prior history when incoming history is explicitly null', () => {
@@ -993,7 +1000,7 @@ test('mergeDeviceRecord clears prior history when incoming history is explicitly
     history: { daily: [{ date: '2026-06-07', tokens: 5 }], monthly: [], summary: { totalTokens: 5 } }
   });
   const merged = mergeDeviceRecord(existing, { deviceId: 'm1', history: null });
-  assert.deepEqual(merged.history, { daily: [], monthly: [], summary: {} });
+  assert.equal(merged.history, null);
 });
 
 test('aggregateHistory retains stored history from stale devices', () => {
@@ -1073,6 +1080,7 @@ function staleSnapshotDevice(extra = {}) {
     updatedAt: '2026-06-21T05:00:00.000Z',
     receivedAt: '2026-06-21T05:00:00.000Z',
     periodWindows: {
+      timeZone: 'Asia/Hong_Kong',
       today: { key: '2026-06-21', endsAt: '2026-06-22T00:00:00.000Z' },
       month: { key: '2026-06', endsAt: '2026-07-01T00:00:00.000Z' }
     },
@@ -1088,6 +1096,13 @@ test('aggregateDevices drops today usage once a device today window has ended', 
   assert.equal(aggregate.periods.today.totalTokens, 0);
   assert.equal(aggregate.periods.today.clients.codex, undefined);
   assert.deepEqual(aggregate.devices[0].periodWindows, staleSnapshotDevice().periodWindows);
+});
+
+test('aggregateDevices omits an invalid producer timezone', () => {
+  const device = staleSnapshotDevice();
+  device.periodWindows.timeZone = 'Not/A_TimeZone';
+  const aggregate = aggregateDevices([device], 10 * 60 * 1000, Date.parse('2026-06-21T12:00:00.000Z'));
+  assert.equal(aggregate.devices[0].periodWindows.timeZone, undefined);
 });
 
 test('aggregateDevices keeps allTime from a device whose today window has ended', () => {
