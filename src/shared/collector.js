@@ -2935,6 +2935,11 @@ function startCollector(options) {
     // unparseable, or future timestamp) — force a full scan immediately.
     const anchorToday = Boolean(!fullScanDue && anchor && anchor.dateKey === localTodayKey());
     const sourceSelfSync = intervalRequiresActivity ? sourceSyncQueue.takeDue() : null;
+    // Smart mode carries the watch events accumulated since the last tick, and
+    // unions the self-synced clients on top unconditionally: their tokscale
+    // cache is written by our own maybeSync* calls, and those dirs are
+    // deliberately unwatched to avoid a self-triggering loop, so no watch event
+    // will ever name them and targeting alone would leave them never scanned.
     const targetClients = intervalRequiresActivity ? takeWatchClients(selfSyncedClients) : [];
     runTick('interval', {
       ...(anchorToday ? { todayOnly: true, refreshWsl: true, targetClients } : {}),
