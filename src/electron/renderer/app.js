@@ -206,6 +206,7 @@ const LIMIT_CAPABILITY_TAG_KEYS = {
   'Manual login': 'settings.limits.capability.manualLogin',
   Web: 'settings.limits.capability.web',
   'Web/API': 'settings.limits.capability.webApi',
+  'API/Web': 'settings.limits.capability.apiWeb',
   'App/CLI must be open': 'settings.limits.capability.appMustBeOpen',
   RPC: 'settings.limits.capability.rpc',
   'Local/Zen': 'settings.limits.capability.localZen',
@@ -5022,6 +5023,10 @@ function renderMimoAccountGroup(label, providers, color) {
 
 function opencodeAccountTitle(provider, index) {
   const name = String(provider?.accountName || '').trim();
+  // The collector's canonical name is shown as-is. This column holds account
+  // names, which are user strings and almost never translated, so a localized
+  // phrase reads as a stray UI label among them — and the plan and source
+  // columns beside it are English for the same reason.
   if (name) return name;
   // Older synced clients put the user-defined profile name in accountLabel.
   // Keep those rows identifiable while new clients carry profile and plan in
@@ -10023,12 +10028,58 @@ function renderLimitProviderCheckboxesNow() {
     // destination must already be connected, so the row is mounted first.
     moveLimitProviderLiveNode(actions, accountStatus, disclosureIcon);
     moveLimitProviderLiveNode(optionsInner, accountGroup);
+    // OpenCode's one setting is an off-by-default fallback estimate. Rendered by
+    // the shared path it lands above the account list, reading as the first
+    // thing to set up; it belongs below the accounts, collapsed. Reparented
+    // rather than special-cased in the shared renderer so the setting keeps its
+    // change tracking and re-render signature.
+    if (id === 'opencode') moveOpenCodeLocalFallbackSetting();
   }
   for (const row of previousRows) row.remove();
   if (focusedId && document.activeElement === document.body) {
     document.getElementById(focusedId)?.focus({ preventScroll: true });
   }
   state.limitProviderRenderSignature = renderSignature;
+}
+
+// Moves the OpenCode local-DB toggle into its own collapsed group beneath the
+// account list, and keeps that group's status pill in sync with the setting.
+function moveOpenCodeLocalFallbackSetting() {
+  const target = document.getElementById('opencodeLocalFallbackInner');
+  const list = document.querySelector('#limitProviderOptions-opencode .limit-provider-settings-list');
+  if (!target) return;
+  if (list) {
+    if (list.parentElement !== target) moveLimitProviderLiveNode(target, list);
+    // The shared renderer builds a fresh settings list on every pass, so moving
+    // without clearing stacks one copy of the toggle per re-render.
+    for (const stale of [...target.children]) if (stale !== list) stale.remove();
+    // The group header already names the setting, so the item's own title would
+    // read twice. Dropping it alone leaves the label cell empty and the switch
+    // adrift, so the description moves into that cell and becomes the label.
+    for (const item of target.querySelectorAll('.settings-item')) {
+      item.querySelector('.settings-item-title')?.remove();
+      const cell = item.querySelector('.settings-item-text');
+      const desc = item.querySelector('.settings-item-desc');
+      if (cell && desc && desc.parentElement !== cell) cell.append(desc);
+    }
+  }
+
+  const pill = document.getElementById('opencodeLocalFallbackStatus');
+  if (pill) {
+    const on = (state.settings || {}).opencodeLocalLimitsEnabled === true;
+    pill.textContent = t(on ? 'settings.appearance.motion.on' : 'settings.appearance.motion.off');
+  }
+
+  const toggle = document.getElementById('opencodeLocalFallbackSettingsToggle');
+  if (toggle && !toggle.dataset.wired) {
+    toggle.dataset.wired = '1';
+    // The shared helper, so this collapses exactly like every other group
+    // instead of a second hand-rolled implementation of the same thing.
+    toggle.addEventListener('click', () => setAccountGroupExpanded(
+      'opencodeLocalFallback',
+      toggle.getAttribute('aria-expanded') !== 'true'
+    ));
+  }
 }
 
 function limitProviderAccountGroup(providerId) {
@@ -13325,11 +13376,11 @@ function renderOpenCodeProfiles() {
 
   const api = window.tokenMonitor.opencode;
 
-  api.getProfiles().then(({ profiles, hasEnvVar }) => {
+  api.getProfiles().then(({ profiles, hasEnvVar, hasAmbientKey, ambientEnabled = true }) => {
     listEl.innerHTML = '';
     const entries = Object.entries(profiles);
 
-    if (entries.length === 0 && !hasEnvVar) {
+    if (entries.length === 0 && !hasEnvVar && !hasAmbientKey) {
       listEl.innerHTML = '<div class="opencode-empty">' + t('settings.opencode.emptyList') + '</div>';
       state.opencodeProfileCount = 0;
       renderOpenCodeProfilesStatusSummary({});
@@ -13337,7 +13388,107 @@ function renderOpenCodeProfiles() {
       return;
     }
 
-    state.opencodeProfileCount = entries.length;
+    // The auto-detected key counts as an account: it is what the limits card is
+    // reading, so leaving it out of the total reports "not set up" next to live
+    // quota. It has no toggle or delete because Token Monitor does not own that
+    // credential — OpenCode does — but naming it does belong here: a name is
+    // what lets it join an account, and typing an existing account's name is
+    // how a user says the two are the same OpenCode account.
+    if (hasAmbientKey) {
+      const item = document.createElement('div');
+      item.className = 'opencode-profile-item';
+      // Switchable like any other account, even without a name. Turning it off
+      // is a device preference rather than a stored credential, so the row keeps
+      // rendering with its box clear instead of disappearing along with the only
+      // control that could bring it back.
+      const ambientToggle = document.createElement('input');
+      ambientToggle.className = 'profile-toggle';
+      ambientToggle.type = 'checkbox';
+      ambientToggle.checked = ambientEnabled;
+      ambientToggle.title = t('settings.opencode.ambientDetail');
+      ambientToggle.addEventListener('change', async () => {
+        await window.tokenMonitor.opencode.setAmbientEnabled(ambientToggle.checked);
+        renderOpenCodeProfiles();
+        updateOpenCodeProfilesStatus();
+        renderSettingsSummaries();
+      });
+      const nameBox = document.createElement('span');
+      nameBox.className = 'profile-name-box';
+      // An editable field rather than a label behind an edit button: this row
+      // has no name yet, and naming it is the only thing a user can do here, so
+      // hiding that behind a hover-revealed pencil hides the whole feature. The
+      // placeholder carries the label the row used to show.
+      const nameInput = document.createElement('input');
+      nameInput.className = 'profile-name-input is-placeholder';
+      nameInput.type = 'text';
+      nameInput.placeholder = t('settings.opencode.ambientName');
+      nameInput.title = t('settings.opencode.nameAmbient');
+
+      // Typing an existing account's name binds the auto-detected key into that
+      // account. That claim is confirmed, never inferred: the main process
+      // refuses it without `merge`, so a blur landing on a name that happens to
+      // exist offers the button instead of quietly merging.
+      const mergeBtn = document.createElement('button');
+      mergeBtn.className = 'credential-merge-btn hidden';
+      const offer = opencodeMergeOffer(mergeBtn, (name) => applyNaming(name, true));
+      const applyNaming = async (name, merge) => {
+        const at = offer.revision();
+        // 'ambient' stores a reference rather than the key, so a key rotated
+        // inside OpenCode keeps being read live.
+        const result = await window.tokenMonitor.opencode.saveProfile(name, '', 'ambient', { merge });
+        if (!result.ok) {
+          if (result.nameTaken) {
+            offer.offer(at, name, t('settings.opencode.mergeInto', { name }));
+            return;
+          }
+          if (offer.stale(at)) return;
+          const errorEl = document.getElementById('opencodeErrorMessage');
+          errorEl.textContent = opencodeSaveErrorText(result);
+          errorEl.classList.remove('hidden');
+          return;
+        }
+        renderOpenCodeProfiles();
+        updateOpenCodeProfilesStatus();
+        renderSettingsSummaries();
+      };
+      const endNaming = async (save) => {
+        const name = nameInput.value.trim();
+        if (!save || !name) {
+          nameInput.value = '';
+          offer.withdraw();
+          return;
+        }
+        await applyNaming(name, false);
+      };
+      // Editing the name withdraws the offer: the confirmation names one account,
+      // and it must be the one on screen when the user clicks it.
+      nameInput.addEventListener('input', () => offer.withdraw());
+      nameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') endNaming(true);
+        if (e.key === 'Escape') endNaming(false);
+      });
+      nameInput.addEventListener('blur', () => endNaming(true));
+
+      const detail = document.createElement('span');
+      detail.className = 'profile-detail';
+      detail.textContent = t('settings.opencode.ambientDetail');
+      nameBox.append(nameInput, mergeBtn, detail);
+
+      const rightBox = document.createElement('span');
+      rightBox.className = 'profile-right';
+      const infoSpan = document.createElement('span');
+      infoSpan.className = 'profile-info';
+      // Not `opencode-info-<name>`: that shape is generated from user-chosen
+      // account names, so a profile named the same as any sentinel would take
+      // this row's status.
+      infoSpan.id = 'opencodeAmbientInfo';
+      infoSpan.textContent = ambientEnabled ? '...' : t('settings.opencode.disabled');
+      rightBox.append(infoSpan);
+      item.append(ambientToggle, nameBox, rightBox);
+      listEl.appendChild(item);
+    }
+
+    state.opencodeProfileCount = entries.length + (hasAmbientKey ? 1 : 0);
     renderSettingsSummaries();
 
     for (const [name, profile] of entries) {
@@ -13382,18 +13533,43 @@ function renderOpenCodeProfiles() {
         nameInput.focus();
         nameInput.select();
       }
-      function endRename(save) {
+      // Renaming onto an existing account merges the two, which asserts they are
+      // the same OpenCode account. That claim gets a visible button rather than
+      // a repeated keypress: confirming should be something the user chooses,
+      // not something they discover by pressing Enter again.
+      const mergeBtn = document.createElement('button');
+      mergeBtn.className = 'credential-merge-btn hidden';
+      const offer = opencodeMergeOffer(mergeBtn, (next) => applyRename(next, true));
+      const applyRename = async (next, merge) => {
+        const at = offer.revision();
+        const errorEl = document.getElementById('opencodeErrorMessage');
+        const result = await api.renameProfile(name, next, { merge });
+        if (!result.ok) {
+          if (result.nameTaken) {
+            offer.offer(at, next, t('settings.opencode.mergeInto', { name: next }));
+            return;
+          }
+          if (offer.stale(at)) return;
+          errorEl.textContent = opencodeSaveErrorText(result);
+          errorEl.classList.remove('hidden');
+          return;
+        }
+        errorEl.classList.add('hidden');
+        renderOpenCodeProfiles();
+        updateOpenCodeProfilesStatus();
+        renderSettingsSummaries();
+      };
+      // Retyping withdraws the offer, so the button can only ever confirm the
+      // name the user is currently proposing.
+      nameInput.addEventListener('input', () => offer.withdraw());
+      async function endRename(save) {
         if (!editing) return;
         editing = false;
         nameInput.classList.add('hidden');
         nameSpan.classList.remove('hidden');
-        if (save && nameInput.value.trim() && nameInput.value.trim() !== name) {
-          api.renameProfile(name, nameInput.value.trim()).then(() => {
-            renderOpenCodeProfiles();
-            updateOpenCodeProfilesStatus();
-            renderSettingsSummaries();
-          });
-        }
+        const next = nameInput.value.trim();
+        if (!save || !next || next === name) return;
+        await applyRename(next, false);
       }
       renameBtn.addEventListener('click', beginRename);
       nameInput.addEventListener('keydown', (e) => {
@@ -13402,14 +13578,54 @@ function renderOpenCodeProfiles() {
       });
       nameInput.addEventListener('blur', () => endRename(true));
 
-      nameBox.append(nameSpan, nameInput, renameBtn);
+      // Which credentials this account holds. Two of them under one name is the
+      // user's assertion that they are the same OpenCode account, and that
+      // assertion decides which source answers for quota and which identity the
+      // account is published under, so it stays visible. Acting on them lives in
+      // the expanded section rather than inline: a click that unbinds an account
+      // should not sit one pixel from the account's own controls.
+      // A reference the collector has stopped using says so on its own row.
+      // Otherwise an account that also holds a cookie shows the credential as
+      // present, keeps reporting fine from the cookie, and nothing anywhere
+      // reveals that its Go quota is no longer coming from the detected key.
+      const ambientLabel = profile.ambientStale
+        ? `${t('settings.opencode.ambientName')} · ${t('settings.opencode.needsRebind')}`
+        : t('settings.opencode.ambientName');
+      const credentials = [
+        ['ambient', profile.usesAmbientKey, ambientLabel],
+        ['api', profile.hasApiKey, t('settings.opencode.kindApi')],
+        ['cookie', profile.hasCookie, t('settings.opencode.kindCookie')]
+      ].filter(([, present]) => present);
+
+      // The summary line is the control that expands it: clicking the thing you
+      // want to see beats a separate chevron stranded between the status text
+      // and the delete button.
+      const multiCredential = credentials.length > 1;
+      const detail = document.createElement(multiCredential ? 'button' : 'span');
+      detail.className = 'profile-detail';
+      let chevron = null;
+      if (multiCredential) {
+        detail.type = 'button';
+        detail.classList.add('is-expandable');
+        detail.setAttribute('aria-expanded', 'false');
+        detail.title = t('settings.opencode.showCredentials');
+        // The same disclosure chevron every other group uses, so it animates and
+        // reads the same; only the direction differs, pointing right when closed.
+        chevron = document.createElement('span');
+        chevron.className = 'cursor-disclosure-icon';
+        chevron.setAttribute('aria-hidden', 'true');
+      }
+      detail.textContent = credentials.map(([, , label]) => label).join(' + ');
+      if (chevron) detail.append(chevron);
+
+      nameBox.append(nameSpan, nameInput, renameBtn, mergeBtn, detail);
 
       const rightBox = document.createElement('span');
       rightBox.className = 'profile-right';
 
       const infoSpan = document.createElement('span');
       infoSpan.className = 'profile-info';
-      infoSpan.id = 'opencode-info-' + name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      infoSpan.id = opencodeRowId('opencode-info-', name);
       infoSpan.textContent = profile.enabled ? '...' : t('settings.opencode.disabled');
 
       const deleteBtn = document.createElement('button');
@@ -13431,8 +13647,32 @@ function renderOpenCodeProfiles() {
         renderSettingsSummaries();
       });
 
+      // Expanding is only worth offering once an account holds more than one
+      // credential — with a single one the row already says everything.
+      let credentialList = null;
+      if (multiCredential) {
+        credentialList = document.createElement('div');
+        credentialList.className = 'opencode-credential-list accordion-animated-container hidden';
+        credentialList.id = opencodeRowId('opencode-credentials-', name);
+        // The shared accordion squeezes one inner wrapper, so the rows go inside
+        // it rather than on the container, which cannot shrink.
+        const credentialInner = document.createElement('div');
+        credentialInner.className = 'accordion-animation-inner';
+        for (const [kind, , label] of credentials) {
+          credentialInner.append(opencodeCredentialRow(name, kind, label));
+        }
+        credentialList.append(credentialInner);
+        detail.setAttribute('aria-controls', credentialList.id);
+        detail.addEventListener('click', () => {
+          const open = credentialList.classList.toggle('hidden') === false;
+          detail.setAttribute('aria-expanded', String(open));
+          detail.classList.toggle('is-open', open);
+        });
+      }
+
       rightBox.append(infoSpan, deleteBtn);
       item.append(toggle, nameBox, rightBox);
+      if (credentialList) item.append(credentialList);
       listEl.appendChild(item);
     }
 
@@ -13440,17 +13680,200 @@ function renderOpenCodeProfiles() {
   });
 }
 
+// A merge that would land two credentials of the same kind on one account is
+// refused rather than resolved: confirming that two accounts are the same is a
+// different question from choosing which of two cookies to keep.
+function opencodeSaveErrorText(result) {
+  if (result?.credentialConflict) {
+    return t('settings.opencode.credentialConflict', {
+      kind: t(result.kind === 'cookie' ? 'settings.opencode.kindCookie'
+        : result.kind === 'ambient' ? 'settings.opencode.ambientName'
+          : 'settings.opencode.kindApi')
+    });
+  }
+  return result?.error || t('settings.opencode.saveFailedShort');
+}
+
+// A merge confirmation names one specific proposal: this credential, into this
+// account. Editing the field withdraws it, so the click the main process
+// receives is consent to what the user is looking at.
+//
+// Hiding the button is not enough on its own, because the answer that offers it
+// arrives after an await: an edit made while that request is in flight is
+// overtaken by the reply, and the button comes back describing the proposal the
+// user has just moved on from. So a withdrawal advances a revision the reply is
+// checked against, and a reply from a superseded revision is dropped rather
+// than shown. The same rule reached four call sites by copy, which is why it
+// lives in one place now.
+//
+// There is deliberately one way to take an offer down. A plain hide looks
+// harmless on the cancel paths (Escape, a blur onto nothing) but leaves the
+// revision where it was, so the reply to the request the user just cancelled
+// still matched and put the button back — the original bug, reached through the
+// other door. Everything that ends an offer withdraws it.
+function opencodeMergeOffer(button, confirm) {
+  let revision = 0;
+  let pending = '';
+  button.addEventListener('click', () => {
+    if (pending !== '') confirm(pending);
+  });
+  return {
+    // Captured before the await, compared after it.
+    revision: () => revision,
+    stale: (at) => at !== revision,
+    withdraw: () => {
+      revision += 1;
+      pending = '';
+      button.classList.add('hidden');
+    },
+    offer: (at, name, label) => {
+      if (at !== revision) return;
+      pending = name;
+      button.textContent = label;
+      button.classList.remove('hidden');
+    }
+  };
+}
+
+// Element ids for a row, from the account name.
+//
+// Reversible rather than sanitized. Replacing everything outside a safe set with
+// `_` is not injective, so two accounts a user is perfectly entitled to name —
+// `a b` and `a_b`, or `a/b` and `a_b` — landed on one id, and whichever rendered
+// first collected the other's status. `encodeURIComponent` is injective and
+// leaves no whitespace, which is the only thing an id may not contain.
+//
+// A counter would work too, but these two call sites are independent: one
+// renders the row, the other looks it up from a later status reply. A pure
+// function of the name cannot drift between them the way a shared table can.
+function opencodeRowId(prefix, name) {
+  return `${prefix}${encodeURIComponent(name)}`;
+}
+
+// One credential inside an expanded account. Renaming moves it to another
+// account name, which is what splits a binding apart or forms a new one;
+// deleting drops just this credential and leaves the rest of the account.
+function opencodeCredentialRow(accountName, kind, label) {
+  const api = window.tokenMonitor.opencode;
+  const errorEl = () => document.getElementById('opencodeErrorMessage');
+  const refresh = () => {
+    renderOpenCodeProfiles();
+    updateOpenCodeProfilesStatus();
+    renderSettingsSummaries();
+  };
+
+  const row = document.createElement('div');
+  row.className = 'opencode-credential-row';
+
+  const labelSpan = document.createElement('span');
+  labelSpan.className = 'credential-label';
+  labelSpan.textContent = label;
+
+  // The account name is shown on every credential rather than hidden behind an
+  // edit button, because seeing the same name twice is the explanation for why
+  // these are one account. Typing a different one moves that credential out.
+  const nameInput = document.createElement('input');
+  nameInput.className = 'credential-name-input';
+  nameInput.type = 'text';
+  nameInput.value = accountName;
+  nameInput.title = t('settings.opencode.moveCredential', { kind: label });
+  nameInput.placeholder = t('settings.opencode.profileNamePlaceholder');
+
+  const actions = document.createElement('span');
+  actions.className = 'credential-actions';
+
+  // A merge is a claim that two credentials belong to one OpenCode account, so
+  // it is confirmed with a visible button rather than by pressing the same key
+  // twice and hoping the user reads why.
+  const mergeBtn = document.createElement('button');
+  mergeBtn.className = 'credential-merge-btn hidden';
+  const offer = opencodeMergeOffer(mergeBtn, (target) => finishMove(target, true));
+
+  const finishMove = async (target, merge) => {
+    const at = offer.revision();
+    const result = await api.moveCredential(accountName, kind, target, { merge });
+    if (!result.ok) {
+      if (result.nameTaken) {
+        offer.offer(at, target, t('settings.opencode.mergeInto', { name: target }));
+        return;
+      }
+      if (offer.stale(at)) return;
+      errorEl().textContent = opencodeSaveErrorText(result);
+      errorEl().classList.remove('hidden');
+      return;
+    }
+    refresh();
+  };
+  const endMove = async (save) => {
+    const target = nameInput.value.trim();
+    if (!save || !target || target === accountName) {
+      nameInput.value = accountName;
+      offer.withdraw();
+      return;
+    }
+    await finishMove(target, false);
+  };
+
+  // Same rule as everywhere else: retyping the target withdraws the pending
+  // confirmation rather than leaving a button that would move it somewhere the
+  // user is no longer proposing.
+  nameInput.addEventListener('input', () => offer.withdraw());
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') endMove(true);
+    if (e.key === 'Escape') endMove(false);
+  });
+  nameInput.addEventListener('blur', () => endMove(true));
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'profile-delete';
+  removeBtn.textContent = '✕';
+  removeBtn.title = t('settings.opencode.removeCredential', { kind: label });
+  // Two-step, like deleting an account: unbinding is not undoable from here.
+  let confirming = false;
+  removeBtn.addEventListener('click', async () => {
+    if (!confirming) {
+      confirming = true;
+      removeBtn.classList.add('confirming');
+      removeBtn.textContent = '✓';
+      return;
+    }
+    const result = await api.removeCredential(accountName, kind);
+    if (result.ok) refresh();
+  });
+
+  actions.append(removeBtn);
+  // The merge label carries the target account name and never fits beside the
+  // input, so it trails the row and wraps onto its own line when it appears.
+  row.append(labelSpan, nameInput, actions, mergeBtn);
+  return row;
+}
+
 async function updateOpenCodeProfilesStatus() {
   const api = window.tokenMonitor.opencode;
   const status = await api.status();
   const profiles = status.profiles || {};
 
-  for (const [name, s] of Object.entries(profiles)) {
-    const safeName = name.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const infoEl = document.getElementById('opencode-info-' + safeName);
+  // The auto-detected key has no account name, so it arrives in its own field
+  // and lands on its own element rather than one keyed by a name a user could
+  // also type.
+  const entries = Object.entries(profiles).map(([name, s]) => [
+    opencodeRowId('opencode-info-', name),
+    s
+  ]);
+  if (status.ambient) entries.push(['opencodeAmbientInfo', status.ambient]);
+
+  for (const [elementId, s] of entries) {
+    const infoEl = document.getElementById(elementId);
     if (!infoEl) continue;
 
-    if (s.expired) {
+    if (s.disabled) {
+      infoEl.textContent = t('settings.opencode.disabled');
+    } else if (s.needsRebind) {
+      // Said once, on the credential line, which has room for it and is the
+      // thing that needs re-attaching. This cell is a fixed narrow column and
+      // would only repeat it truncated.
+      infoEl.textContent = '';
+    } else if (s.expired) {
       infoEl.textContent = t('settings.opencode.statusExpired');
     } else if (s.linked) {
       const parts = [];
@@ -13468,15 +13891,19 @@ async function updateOpenCodeProfilesStatus() {
     }
   }
 
-  renderOpenCodeProfilesStatusSummary(profiles);
+  renderOpenCodeProfilesStatusSummary(profiles, status.ambient);
 }
 
-function renderOpenCodeProfilesStatusSummary(profiles) {
+// `ambient` counts toward both halves: it is a row in the list and it is what
+// the limits card reads on a machine with nothing configured, so leaving it out
+// reports "0/0" beside live quota.
+function renderOpenCodeProfilesStatusSummary(profiles, ambient = null) {
   const totalEl = document.getElementById('opencodeCookieStatus');
   if (totalEl) {
-    const linkedCount = Object.values(profiles).filter(s => s.linked).length;
+    const statuses = [...Object.values(profiles), ...(ambient ? [ambient] : [])];
+    const linkedCount = statuses.filter(s => s.linked).length;
     const configuredProfileCount = state.opencodeProfileCount || 0;
-    const totalCount = Math.max(Object.keys(profiles).length, configuredProfileCount);
+    const totalCount = Math.max(statuses.length, configuredProfileCount);
     if (totalCount > 0) {
       totalEl.textContent = t('settings.opencode.connected', { linked: linkedCount, total: totalCount });
     } else {
@@ -14306,26 +14733,112 @@ function setupCursorAccountUI() {
       window.tokenMonitor.openExternal('https://opencode.ai/auth');
     });
 
+    // API key is the default: it needs no browser round trip. The cookie stays
+    // selectable because it is the only thing that reaches the Zen balance.
+    const kindSelect = document.getElementById('opencodeCredentialKind');
+    // The merge confirmation is about one specific proposal: this name, this
+    // credential. Editing any part of the form makes the offer on screen stale,
+    // and a confirmation the user gives has to be a confirmation of what they
+    // are looking at, so any edit withdraws it.
+    const addMergeButton = document.getElementById('opencodeCredentialMerge');
+    // Confirming re-runs the submit handler's own closure, which is what holds
+    // the name and credential the offer was made for.
+    let confirmOpenCodeMerge = () => {};
+    const addMergeOffer = addMergeButton
+      ? opencodeMergeOffer(addMergeButton, () => confirmOpenCodeMerge())
+      : null;
+    const clearOpenCodeMergeOffer = () => addMergeOffer?.withdraw();
+    for (const id of ['opencodeProfileName', 'opencodeApiKeyInput', 'opencodeCookieInput']) {
+      document.getElementById(id)?.addEventListener('input', clearOpenCodeMergeOffer);
+    }
+    const applyOpenCodeCredentialKind = () => {
+      const isCookie = kindSelect?.value === 'cookie';
+      document.getElementById('opencodeApiFields')?.classList.toggle('hidden', isCookie);
+      document.getElementById('opencodeCookieFields')?.classList.toggle('hidden', !isCookie);
+      // One button for both modes; only what it is fetching differs. The keys
+      // page itself lives under a workspace id we do not have, so both land on
+      // the console sign-in.
+      const browserButton = document.getElementById('opencodeOpenBrowser');
+      if (browserButton) {
+        const key = isCookie ? 'settings.opencode.openBrowser' : 'settings.opencode.openBrowserKeys';
+        browserButton.dataset.i18n = key;
+        browserButton.textContent = t(key);
+      }
+      // Clear the field being hidden so a value typed under one credential type
+      // can never be submitted as the other.
+      const stale = document.getElementById(isCookie ? 'opencodeApiKeyInput' : 'opencodeCookieInput');
+      if (stale) stale.value = '';
+      document.getElementById('opencodeErrorMessage')?.classList.add('hidden');
+      clearOpenCodeMergeOffer();
+    };
+    kindSelect?.addEventListener('change', applyOpenCodeCredentialKind);
+    applyOpenCodeCredentialKind();
+
     document.getElementById('opencodeCookieSubmit').addEventListener('click', async () => {
-      const input = document.getElementById('opencodeCookieInput');
+      const opencodeCredentialKind = kindSelect?.value === 'cookie' ? 'cookie' : 'api';
+      const input = document.getElementById(opencodeCredentialKind === 'cookie'
+        ? 'opencodeCookieInput'
+        : 'opencodeApiKeyInput');
       const nameInput = document.getElementById('opencodeProfileName');
       const errorEl = document.getElementById('opencodeErrorMessage');
-      const name = (nameInput.value || '').trim() || 'default';
+      const name = (nameInput.value || '').trim();
       const cookie = input.value;
 
       errorEl.classList.add('hidden');
 
-      const result = await window.tokenMonitor.opencode.saveProfile(name, cookie);
-      if (result.ok) {
-        input.value = '';
-        nameInput.value = '';
-        renderOpenCodeProfiles();
-        updateOpenCodeProfilesStatus();
-        renderSettingsSummaries();
-      } else {
-        errorEl.textContent = result.error || t('settings.opencode.saveFailedShort');
+      // The name is required rather than defaulted. Saving one credential keeps
+      // the other under the same name, and the collector reads that as "these
+      // are the same account", so a blank name silently becoming `default`
+      // could attach one account's key to another account's cookie. Making the
+      // user type the name is what keeps the association explicit.
+      if (!name) {
+        errorEl.textContent = t('settings.opencode.nameRequired');
         errorEl.classList.remove('hidden');
+        nameInput.focus();
+        return;
       }
+
+      // A name that already holds a different credential kind binds the two into
+      // one account, so the main process refuses it and the form asks first.
+      // The confirmation replaces the submit button rather than appearing beside
+      // it: the next click has different consequences from the one just made.
+      const submit = async (merge) => {
+        const at = addMergeOffer?.revision();
+        confirmOpenCodeMerge = () => submit(true);
+        const result = await window.tokenMonitor.opencode.saveProfile(
+          name,
+          cookie,
+          opencodeCredentialKind,
+          { merge }
+        );
+        // Whether or not the form still shows this proposal, a save that landed
+        // has to reach the list. Only the fields are left alone, so an edit made
+        // while the request was in flight is not wiped by its reply.
+        const stale = addMergeOffer ? addMergeOffer.stale(at) : false;
+        if (result.ok) {
+          // Only this proposal's own offer is taken down. Two saves can overlap,
+          // and the newer one can answer first: clearing unconditionally let an
+          // older success wipe a merge confirmation the user was looking at and
+          // that was still correct.
+          if (!stale) {
+            input.value = '';
+            nameInput.value = '';
+            addMergeOffer?.withdraw();
+          }
+          renderOpenCodeProfiles();
+          updateOpenCodeProfilesStatus();
+          renderSettingsSummaries();
+          return;
+        }
+        if (stale) return;
+        if (result.nameTaken && addMergeOffer) {
+          addMergeOffer.offer(at, name, t('settings.opencode.mergeInto', { name }));
+          return;
+        }
+        errorEl.textContent = opencodeSaveErrorText(result);
+        errorEl.classList.remove('hidden');
+      };
+      await submit(false);
     });
   }
 
