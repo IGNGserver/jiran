@@ -65,12 +65,12 @@ const supportedToolOrder = [
   'CodeBuddy',
   'WorkBuddy',
   'Proma',
+  'Qoder',
   'Reasonix',
   'DeepSeek',
   'OpenRouter',
   'Minimax',
   'Volcengine',
-  'Qoder',
   'Ollama',
   'Third-party APIs'
 ];
@@ -98,12 +98,12 @@ const supportedToolIdOrder = [
   'codebuddy',
   'workbuddy',
   'proma',
+  'qoder',
   'reasonix',
   'deepseek',
   'openrouter',
   'minimax',
   'volcengine',
-  'qoder',
   'ollama',
   'newapi'
 ];
