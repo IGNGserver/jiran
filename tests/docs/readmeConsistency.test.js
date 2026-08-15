@@ -55,7 +55,7 @@ const supportedToolOrder = [
   'Qwen CLI',
   'Grok Build',
   'GitHub Copilot',
-  'Pi',
+  'Pi / Oh My Pi',
   'Zed',
   'Kilo Code',
   'Command Code',
