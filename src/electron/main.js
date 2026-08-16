@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const crypto = require('node:crypto');
 const os = require('node:os');
 const path = require('node:path');
-const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, nativeImage, net, Notification, screen, session, shell } = require('electron');
+const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, nativeImage, nativeTheme, net, Notification, screen, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { defaultDeviceId, generateHubSecret, lanIpv4Addresses, loadDotEnv, pidFilePath, readJson, sharedDataDir } = require('../shared/config');
 const {
@@ -238,9 +238,11 @@ const {
   formatTrayText,
   isBarsTrayIconMode,
   pickUsageTrayIconId,
+  parseWindowsSystemUsesLightTheme,
   popoverBounds,
   reconcileCodexAccountSelection,
   runTrayMenuAction,
+  watchSystemDarkUi,
   sortCodexAccountsForDisplay,
   shouldUseTemplateTrayIcon,
   trayShowsTitle
@@ -4313,6 +4315,75 @@ function settingsForRenderer() {
   };
 }
 
+// The tray sits in system-integrated UI (menubar / taskbar / panel), whose theme
+// is independent of the app's own: Windows lets the system be dark while apps
+// stay light, which is exactly the case a plain `shouldUseDarkColors` gets wrong.
+// That dedicated property only exists on darwin and win32, so elsewhere the app
+// theme is the closest signal available.
+function systemDarkTrayUi() {
+  try {
+    if (process.platform === 'darwin' || process.platform === 'win32') {
+      const systemIntegrated = nativeTheme.shouldUseDarkColorsForSystemIntegratedUI;
+      if (typeof systemIntegrated === 'boolean') return systemIntegrated;
+    }
+    return nativeTheme.shouldUseDarkColors === true;
+  } catch (_) {
+    return false;
+  }
+}
+
+const WINDOWS_PERSONALIZE_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize';
+
+function readWindowsSystemDarkUi() {
+  return new Promise((resolve) => {
+    try {
+      require('node:child_process').execFile(
+        'reg',
+        ['query', WINDOWS_PERSONALIZE_KEY, '/v', 'SystemUsesLightTheme'],
+        { windowsHide: true, timeout: 5000 },
+        (error, stdout) => resolve(error ? null : parseWindowsSystemUsesLightTheme(stdout))
+      );
+    } catch (_) {
+      resolve(null);
+    }
+  });
+}
+
+// The value the renderer last heard, so a settled reading can be told from a
+// repeat of the one we already published.
+let currentSystemDarkUi = null;
+
+function currentSystemDarkTrayUi() {
+  if (currentSystemDarkUi === null) currentSystemDarkUi = systemDarkTrayUi();
+  return currentSystemDarkUi;
+}
+
+function pushSystemUiThemeToRenderer(dark) {
+  const value = typeof dark === 'boolean' ? dark : currentSystemDarkTrayUi();
+  currentSystemDarkUi = value;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try { mainWindow.webContents.send('theme:systemUi', { dark: value }); } catch (_) {}
+}
+
+// Windows cannot answer this at event time — see watchSystemDarkUi in tray.js
+// for what was measured. Everywhere else the event already carries the truth.
+let systemUiThemeRevision = 0;
+
+async function pushSystemUiThemeAfterChange() {
+  if (process.platform !== 'win32') {
+    pushSystemUiThemeToRenderer(systemDarkTrayUi());
+    return;
+  }
+  const revision = ++systemUiThemeRevision;
+  await watchSystemDarkUi({
+    read: readWindowsSystemDarkUi,
+    wait: (ms) => new Promise((resolve) => { setTimeout(resolve, ms); }),
+    isCurrent: () => revision === systemUiThemeRevision,
+    held: currentSystemDarkTrayUi(),
+    publish: (dark) => pushSystemUiThemeToRenderer(dark)
+  });
+}
+
 function pushSettingsToRenderer() {
   const payload = settingsForRenderer();
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -5757,6 +5828,10 @@ function rebuildWindow() {
 app.whenReady().then(() => {
   if (process.platform === 'darwin' && app.dock) app.dock.setIcon(APP_ICON_PATH);
   ensureSettingsLoaded();
+  // Switching the OS between light and dark repaints the taskbar underneath an
+  // icon we have already handed to the shell, so the renderer has to recompose
+  // it — nothing else in the app would notice the change.
+  nativeTheme.on('updated', () => { void pushSystemUiThemeAfterChange(); });
   const widgetRuntime = macWidgetRuntimeSupport({
     platform: process.platform,
     osRelease: process.platform === 'darwin' ? os.release() : ''
@@ -6294,7 +6369,8 @@ app.whenReady().then(() => {
     homeDir: require('os').homedir(),
     sharedDataDir: sharedDataDir(),
     loginItemSupported: loginItemEnabledHere(),
-    loginItemOpenAtLogin: currentLoginItemState()
+    loginItemOpenAtLogin: currentLoginItemState(),
+    systemDarkUi: currentSystemDarkTrayUi()
   }));
   ipcMain.handle('diagnostics:generate', async () => {
     const report = await diagnosticReportGenerator.generate();
