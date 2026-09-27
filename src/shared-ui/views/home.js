@@ -80,11 +80,11 @@ export function renderHome() {
                 ${toolIconHtml(row.key)}
                 <div class="row-copy">
                   <div class="row-name">${escapeHtml(row.name)}</div>
-                  <div class="row-sub">${pct}% · ${escapeHtml(estimatedValue(formatCost(row.cost, appState().prefs.currency), row.estimated))}${creditsText ? escapeHtml(creditsText) : ''}</div>
+                  <div class="row-sub">${row.value > 0 ? `${pct}% · ${escapeHtml(estimatedValue(formatCost(row.cost, appState().prefs.currency), row.estimated))}` : ''}${creditsText ? escapeHtml(creditsText) : ''}</div>
                 </div>
               </div>
               <div class="row-metrics">
-                <div class="row-value">${escapeHtml(estimatedValue(formatCompact(row.value), row.estimated))}</div>
+                <div class="row-value">${row.value > 0 ? escapeHtml(estimatedValue(formatCompact(row.value), row.estimated)) : escapeHtml(`${credits} ${tr('stats.credits')}`)}</div>
               </div>
             </div>
             <div class="share-meter"><span style="width:${Math.max(2, Math.min(100, pct))}%; background:${row.color}"></span></div>

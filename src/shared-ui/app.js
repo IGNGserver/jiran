@@ -2465,6 +2465,10 @@ function customPeriodFromRangePayload(payload) {
     // for every custom range while the preset periods showed it.
     clientModels: payload.clientModels || deriveClientModels(payload.sessions, 'models'),
     clientModelCosts: payload.clientModelCosts || deriveClientModels(payload.sessions, 'modelCosts'),
+    clientEstimated: payload.clientEstimated || {},
+    clientCredits: payload.clientCredits || {},
+    clientMeasurements: payload.clientMeasurements || {},
+    estimated: payload.estimated === true,
     projects: payload.projects || {},
     sessions: payload.sessions || {}
   };

@@ -12,6 +12,16 @@ const { customPricingPath } = require('./tokscaleConfig');
 const QODER_DB_SUFFIX = path.join('SharedClientCache', 'cache', 'db', 'local.db');
 const QODER_MAIN_DB_NAME = 'main.sqlite';
 
+function defineMeasurementProvenance(row, tokenProvenance, costProvenance) {
+  Object.defineProperty(row, 'tokenProvenance', {
+    value: tokenProvenance, enumerable: false, configurable: true
+  });
+  Object.defineProperty(row, 'costProvenance', {
+    value: costProvenance, enumerable: false, configurable: true
+  });
+  return row;
+}
+
 // Per-site on-disk layout. Qoder and Qoder CN share a transcript schema (same
 // top-level keys, same `message.usage` shape, same model-code family) but not a
 // profile root, app-support directory name, or Electron bundle id, so the
@@ -445,6 +455,7 @@ function normalizeQoderCnDbRow(row, source = 'local', clientId = 'qodercn') {
     createdAt: timestampMs(row?.gmt_create),
     messages: 1
   };
+  defineMeasurementProvenance(normalized, 'exact', 'estimated');
   const stableIdentity = String(row?.request_id || row?.requestId || row?.id || '').trim();
   if (stableIdentity) defineTranscriptIdentity(normalized, [stableIdentity]);
   return normalized;
@@ -841,6 +852,7 @@ function normalizeQoderCnMainMessage(row, source, state, contentTokens, clientId
     messages: 1,
     estimated: true
   };
+  defineMeasurementProvenance(normalized, 'estimated', 'estimated');
   if (rawMessage) defineTranscriptIdentity(normalized, [rawMessage]);
   // `unknown` is this module's placeholder for a row with no session column; it
   // must not become a join key, or every such row would suppress every other.
@@ -928,8 +940,14 @@ function buildTokscaleJson(startMs, rows, pricingByModel, includeUndated = false
     // count only for allTime (includeUndated) — never for today/month.
     if (startMs && (row.createdAt ? row.createdAt < startMs : !includeUndated)) continue;
     const key = `${row.sessionId}\0${row.model}`;
-    if (!grouped.has(key)) grouped.set(key, { ...row, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, messages: 0, credits: 0, startedAt: 0, lastUsedAt: 0, cost: 0 });
+    if (!grouped.has(key)) grouped.set(key, {
+      ...row, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, messages: 0, credits: 0,
+      startedAt: 0, lastUsedAt: 0, cost: 0,
+      tokenProvenance: 'exact', costProvenance: 'exact'
+    });
     const group = grouped.get(key);
+    if (row.tokenProvenance === 'estimated' || row.estimated === true) group.tokenProvenance = 'estimated';
+    if (row.costProvenance === 'estimated') group.costProvenance = 'estimated';
     group.input += row.input;
     group.output += row.output;
     group.cacheRead += row.cacheRead;
@@ -946,7 +964,8 @@ function buildTokscaleJson(startMs, rows, pricingByModel, includeUndated = false
     if (row.createdAt > group.lastUsedAt) group.lastUsedAt = row.createdAt;
   }
 
-  const entries = [...grouped.values()].map((row) => ({
+  const entries = [...grouped.values()].map((row) => {
+    const entry = {
     client, mergedClients: null, sessionId: row.sessionId, model: row.model, provider: client,
     input: row.input, output: row.output, cacheRead: row.cacheRead, cacheWrite: row.cacheWrite,
     reasoning: 0, messageCount: row.messages, cost: row.cost, credits: row.credits,
@@ -954,7 +973,13 @@ function buildTokscaleJson(startMs, rows, pricingByModel, includeUndated = false
     lastUsedAt: row.lastUsedAt ? new Date(row.lastUsedAt).toISOString() : '',
     projectLabel: row.projectLabel || '', performance: null,
     ...(row.estimated === true ? { estimated: true } : {})
-  }));
+    };
+    return defineMeasurementProvenance(
+      entry,
+      row.tokenProvenance || (row.estimated === true ? 'estimated' : 'exact'),
+      row.costProvenance || 'estimated'
+    );
+  });
   const sum = (key) => entries.reduce((total, row) => total + row[key], 0);
   return {
     groupBy: 'client,session,model', entries,
@@ -1594,6 +1619,7 @@ function collectQoderCnTranscriptRows(options = {}) {
       credits: bucket.credits,
       estimated: true
     };
+    defineMeasurementProvenance(row, 'estimated', 'estimated');
     defineTranscriptIdentity(row, [...bucket.sourceIdentities]);
     defineSourceSession(row, bucket.sourceSession);
     rows.push(row);

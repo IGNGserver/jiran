@@ -89,6 +89,7 @@ const NODE_RUNTIME_SOURCE_FILES = Object.freeze([
   'src/shared/outboundFetch.js',
   'src/shared/probeDeadline.js',
   'src/shared/promaUsage.js',
+  'src/shared/localUsageAdapters.js',
   'src/shared/qoderCnUsage.js',
   'src/shared/qoderCookieCapture.js',
   'src/shared/qoderLimits.js',
