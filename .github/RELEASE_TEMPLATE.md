@@ -50,7 +50,7 @@ chmod +x Token-Monitor-*.AppImage
 
 ### tokscale 依赖
 
-Tokscale 已随应用内置。你可以在 **设置 → Tokscale** 查看确切版本，也可以直接从 npm 下载更新版本。Tokscale 是 MIT 开源项目：
+Tokscale 已随应用内置，版本随本应用一起构建与更新，无需单独安装。Tokscale 是 MIT 开源项目：
 https://github.com/junhoyeo/tokscale
 
 </details>

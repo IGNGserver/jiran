@@ -21,9 +21,11 @@ test('every Electron collector mode yields daily-history writes to an external a
   assert.equal((main.match(/usageOptions:\s*electronUsageConfig\(/g) || []).length, 2);
 });
 
-test('clearing retained session usage also clears retained daily history', () => {
-  assert.match(main, /clearSessionUsageArchive\(\);\s*clearDailyHistoryArchive\(\);/);
-});
+// The paired "clear both archives together" invariant went with its only caller:
+// the settings action that cleared retained session usage had no button left, so
+// it was retired with the rest of the unreachable maintenance surface. The two
+// archive writers and readers asserted above are unchanged.
+
 
 test('the headless agent retains daily history without mutating storage in dry-run mode', () => {
   assert.match(agent, /usageConfigFromSource\(usageSource/);
