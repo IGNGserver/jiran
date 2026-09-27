@@ -122,6 +122,10 @@ function verifyProductScope() {
   const navigationGroupTable = read('src/shared-ui/app.js').match(/const navGroups = \[[\s\S]*?\];/);
   expect(Boolean(navigationGroupTable), 'the shared UI must keep a navigation group table');
   expect(!navigationGroupTable[0].includes("'transfer'"), 'device transfer must not be a navigation destination');
+  // Administration must stay a single destination: the accounts and consumption
+  // surfaces are sections of the Management page, not their own nav entries.
+  expect(/nav\.groupAdministration', \['settings'\]/.test(navigationGroupTable[0]), 'Administration must list only the Management page');
+  expect(!navigationGroupTable[0].includes("'accounts'"), 'accounts must not be a navigation destination');
   const settingsView = read('src/shared-ui/views/settings.js');
   expect(/!desktopHost && owner/.test(settingsView), 'the transfer panel must render only for the web host and authenticated owner');
 

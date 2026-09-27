@@ -1442,6 +1442,8 @@ html[data-theme="dark"] .heat.heat-cost.lvl-4 { fill: rgba(251, 191, 36, 0.92); 
 .settings-form { display: flex; flex-direction: column; gap: 16px; }
 .settings-advanced-body { display: grid; gap: 12px; padding-top: 4px; }
 .settings-advanced-body .transfer-form { display: grid; gap: 12px; }
+.settings-section-body { display: grid; gap: 14px; padding-top: 4px; }
+.settings-section-toolbar { display: flex; justify-content: flex-end; }
 .settings-form-hint { margin: 0; max-width: 70ch; }
 .settings-side-stack { display: grid; gap: 14px; }
 .settings-info-panel, .settings-boundary-panel { box-shadow: none; }

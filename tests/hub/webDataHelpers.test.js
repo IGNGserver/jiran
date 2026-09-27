@@ -69,8 +69,8 @@ test('hub web app wires status, heatmap, and active-days controls', () => {
   assert.match(app, /projects\.incomplete|sessions\.truncated/);
   assert.match(app, /id: 'subscriptions'/);
   assert.match(app, /id: 'pricing'/);
-  assert.match(app, /id: 'accounts'/);
   assert.match(app, /function renderAccounts/);
+  assert.match(app, /data-account-form/);
   assert.match(app, /data-account-form/);
   assert.match(app, /data-account-refresh/);
   assert.match(app, /data-account-delete/);
@@ -96,16 +96,23 @@ test('hub web app wires status, heatmap, and active-days controls', () => {
 test('hub web navigation exposes the new page model and compatibility routes', () => {
   // Views are extracted into src/shared-ui/views/; read the whole package so an
   // assertion does not break merely because a renderer moved to its own module.
+  // Administration is a single destination (settings, labelled 管理); the
+  // accounts and consumption surfaces are sections inside it and are reached
+  // through compatibility redirects rather than as their own views.
   const app = uiSource();
-  for (const view of ['overview', 'usage', 'devices', 'limits', 'trends', 'accounts', 'management', 'settings']) {
+  for (const view of ['overview', 'usage', 'devices', 'limits', 'trends', 'settings']) {
     assert.match(app, new RegExp(`id: '${view}'`));
   }
+  assert.doesNotMatch(app, /id: 'accounts'/);
+  assert.doesNotMatch(app, /id: 'management'/);
   assert.match(app, /const LEGACY_ROUTE_ALIASES/);
+  assert.match(app, /const VIEW_REDIRECTS = Object\.freeze\(\{ accounts: 'settings', management: 'settings' \}\)/);
   assert.match(app, /function renderUsage\(/);
-  assert.match(app, /function renderManagement\(/);
-  assert.match(app, /function renderSettingsPage\(/);
-  assert.match(app, /function renderAccountsPage\(/);
-  assert.match(app, /data-usage-tab/);
+  assert.match(app, /function renderConsumptionSection\(/);
+  assert.match(app, /section\('accounts'/);
+  assert.match(app, /section\('consumption'/);
+  assert.match(app, /data-settings-section="preferences"/);
+  assert.match(app, /section\('advanced'/);
   assert.match(app, /data-management-tab/);
   assert.match(app, /usage\.customRangeGlobal/);
   assert.match(app, /\['7', '30', '90', '365', 'all'\]/);

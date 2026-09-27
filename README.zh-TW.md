@@ -182,7 +182,7 @@ Qoder 的 Token 用量來自應用程式自身的本機檔案，而非 API。國
 - **一套介面，兩個宿主**：桌面應用程式與中樞的網頁儀表板渲染同一套 UI，沒裝應用程式的機器也能直接在瀏覽器開啟完整儀表板
 - **外觀控制**：介面主題切換（含淺色模式）、各工具廠商色，以及原生視窗背景效果
 - **桌面端設定**：語言、視窗材質與動效、開機啟動/托盤行為、更新，以及中樞連線
-- **裝置資料移轉**：僅中樞網頁端、僅管理員的設定 →「進階」操作，把一台裝置的歷史改歸到另一台
+- **裝置資料移轉**：僅中樞網頁端、僅管理員的管理 →「進階」操作，把一台裝置的歷史改歸到另一台
 
 ## 安裝
 
@@ -204,7 +204,7 @@ Qoder 的 Token 用量來自應用程式自身的本機檔案，而非 API。國
 - **Android** — `Token-Monitor-Android-<version>.apk`，用於檢視 Docker Compose Hub 同步資料的唯讀用戶端
 - **無 GUI／伺服器** — `Token-Monitor-Headless-<version>.tar.gz`；使用 Node.js 22.13+ 與 `npm ci --omit=dev` 安裝
 
-打包版會自動檢查 GitHub Releases。有新版本時，介面會顯示更新提示；支援的平台也可在 設定 → 啟動與更新 中安裝更新。
+打包版會自動檢查 GitHub Releases。有新版本時，介面會顯示更新提示；支援的平台也可在 管理 → 啟動與更新 中安裝更新。
 
 ### 首次啟動
 
@@ -212,7 +212,7 @@ Qoder 的 Token 用量來自應用程式自身的本機檔案，而非 API。國
 
 ## 多裝置同步
 
-如果需要多裝置同步，請把所有裝置（以及沒有安裝應用程式的無頭代理）連線到同一個 Docker Compose Hub。在每台裝置上開啟應用程式，前往 設定 → 中樞連線 並選擇 **連線中樞**；只有沒有安裝應用程式的機器才需要執行 `npm run agent`。無 GUI 安裝請參閱 [Headless Agent 指南](docs/headless-agent.md)，並下載 `Token-Monitor-Headless-<version>.tar.gz`。
+如果需要多裝置同步，請把所有裝置（以及沒有安裝應用程式的無頭代理）連線到同一個 Docker Compose Hub。在每台裝置上開啟應用程式，前往 管理 → 中樞連線 並選擇 **連線中樞**；只有沒有安裝應用程式的機器才需要執行 `npm run agent`。無 GUI 安裝請參閱 [Headless Agent 指南](docs/headless-agent.md)，並下載 `Token-Monitor-Headless-<version>.tar.gz`。
 
 這個單人專案使用 `TOKEN_MONITOR_SECRET` 作為所有裝置共用的唯一 Hub 密鑰，涵蓋讀取、上報與管理操作，包括手動加入的額度帳號。舊版分離的 admin/viewer/裝置憑證僅保留作為相容模式。遠端連線預設必須使用 HTTPS；桌面端／agent 需明確啟用可信任 LAN HTTP，Android 發行版始終要求 HTTPS。
 
@@ -232,7 +232,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-在每個應用程式中，前往 設定 → 中樞連線，選擇 **連線中樞**，再輸入 Hub URL 與同一個 Hub 密鑰。沒有安裝應用程式的機器使用相同的 URL 與密鑰執行 `npm run agent`。
+在每個應用程式中，前往 管理 → 中樞連線，選擇 **連線中樞**，再輸入 Hub URL 與同一個 Hub 密鑰。沒有安裝應用程式的機器使用相同的 URL 與密鑰執行 `npm run agent`。
 
 根目錄 Docker Compose 堆疊是唯一支援的 Hub 部署方式，提供 HTTP API、儀表板、PWA、裝置上報與 SSE 即時串流。
 
@@ -273,7 +273,7 @@ npm run pack         # 未封裝的 app 目錄（無安裝檔），方便本機�
     裝置 C agent ──▶
 ```
 
-桌面應用程式會根據 設定 → 中樞連線 決定走本機或同步模式。Docker Compose Hub 會接收每台裝置的標準化摘要，並透過 Server-Sent Events 將彙總統計推送給已連線的用戶端，因此一台裝置的更新會在數秒內出現在其他裝置上。
+桌面應用程式會根據 管理 → 中樞連線 決定走本機或同步模式。Docker Compose Hub 會接收每台裝置的標準化摘要，並透過 Server-Sent Events 將彙總統計推送給已連線的用戶端，因此一台裝置的更新會在數秒內出現在其他裝置上。
 
 ## 會話資料保留期
 

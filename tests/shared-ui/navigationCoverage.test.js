@@ -45,19 +45,19 @@ test('device transfer is not a navigation destination', () => {
   assert.doesNotMatch(APP_SOURCE, /renderTransfer\(/, 'the standalone transfer view must be gone');
 });
 
-test('transfer is admin-gated and lives in the web settings Advanced group', () => {
-  // The Hub exposes transfer only on the web host. The connected owner can use it;
-  // both the settings-page gate and the panel's own authentication gate are asserted —
-  // the settings-page gate and the panel's own submit gate.
+test('transfer is owner-gated and lives in the web Management page Advanced section', () => {
+  // The Hub exposes transfer only on the web host, and only to the connected
+  // owner. Both halves are asserted — the page's own gate and the panel's submit
+  // gate — so a reader without owner rights can never see the action.
   assert.match(SETTINGS_SOURCE, /!desktopHost && owner/);
-  assert.match(SETTINGS_SOURCE, /data-settings-section="advanced"/);
-  assert.match(SETTINGS_SOURCE, /settings\.groupAdvanced/);
+  assert.match(SETTINGS_SOURCE, /section\('advanced'/);
+  assert.match(SETTINGS_SOURCE, /management\.section\.advanced/);
   assert.match(TRANSFER_SOURCE, /authenticated === true/);
   assert.match(TRANSFER_SOURCE, /transfer\.needsAdmin/);
 });
 
 test('the desktop host has no transfer code path', () => {
-  // The transfer endpoint is Hub-owned and admin-only; the desktop client must
+  // The transfer endpoint is Hub-owned and owner-only; the desktop client must
   // neither render the panel nor proxy the request. The only rendering site is
   // gated on the web host, so `capabilities.desktopSettings === true` can never
   // reach it.

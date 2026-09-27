@@ -169,6 +169,12 @@ function settingsNavigation(root) {
   nav.setAttribute('aria-label', document.getElementById('pageTitle').textContent);
   const body = document.createElement('div');
   body.className = 'settings-sections';
+  const activate = (section, link, nav_, body_) => {
+    nav_.querySelectorAll('a').forEach((item) => item.toggleAttribute('aria-current', item === link));
+    link.setAttribute('aria-current', 'location');
+    body_.querySelectorAll(':scope > section, :scope > form').forEach((item) => { item.hidden = item !== section; });
+    section.querySelector('h2')?.focus({ preventScroll: true });
+  };
   sections.forEach((section, index) => {
     section.id = `settings-section-${section.dataset.settingsSection || section.dataset.desktopGroup || index}`;
     const link = document.createElement('a');
@@ -179,10 +185,12 @@ function settingsNavigation(root) {
     link.addEventListener('click', (event) => {
       event.preventDefault();
       settingsSection = section.id;
-      body.querySelectorAll(':scope > section, :scope > form').forEach((item) => { item.hidden = item !== section; });
-      nav.querySelectorAll('a').forEach((item) => item.toggleAttribute('aria-current', item === link));
-      link.setAttribute('aria-current', 'location');
-      section.querySelector('h2')?.focus({ preventScroll: true });
+      activate(section, link, nav, body);
+      // The app owns routing/prefs; the rail only reports what was chosen.
+      section.dispatchEvent(new CustomEvent('settings-section-change', {
+        bubbles: true,
+        detail: { section: section.dataset.settingsSection || section.dataset.desktopGroup || '' }
+      }));
     });
     nav.append(link);
     // Retain the desktop settings boundary for delegated changes and patch reads.
@@ -192,9 +200,13 @@ function settingsNavigation(root) {
     body.append(section);
   });
   layout.replaceChildren(nav, body);
-  const selected = sections.find((section) => section.id === settingsSection) || sections[0];
-  sections.forEach((section) => { section.hidden = section !== selected; });
-  nav.querySelector(`[href="#${selected?.id}"]`)?.setAttribute('aria-current', 'location');
+  // The app marks which section a route asked for; the remembered click keeps
+  // the desktop groups (which have no route) stable across re-renders.
+  const preferred = sections.find((section) => section.hasAttribute('data-settings-active'))
+    || sections.find((section) => section.id === settingsSection)
+    || sections[0];
+  sections.forEach((section) => { section.hidden = section !== preferred; });
+  nav.querySelector(`[href="#${preferred?.id}"]`)?.setAttribute('aria-current', 'location');
 }
 
 export function finishFluentRender(root, view) {

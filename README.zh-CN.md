@@ -182,7 +182,7 @@ Qoder 的 Token 用量来自应用自身的本地文件，而非 API。国际版
 - **一套界面，两个宿主**：桌面应用与中枢的网页仪表板渲染同一套 UI，没装应用的机器也能直接在浏览器里打开完整仪表板
 - **外观控制**：界面主题切换（含浅色模式）、各工具厂商色，以及原生窗口背景效果
 - **桌面端设置**：语言、窗口材质与动效、开机启动/托盘行为、更新，以及中枢连接
-- **设备数据迁移**：仅中枢网页端、仅管理员的设置 →「高级」操作，把一台设备的历史改归到另一台
+- **设备数据迁移**：仅中枢网页端、仅管理员的管理 →「高级」操作，把一台设备的历史改归到另一台
 
 ## 安装
 
@@ -204,7 +204,7 @@ Qoder 的 Token 用量来自应用自身的本地文件，而非 API。国际版
 - **Android** — `Token-Monitor-Android-<version>.apk`，用于查看 Docker Compose Hub 同步数据的只读客户端
 - **无 GUI／服务器** — `Token-Monitor-Headless-<version>.tar.gz`；使用 Node.js 22.13+ 与 `npm ci --omit=dev` 安装
 
-打包版会自动检查 GitHub Releases。有新版本时，界面会显示更新提示；受支持的平台也可在 设置 → 启动与更新 中安装更新。
+打包版会自动检查 GitHub Releases。有新版本时，界面会显示更新提示；受支持的平台也可在 管理 → 启动与更新 中安装更新。
 
 ### 首次启动
 
@@ -212,7 +212,7 @@ Qoder 的 Token 用量来自应用自身的本地文件，而非 API。国际版
 
 ## 多设备同步
 
-如果需要多设备同步，把所有设备（以及没有安装应用的无头代理）连接到同一个 Docker Compose Hub。在每台设备上打开应用，在 设置 → 中枢连接 中选择 **连接中枢**；只有没有安装应用的机器才需要运行 `npm run agent`。无 GUI 安装请参阅[Headless Agent 指南](docs/headless-agent.md)，并下载 `Token-Monitor-Headless-<version>.tar.gz`。
+如果需要多设备同步，把所有设备（以及没有安装应用的无头代理）连接到同一个 Docker Compose Hub。在每台设备上打开应用，在 管理 → 中枢连接 中选择 **连接中枢**；只有没有安装应用的机器才需要运行 `npm run agent`。无 GUI 安装请参阅[Headless Agent 指南](docs/headless-agent.md)，并下载 `Token-Monitor-Headless-<version>.tar.gz`。
 
 Hub 凭据已分权：viewer 令牌只读，设备令牌可读取并仅上报绑定的 Device ID，admin 令牌才能执行变更。远程连接默认必须使用 HTTPS；桌面端/agent 需显式开启可信 LAN HTTP，Android 发行版始终要求 HTTPS。
 
@@ -232,7 +232,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-在每个应用中，前往 设置 → 中枢连接，选择 **连接中枢**，然后输入 Hub URL 和同一个 Hub 密钥。没有安装应用的机器使用相同的 URL 和密钥运行 `npm run agent`。这个密钥同时覆盖读取、上报和管理员操作。
+在每个应用中，前往 管理 → 中枢连接，选择 **连接中枢**，然后输入 Hub URL 和同一个 Hub 密钥。没有安装应用的机器使用相同的 URL 和密钥运行 `npm run agent`。这个密钥同时覆盖读取、上报和管理员操作。
 
 根目录 Docker Compose 堆栈是唯一支持的 Hub 部署方式，提供 HTTP API、仪表盘、PWA、设备上报和 SSE 实时流。
 
@@ -273,7 +273,7 @@ npm run pack         # 未打包的 app 目录（无安装包），方便本机�
     设备 C agent ──▶
 ```
 
-桌面应用会根据 设置 → 中枢连接 决定走本地还是同步模式。Docker Compose Hub 接收每台设备的标准化摘要，并通过 Server-Sent Events 将聚合统计推送给已连接的客户端，因此一台设备上的更新会在数秒内出现在其他设备上。
+桌面应用会根据 管理 → 中枢连接 决定走本地还是同步模式。Docker Compose Hub 接收每台设备的标准化摘要，并通过 Server-Sent Events 将聚合统计推送给已连接的客户端，因此一台设备上的更新会在数秒内出现在其他设备上。
 
 ## 会话数据保留期
 

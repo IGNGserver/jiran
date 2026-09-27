@@ -182,7 +182,7 @@ Most usage monitors are useful on the machine they run on. Token Monitor is buil
 - **One interface, two hosts** — the desktop app and the Hub's web dashboard render the same UI, so a machine without the app can still open the full dashboard in a browser
 - **Appearance controls** — interface theme switching (incl. a light mode), per-tool vendor colours, and native window backdrop
 - **Desktop settings** — language, window surface and motion, startup/tray behaviour, updates, and the Hub connection
-- **Device data transfer** — an admin-only Hub-web operation under Settings → Advanced that re-attributes one device's history to another
+- **Device data transfer** — an admin-only Hub-web operation under Management → Advanced that re-attributes one device's history to another
 
 ## Installation
 
@@ -204,7 +204,7 @@ Download from [GitHub Releases](https://github.com/IGNGserver/token-monitor-suit
 - **Android** — `Token-Monitor-Android-<version>.apk`, a read-only client for a Docker Compose Hub
 - **No-GUI/server** — `Token-Monitor-Headless-<version>.tar.gz`; install with Node.js 22.13+ and `npm ci --omit=dev`
 
-Packaged builds check GitHub Releases automatically. When an update is available, the app shows an update indicator; supported platforms can also install from Settings → Startup & updates.
+Packaged builds check GitHub Releases automatically. When an update is available, the app shows an update indicator; supported platforms can also install from Management → Startup & updates.
 
 ### First run
 
@@ -212,7 +212,7 @@ Local mode is the default: launch the app and it starts tracking this device. No
 
 ## Multi-device sync
 
-When you want multi-device sync, connect all devices (and any headless agents) to the same Docker Compose Hub. On each device, open the app and choose **Connect to a hub** under Settings → Hub connection. The app contributes this device's usage automatically; run `npm run agent` only on machines without the app. For a no-GUI install, use the [headless agent guide](docs/headless-agent.md) and the `Token-Monitor-Headless-<version>.tar.gz` release asset.
+When you want multi-device sync, connect all devices (and any headless agents) to the same Docker Compose Hub. On each device, open the app and choose **Connect to a hub** under Management → Hub connection. The app contributes this device's usage automatically; run `npm run agent` only on machines without the app. For a no-GUI install, use the [headless agent guide](docs/headless-agent.md) and the `Token-Monitor-Headless-<version>.tar.gz` release asset.
 
 For this single-user project, `TOKEN_MONITOR_SECRET` is the one Hub owner key used by every client and it covers read, ingest, and administrative operations, including manually managed quota accounts. Devices identify data sources, not separate users. Remote connections require HTTPS by default; desktop/agent HTTP needs an explicit trusted-LAN opt-in, while Android release builds always require HTTPS.
 
@@ -232,7 +232,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-In every app, choose **Connect to a hub** under Settings → Hub connection, then enter the Hub URL and the same Hub key. On machines without the app, configure the same URL and key and run `npm run agent`.
+In every app, choose **Connect to a hub** under Management → Hub connection, then enter the Hub URL and the same Hub key. On machines without the app, configure the same URL and key and run `npm run agent`.
 
 The root Docker Compose stack is the only supported Hub deployment. It provides the HTTP API, dashboard, PWA, device ingest, and SSE stream for every connected client.
 
@@ -273,7 +273,7 @@ Mode B — Sync (opt-in, multi-device)
     device C agent ──▶
 ```
 
-The desktop app chooses local vs sync mode based on Settings → Hub connection. The Docker Compose Hub receives each device's normalized summary and pushes aggregated stats to connected clients over Server-Sent Events, so updates on one device appear on the others within a few seconds.
+The desktop app chooses local vs sync mode based on Management → Hub connection. The Docker Compose Hub receives each device's normalized summary and pushes aggregated stats to connected clients over Server-Sent Events, so updates on one device appear on the others within a few seconds.
 
 ## Session data retention
 
