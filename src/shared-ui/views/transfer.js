@@ -44,16 +44,22 @@ export function renderTransferPanel() {
     </form>`;
 }
 
-/** The standalone transfer view wraps the same panel. */
+/**
+ * The standalone transfer view.
+ *
+ * Same panel, page-level chrome: the dashboard's content area takes view fragments
+ * directly, and the desktop-settings scaffolding this used to borrow
+ * (`settings-layout`, `settings-transfer-layout`, `desktop-settings-group`/`-body`) is
+ * styled only by the Electron renderer's own stylesheet or by nothing at all — on the
+ * web dashboard it left the panel inside an empty two-column settings grid.
+ */
 export function renderTransfer() {
   const rows = deviceRows(viewStats(), 'allTime');
   if (!rows.length) return emptyHtml('empty.usage');
-  return `<div class="settings-layout settings-transfer-layout">
-      <section class="panel desktop-settings-group" data-desktop-group="transfer">
-        <div class="panel-head"><h2 class="panel-title">${escapeHtml(tr('transfer.title'))}</h2></div>
-        <div class="desktop-settings-body">${renderTransferPanel()}</div>
-      </section>
-    </div>`;
+  return `<section class="panel" data-desktop-group="transfer">
+      <div class="panel-head"><h2 class="panel-title">${escapeHtml(tr('transfer.title'))}</h2></div>
+      ${renderTransferPanel()}
+    </section>`;
 }
 
 /** Submit the transfer. Returns an error message or ''. */
