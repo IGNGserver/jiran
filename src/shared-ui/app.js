@@ -35,7 +35,6 @@ import { renderLimits } from './views/limits.js';
 import { renderHome } from './views/home.js';
 import { renderUsage, renderTokenMix } from './views/usage.js';
 import { renderDevices } from './views/devices.js';
-import { renderAccountsPage } from './views/accounts.js';
 import { readDesktopSettingsPatch } from './views/settingsDesktop.js';
 import { renderSettingsPage } from './views/settings.js';
 import { submitTransfer } from './views/transfer.js';
@@ -103,16 +102,25 @@ function renderStaticUiIcons() {
   });
 }
 
+// The Administration group has one destination: `settings`, labelled 管理. The
+// provider accounts and the subscriptions/pricing pages are sections inside it
+// rather than separate views, so they are no longer in this list.
 const VIEWS = [
   { id: 'overview', icon: 'home' },
   { id: 'usage', icon: 'usage' },
   { id: 'devices', icon: 'device' },
   { id: 'limits', icon: 'limits' },
   { id: 'trends', icon: 'trends' },
-  { id: 'accounts', icon: 'accounts' },
-  { id: 'management', icon: 'management' },
   { id: 'settings', icon: 'settings' }
 ];
+
+// Views that were folded into another page. A persisted preference, bookmark or
+// native-menu id must still land on the page that now owns their content, not
+// fall through to the overview.
+const VIEW_REDIRECTS = Object.freeze({ accounts: 'settings', management: 'settings' });
+
+// Which section of the consolidated 管理 page a redirect targets.
+const VIEW_SECTION_REDIRECTS = Object.freeze({ accounts: 'accounts', management: 'consumption' });
 
 // Keep the old identifiers in the source and in the URL resolver so existing
 // bookmarks, pinned shortcuts, and persisted preferences land on the new page
@@ -158,12 +166,14 @@ const LEGACY_ROUTE_ALIASES = Object.freeze({
   '/sessions': { view: 'usage', usageTab: 'sessions' },
   '/device': { view: 'devices' },
   '/status': { view: 'limits', limitTab: 'health' },
-  '/subscriptions': { view: 'management', managementTab: 'subscriptions' },
-  '/pricing': { view: 'management', managementTab: 'pricing' }
+  '/subscriptions': { view: 'settings', managementSection: 'consumption', managementTab: 'subscriptions' },
+  '/pricing': { view: 'settings', managementSection: 'consumption', managementTab: 'pricing' },
+  '/accounts': { view: 'settings', managementSection: 'accounts' }
 });
 
 function normalizeViewId(value) {
   const id = String(value || '').trim();
+  if (VIEW_REDIRECTS[id]) return VIEW_REDIRECTS[id];
   if (VIEWS.some((view) => view.id === id)) return id;
   if (!LEGACY_VIEWS.some((view) => view.id === id)) return 'overview';
   return LEGACY_ROUTE_ALIASES[`/${id}`]?.view || 'overview';
@@ -186,6 +196,9 @@ function routeFromLocation() {
     managementTab: ['subscriptions', 'pricing'].includes(params.get('tab'))
       ? params.get('tab')
       : target.managementTab,
+    managementSection: ['accounts', 'consumption', 'preferences', 'advanced'].includes(params.get('section'))
+      ? params.get('section')
+      : target.managementSection,
     limitTab: params.get('tab') === 'health' || target.limitTab ? 'health' : 'limits'
   };
 }
@@ -200,15 +213,20 @@ function syncUrlForView(viewId, { replace = false, tab = '' } = {}) {
     const params = new URLSearchParams();
     const nextTab = tab || (viewId === 'usage'
       ? state?.prefs?.usageTab
-      : viewId === 'management'
+      : viewId === 'settings'
         ? state?.prefs?.managementTab
         : viewId === 'limits'
           ? (state?.prefs?.limitTab === 'health' ? 'health' : '')
           : '');
     if (nextTab && ((viewId === 'usage' && ['tools', 'models', 'projects', 'sessions'].includes(nextTab))
-      || (viewId === 'management' && ['subscriptions', 'pricing'].includes(nextTab))
+      || (viewId === 'settings' && ['subscriptions', 'pricing'].includes(nextTab))
       || (viewId === 'limits' && nextTab === 'health'))) {
       params.set('tab', nextTab);
+    }
+    // The consolidated page keeps its section in the URL so a bookmark or a
+    // hand-off lands on 账号 / 消费 / 偏好 / 高级 rather than the first section.
+    if (viewId === 'settings' && ['accounts', 'consumption', 'preferences', 'advanced'].includes(state?.prefs?.managementSection)) {
+      params.set('section', state.prefs.managementSection);
     }
     const query = params.toString();
     // Desktop loads from file://, where there is no server-side SPA fallback and
@@ -302,6 +320,7 @@ const state = {
     view: initialRoute.view || viewFromLocation() || 'overview',
     usageTab: initialRoute.usageTab || 'tools',
     managementTab: initialRoute.managementTab || 'subscriptions',
+    managementSection: initialRoute.managementSection || 'accounts',
     limitTab: initialRoute.limitTab || 'limits'
   },
   secret: '',
@@ -775,14 +794,10 @@ function viewDescription(view = state.prefs.view) {
 }
 
 function renderChrome() {
-  const capabilities = state.authorization?.capabilities || state.health?.capabilities || {};
-  const owner = state.authorization?.authenticated === true;
   normalizePeriodSelection();
-  const visibleViews = VIEWS.filter((view) => {
-    if (view.id === 'accounts') return capabilities.hubAccounts !== false;
-    if (view.id === 'management') return capabilities.subscriptions !== false || (capabilities.pricing !== false && owner);
-    return true;
-  });
+  // Administration is a single destination whose account/consumption sections
+  // gate themselves, so the nav list is the full VIEWS set.
+  const visibleViews = VIEWS;
   if (!visibleViews.some((view) => view.id === state.prefs.view)) state.prefs.view = 'overview';
   if (els.brandSubtitle) {
     els.brandSubtitle.textContent = isCapable('desktopSettings')
@@ -791,10 +806,12 @@ function renderChrome() {
   }
   els.primaryNav.setAttribute('aria-label', tr('nav.primary'));
   document.querySelector('.scope-commandbar')?.setAttribute('aria-label', tr('filters.scope'));
+  // Administration is one entry now; the accounts and consumption surfaces are
+  // sections inside it, so they are not navigation destinations.
   const navGroups = [
     ['nav.groupInsights', ['overview', 'usage', 'trends']],
     ['nav.groupResources', ['devices', 'limits']],
-    ['nav.groupAdministration', ['accounts', 'management', 'settings']]
+    ['nav.groupAdministration', ['settings']]
   ];
   els.primaryNav.innerHTML = navGroups.map(([label, ids]) => {
     const items = visibleViews.filter((view) => ids.includes(view.id));
@@ -1457,7 +1474,7 @@ function renderSubscriptions() {
         </aside>
       </div>`
     : '';
-  return `${renderCompletenessNotice(viewStats(), state.prefs.period)}${conflictNotice}${panel(tr('subscriptions.title'), `<div class="summary-grid subscription-summary">${summary}</div>${list}`, '', addAction)}${management}`;
+  return `${renderCompletenessNotice(viewStats(), state.prefs.period)}${conflictNotice}<div class="settings-section-toolbar">${addAction}</div><div class="summary-grid subscription-summary">${summary}</div>${list}${management}`;
 }
 
 function renderPricing() {
@@ -1490,7 +1507,7 @@ function renderPricing() {
         </aside>
       </div>`
     : '';
-  return `${panel(tr('pricing.title'), `${actions}${rows}`)}${drawer}`;
+  return `${actions}${rows}${drawer}`;
 }
 
 function pricingForm(entry) {
@@ -1510,25 +1527,20 @@ function pricingForm(entry) {
   </form>`;
 }
 
-function renderManagementSubnav() {
-  const current = ['subscriptions', 'pricing'].includes(state.prefs.managementTab)
-    ? state.prefs.managementTab
-    : 'subscriptions';
+// The 消费 section body: the subscriptions/pricing tablist and its panel. It
+// lives in app.js because those renderers read the app's ledger state; the
+// Management page receives the rendered body.
+function renderConsumptionSection() {
   const owner = state.authorization?.authenticated === true;
   const pricingVisible = state.authorization?.capabilities?.pricing !== false && owner;
-  return `<tm-tablist class="page-tabs" aria-label="${escapeHtml(tr('nav.management'))}" role="tablist">
+  const current = state.prefs.managementTab === 'pricing' && pricingVisible ? 'pricing' : 'subscriptions';
+  if (state.prefs.managementTab !== current) state.prefs.managementTab = current;
+  const body = current === 'pricing' ? renderPricing() : renderSubscriptions();
+  return `<tm-tablist class="page-tabs" aria-label="${escapeHtml(tr('management.section.consumption'))}" role="tablist">
     <fluent-tab id="management-tab-subscriptions" role="tab" aria-controls="management-tabpanel" aria-selected="${current === 'subscriptions' ? 'true' : 'false'}" class="page-tab${current === 'subscriptions' ? ' active' : ''}" data-management-tab="subscriptions">${escapeHtml(tr('management.tabs.subscriptions'))}</fluent-tab>
     ${pricingVisible ? `<fluent-tab id="management-tab-pricing" role="tab" aria-controls="management-tabpanel" aria-selected="${current === 'pricing' ? 'true' : 'false'}" class="page-tab${current === 'pricing' ? ' active' : ''}" data-management-tab="pricing">${escapeHtml(tr('management.tabs.pricing'))}</fluent-tab>` : ''}
-  </tm-tablist>`;
-}
-
-function renderManagement() {
-  const owner = state.authorization?.authenticated === true;
-  const pricingVisible = state.authorization?.capabilities?.pricing !== false && owner;
-  const tab = state.prefs.managementTab === 'pricing' && pricingVisible ? 'pricing' : 'subscriptions';
-  if (state.prefs.managementTab !== tab) state.prefs.managementTab = tab;
-  const body = tab === 'pricing' ? renderPricing() : renderSubscriptions();
-  return `<section class="page-intro management-page-intro">${renderManagementSubnav()}</section><section class="management-tabpanel" id="management-tabpanel" role="tabpanel" aria-labelledby="management-tab-${tab}" tabindex="0">${body}</section>`;
+  </tm-tablist>
+  <section class="management-tabpanel" id="management-tabpanel" role="tabpanel" aria-labelledby="management-tab-${current}" tabindex="0">${body}</section>`;
 }
 
 function settingsOptionList(options, selected) {
@@ -1649,17 +1661,11 @@ function render() {
       case 'limits':
         html = renderLimits();
         break;
-      case 'accounts':
-        html = renderAccountsPage();
-        break;
       case 'trends':
         html = renderTrends();
         break;
-      case 'management':
-        html = renderManagement();
-        break;
       case 'settings':
-        html = renderSettingsPage();
+        html = renderSettingsPage({ consumption: renderConsumptionSection() });
         break;
       default:
         html = renderHome();
@@ -1834,7 +1840,7 @@ async function loadSubscriptions({ force = false, preserveDraft = false } = {}) 
         state.subscriptionsLoading = false;
         state.managementControllers.subscriptions = null;
         state.managementPromises.subscriptions = null;
-        if (state.prefs.view === 'management' && state.prefs.managementTab === 'subscriptions') render();
+        if (state.prefs.view === 'settings' && state.prefs.managementSection === 'consumption' && state.prefs.managementTab === 'subscriptions') render();
       }
     }
   })();
@@ -1864,7 +1870,7 @@ async function loadPricing({ force = false } = {}) {
         state.pricingLoading = false;
         state.managementControllers.pricing = null;
         state.managementPromises.pricing = null;
-        if (state.prefs.view === 'management' && state.prefs.managementTab === 'pricing') render();
+        if (state.prefs.view === 'settings' && state.prefs.managementSection === 'consumption' && state.prefs.managementTab === 'pricing') render();
       }
     }
   })();
@@ -1894,7 +1900,7 @@ async function loadAccounts({ force = false } = {}) {
         state.accountsLoading = false;
         state.managementControllers.accounts = null;
         state.managementPromises.accounts = null;
-        if (state.prefs.view === 'accounts') render();
+        if (state.prefs.view === 'settings' && state.prefs.managementSection === 'accounts') render();
       }
     }
   })();
@@ -2587,44 +2593,52 @@ function loadPresetRange(rangeWindow, { notify = false } = {}) {
   return request;
 }
 
-function switchView(viewId, { updateHistory = true, replace = false, tab = '' } = {}) {
+function switchView(viewId, { updateHistory = true, replace = false, tab = '', section = '' } = {}) {
   const target = String(viewId || 'overview').trim().replace(/^\/+/, '');
   const legacy = LEGACY_ROUTE_ALIASES[`/${target}`];
   const validView = legacy?.view || normalizeViewId(target);
   const nextUsageTab = tab || legacy?.usageTab || state.prefs.usageTab;
   const nextManagementTab = tab || legacy?.managementTab || state.prefs.managementTab;
+  const nextManagementSection = section || legacy?.managementSection || state.prefs.managementSection;
   const nextLimitTab = tab || legacy?.limitTab || state.prefs.limitTab;
   const usageTab = ['tools', 'models', 'projects', 'sessions'].includes(nextUsageTab) ? nextUsageTab : 'tools';
   const managementTab = ['subscriptions', 'pricing'].includes(nextManagementTab) ? nextManagementTab : 'subscriptions';
+  const managementSection = ['accounts', 'consumption', 'preferences', 'advanced'].includes(nextManagementSection)
+    ? nextManagementSection
+    : 'accounts';
   const limitTab = nextLimitTab === 'health' ? 'health' : 'limits';
   state.accountDrawerOpen = false;
   state.subscriptionDrawerOpen = false;
   state.pricingDrawerOpen = false;
   const changed = state.prefs.view !== validView
     || (validView === 'usage' && state.prefs.usageTab !== usageTab)
-    || (validView === 'management' && state.prefs.managementTab !== managementTab)
+    || (validView === 'settings' && state.prefs.managementSection !== managementSection)
     || (validView === 'limits' && state.prefs.limitTab !== limitTab);
   state.prefs.view = validView;
   if (validView === 'usage') state.prefs.usageTab = usageTab;
-  if (validView === 'management') state.prefs.managementTab = managementTab;
+  if (validView === 'settings') {
+    state.prefs.managementSection = managementSection;
+    state.prefs.managementTab = managementTab;
+  }
   if (validView === 'limits') state.prefs.limitTab = limitTab;
   savePrefs({
     view: validView,
     usageTab: state.prefs.usageTab,
     managementTab: state.prefs.managementTab,
+    managementSection: state.prefs.managementSection,
     limitTab: state.prefs.limitTab
   });
   if (updateHistory) {
     syncUrlForView(validView, {
       replace: replace || !changed,
-      tab: validView === 'usage' ? usageTab : validView === 'management' ? managementTab : (validView === 'limits' && limitTab === 'health' ? 'health' : '')
+      tab: validView === 'usage' ? usageTab : validView === 'settings' ? managementTab : (validView === 'limits' && limitTab === 'health' ? 'health' : '')
     });
   }
   openNav(false);
   if (changed) animateNavigation(els.content);
-  if (validView === 'management' && state.prefs.managementTab === 'subscriptions') void loadSubscriptions().then(() => render());
-  if (validView === 'management' && state.prefs.managementTab === 'pricing') void loadPricing().then(() => render());
-  if (validView === 'accounts') void loadAccounts().then(() => render());
+  if (validView === 'settings' && managementSection === 'consumption' && managementTab === 'subscriptions') void loadSubscriptions().then(() => render());
+  if (validView === 'settings' && managementSection === 'consumption' && managementTab === 'pricing') void loadPricing().then(() => render());
+  if (validView === 'settings' && managementSection === 'accounts') void loadAccounts().then(() => render());
   if (validView === 'trends' || validView === 'overview') {
     void ensureHistory().then(() => render());
     return;
@@ -2639,7 +2653,8 @@ function bindEvents() {
     const route = routeFromLocation();
     switchView(route.view, {
       updateHistory: false,
-      tab: route.usageTab || route.managementTab || route.limitTab
+      tab: route.usageTab || route.managementTab || route.limitTab,
+      section: route.managementSection || ''
     });
   });
 
@@ -2766,8 +2781,9 @@ function bindEvents() {
     if (managementTab) {
       const nextTab = managementTab.dataset.managementTab === 'pricing' ? 'pricing' : 'subscriptions';
       state.prefs.managementTab = nextTab;
-      savePrefs({ managementTab: nextTab });
-      switchView('management', { tab: nextTab });
+      state.prefs.managementSection = 'consumption';
+      savePrefs({ managementTab: nextTab, managementSection: 'consumption' });
+      switchView('settings', { tab: nextTab, section: 'consumption' });
       return;
     }
     const jumpView = event.target.closest('[data-jump-view]');
@@ -2781,7 +2797,15 @@ function bindEvents() {
         state.prefs.selectedDeviceId = jumpView.dataset.jumpDevice;
         savePrefs({ selectedDeviceId: state.prefs.selectedDeviceId });
       }
-      switchView(view, { tab: jumpView.dataset.jumpUsageTab || '' });
+      // A jump to a folded view lands on the Management page's owning section.
+      if (VIEW_REDIRECTS[view]) {
+        switchView(VIEW_REDIRECTS[view], {
+          tab: jumpView.dataset.jumpUsageTab || '',
+          section: VIEW_SECTION_REDIRECTS[view] || ''
+        });
+        return;
+      }
+      switchView(view, { tab: jumpView.dataset.jumpUsageTab || '', section: jumpView.dataset.jumpSection || '' });
       return;
     }
     const webSignOut = event.target.closest('[data-web-signout]');
@@ -3042,6 +3066,16 @@ function bindEvents() {
   els.content.addEventListener('input', (event) => {
     rememberFormDraft(event.target);
     syncWebSettingsFormState(event.target.closest('[data-web-settings-form]'));
+  });
+
+  // A section-rail click on the Management page persists the choice and keeps
+  // the URL in step, so a refresh or a bookmark returns to the same section.
+  els.content.addEventListener('settings-section-change', (event) => {
+    const section = String(event.detail?.section || '');
+    if (!['accounts', 'consumption', 'preferences', 'advanced'].includes(section)) return;
+    state.prefs.managementSection = section;
+    savePrefs({ managementSection: section });
+    syncUrlForView('settings', { replace: true, tab: state.prefs.managementTab });
   });
 
   els.content.addEventListener('change', (event) => {
@@ -3494,6 +3528,7 @@ async function init() {
     else if (loadedPrefs.view) prefsPatch.view = normalizeViewId(loadedPrefs.view);
     if (initialRoute.usageTab) delete prefsPatch.usageTab;
     if (initialRoute.managementTab) delete prefsPatch.managementTab;
+    if (initialRoute.managementSection) delete prefsPatch.managementSection;
     if (initialRoute.limitTab) delete prefsPatch.limitTab;
     Object.assign(state.prefs, prefsPatch);
   }

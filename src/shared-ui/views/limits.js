@@ -192,7 +192,7 @@ export function renderLimitCards(cards, { compact = false, hideProvider = false 
             const hint = formatLimitHint(card);
             const canOpenAccounts = appState().authorization?.capabilities?.hubAccounts !== false && appState().authorization?.authenticated === true;
             const action = canOpenAccounts && card.status !== 'ok'
-              ? `<fluent-button appearance="transparent" type="button" class="limit-account-action" data-jump-view="accounts">${tr('nav.accounts')}</fluent-button>`
+              ? `<fluent-button appearance="transparent" type="button" class="limit-account-action" data-jump-view="settings" data-jump-section="accounts">${tr('management.section.accounts')}</fluent-button>`
               : '';
             return hint || action ? `<div class="limit-card-followup">${hint ? `<p class="muted tiny limit-card-hint">${escapeHtml(hint)}</p>` : ''}${action}</div>` : '';
           })()}

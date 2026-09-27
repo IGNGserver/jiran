@@ -9,7 +9,6 @@ import { clientLabel, HUB_ACCOUNT_PROVIDERS } from '../core/data.js';
 import { tr, escapeHtml, appState, toolIconHtml, viewHelper } from '../core/viewContext.js';
 
 const emptyHtml = (key) => viewHelper('emptyHtml')(key);
-const panel = (...args) => viewHelper('panel')(...args);
 const uiIcon = (...args) => viewHelper('uiIcon')(...args);
 const loadingHtml = (...args) => viewHelper('loadingHtml')(...args);
 const managementError = (...args) => viewHelper('managementError')(...args);
@@ -395,9 +394,7 @@ export function renderAccounts() {
       </div>`
     : '';
 
-  return `${panel(tr('accounts.title'), `<div class="summary-grid account-summary">${summary}</div>${list}`, '', addAction)}${management}`;
-}
-
-export function renderAccountsPage() {
-  return `${renderAccounts()}`;
+  // Body only: the Management page owns the section panel and its heading.
+  return `<div class="settings-section-toolbar">${addAction}</div>
+    <div class="summary-grid account-summary">${summary}</div>${list}${management}`;
 }

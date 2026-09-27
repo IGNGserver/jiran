@@ -160,7 +160,9 @@ const SSE_RETRY_BASE_MS = 1000;
 const SSE_RETRY_MAX_MS = 30 * 1000;
 const SYNC_REST_POLL_MS = 60 * 1000;
 const SYNC_RECOVERY_TIMEOUT_MS = 20 * 1000;
-// View ids the shared UI knows; the app menu navigates by these.
+// View ids the shared UI knows; the app menu navigates by these. `accounts` and
+// `management` stay accepted because they are still reachable from persisted
+// view state and older native calls — the renderer redirects both to `settings`.
 const SHARED_UI_VIEW_IDS = new Set(['overview', 'usage', 'devices', 'limits', 'trends', 'accounts', 'management', 'settings']);
 
 let mainWindow = null;

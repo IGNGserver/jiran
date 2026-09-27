@@ -15,14 +15,14 @@ const REPOSITORY_URL = 'https://github.com/IGNGserver/token-monitor-suite';
 // already uses. Written as literals on purpose: `tests/electron/i18n.test.js`
 // scrapes this file for `nav.*` keys and fails if a native label has no
 // translation, which is the guard against a menu that renders its own keys.
+// Administration is a single view (`settings`, labelled 管理); the accounts and
+// consumption surfaces are sections inside it, not separate destinations.
 const VIEW_MENU_ITEMS = [
   { id: 'overview', labelKey: 'nav.overview' },
   { id: 'usage', labelKey: 'nav.usage' },
   { id: 'devices', labelKey: 'nav.devices' },
   { id: 'limits', labelKey: 'nav.limits' },
-  { id: 'trends', labelKey: 'nav.trends' },
-  { id: 'accounts', labelKey: 'nav.accounts' },
-  { id: 'management', labelKey: 'nav.management' }
+  { id: 'trends', labelKey: 'nav.trends' }
 ];
 
 /**
