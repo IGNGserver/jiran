@@ -55,15 +55,19 @@ and history/archive rules. The only intentional difference is presentation:
 the desktop app may display local status and Hub updates; the agent logs status and
 posts snapshots without a GUI.
 
-## Collection controls
+## Collection is fixed
 
-The same collection controls are available through environment variables or
-agent flags. `live` watches source files, `interval` performs periodic scans,
-and `smart` uses periodic scans plus activity-aware scheduling. Every supported
-tool is always collected; `TOKEN_MONITOR_PROJECTS_ENABLED=1` enables project
-rollups; `TOKEN_MONITOR_SESSION_USAGE_ARCHIVE_ENABLED=0` disables the
-deleted-session archive; and `TOKEN_MONITOR_SYNC_UPLOAD_INTERVAL_MS` controls
-the upload cadence (`0` means upload each completed snapshot).
+There is no collection surface to configure. Every supported tool is tracked, and
+the file watchers, usage history, deleted-session archive, Projects and the WSL
+scan always run — the same behaviour the desktop app has. The agent takes only
+its connection inputs (`--hub`, `--secret`, `--device`), `--timeoutMs` for the
+tokscale budget, and `--once` / `--dry-run`.
+
+`--clients`, `--collectionMode`, `--interval`, `--watch`, `--watchDebounceMs`,
+`--history`, `--projects`, `--sessionArchive`, `--wslScan`, `--since`,
+`--syncUploadInterval` and their `TOKEN_MONITOR_*` environment equivalents are
+gone: the agent warns and ignores them so an existing systemd/launchd/cron unit
+keeps running through the upgrade instead of failing on an unknown flag.
 
 The Hub owns AI Tool Limits accounts. Do not put provider quota credentials in
 the headless environment; add those accounts to the Hub instead.

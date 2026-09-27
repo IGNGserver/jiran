@@ -9,10 +9,9 @@ Token Monitor makes network requests only for documented or user-enabled feature
 - Packaged builds check GitHub Releases for updates.
 - The exchange-rate lookup fetches its public data source.
 - Quota accounts you add to the Hub contact their provider when the Hub refreshes them. A credential you pasted or an OAuth sign-in you completed is sent only to that provider; the desktop app itself does not probe provider accounts or upload local credentials.
-- Discord Rich Presence sends the selected activity details to Discord when explicitly enabled.
 - Multi-device sync sends data to the hub URL configured by the operator.
 
-These requests are processed under the privacy policy of the service receiving them, including the [GitHub Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) for update checks and the [Discord Privacy Policy](https://discord.com/privacy) for Rich Presence. Review the applicable provider's privacy policy before enabling a provider-backed integration.
+These requests are processed under the privacy policy of the service receiving them, including the [GitHub Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) for update checks. Review the applicable provider's privacy policy before enabling a provider-backed integration.
 
 ## Multi-device sync
 

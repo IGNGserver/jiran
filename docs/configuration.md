@@ -3,9 +3,14 @@
 Token Monitor has two configuration surfaces:
 
 - **Desktop app (GUI)** — display, behaviour, and Hub connection, configured from Settings.
-- **`.env` / `settings.json`** — collection cadence, export, custom pricing, and the
-  other device-local keys; also the only surface for the headless agent and the
-  Docker Compose Hub, which have no UI.
+- **`.env` / `settings.json`** — the device identity, the Hub connection, currency
+  overrides, and the desktop window/tray defaults; also the only surface for the
+  headless agent and the Docker Compose Hub, which have no UI.
+
+What the app *collects* is not configuration: every supported tool is tracked and
+the watchers, usage history, deleted-session archive, Projects and the WSL scan
+always run. They are fixed in `src/shared/collectorConfig.js`, and a stale
+`settings.json` value for a retired key is dropped on read rather than honoured.
 
 The desktop app reads `.env` values as *first-run defaults*; once a value is in
 `settings.json` it takes over. The agent and Docker Compose Hub follow the
@@ -39,11 +44,12 @@ Device-local groups (desktop app only):
 | Connection | **Local only** (no Hub) or **Connect to a hub** (Docker Compose Hub URL, the single Hub key, the trusted-LAN HTTP opt-in, and the device ID). |
 | Device data transfer | Move this device's ledger, sessions, periods, and history onto another device on the same Hub. |
 
-Keys without a GUI keep their normal `settings.json` / `.env` behaviour:
-collection mode and interval, project metadata, trend history, the file-watch
-toggle and debounce, session archiving, data export, custom model pricing,
-per-list view preferences, and the JSON colour/rate maps. Tracked tools are not
-among them — that list is fixed and every supported tool is always collected.
+The settings document carries only keys something can still change: the form
+controls above, the browser preferences the shared UI persists, the tray's
+collection pause, the in-app zoom, and the operator-edited currency-rate map.
+Keys whose surface has gone are stripped on both read and write (one
+`RETIRED_SETTING_KEYS` list in `main.js` governs both directions), so an old
+`settings.json` or an old renderer cannot revive a retired behaviour.
 
 ### Central Hub accounts and quotas
 
@@ -89,14 +95,6 @@ The agent and Docker Compose Hub have no UI. Configure them with a `.env` file i
 TOKEN_MONITOR_HUB_URL=               # required in sync mode — HTTPS Docker Compose Hub URL
 TOKEN_MONITOR_SECRET=                # the single Hub key; use the same value on every device
 TOKEN_MONITOR_DEVICE_ID=             # optional — defaults to the hostname
-TOKEN_MONITOR_SYNC_UPLOAD_INTERVAL_MS= # optional — 0/live, 600000/10min, 1200000/20min, 1800000/30min
-TOKEN_MONITOR_COLLECTION_MODE=live    # live, interval, or smart
-TOKEN_MONITOR_INTERVAL_MS=300000      # shared periodic collection interval
-TOKEN_MONITOR_WATCH=1                 # shared file-watch switch
-TOKEN_MONITOR_WATCH_DEBOUNCE_MS=1500  # shared source-event debounce
-TOKEN_MONITOR_PROJECTS_ENABLED=      # optional — defaults off; 1 collects project metadata
-TOKEN_MONITOR_HISTORY_ENABLED=       # optional — defaults on; 0 skips trend history
-TOKEN_MONITOR_SESSION_USAGE_ARCHIVE_ENABLED= # optional — defaults on; 0 stops archiving deleted-session usage
 TOKEN_MONITOR_LIMITS_ENABLED=        # legacy compatibility; device quota probing is removed
 TOKEN_MONITOR_LIMIT_PROVIDERS=       # legacy compatibility; Hub accounts select providers
 TOKEN_MONITOR_HUB_CREDENTIAL_KEY=    # optional legacy account-encryption override; normally leave empty
@@ -178,7 +176,6 @@ removed and are ignored with a warning.
 - [Hub deployment with Docker Compose](hub-compose.md) — the only supported Hub deployment.
 - [Headless agent](headless-agent.md) — running the collector without the desktop app.
 - [Hub HTTP API](API.md) — the device ↔ Hub wire contract and every endpoint.
-- [Data export](export.md) — the tool-agnostic CSV + JSON format.
 - [GitHub Copilot OTel](github-copilot-otel.md) — what the Copilot integration reads from the editor's OTel output.
 - [Upstream tokscale usage providers](upstream-tokscale-usage-providers.md) — what the bundled tokscale actually scans, verified against its source.
 - [Tokscale alignment plan](TOKSCALE_ALIGNMENT_PLAN.md) — why this project's client coverage matches tokscale's, and where it still differs.
