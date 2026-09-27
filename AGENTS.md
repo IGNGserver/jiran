@@ -128,6 +128,8 @@ The Docker Compose Hub stores normalized device records (`normalizeDeviceRecord`
 
 `product-scope.json` records the approved architectural boundary for this project: Electron exposes only `local` and `client`, and Hub deployment uses only the root Docker Compose stack. An embedded Hub, a standalone Hub command, and a secondary Worker deployment tree are strictly prohibited. Keep the scope guard in CI, release verification, and `npm run verify`. If future features adjust settings, renderer, build, or deployment files, update the implementation and its guard together.
 
+Device data transfer (`POST /api/devices/:id/transfer`) is a Hub-web admin capability and the deliberate exception to "one UI, two hosts": it renders only in the web settings page's Advanced group for an admin (`!desktopHost && admin` in `src/shared-ui/views/settings.js`), and the desktop client has no code path to it — no navigation destination, no render case, and `desktopRequestRouter.js` does not proxy the route. The `verify:product-scope` guard asserts all three.
+
 ### Stale devices
 
 A device is "stale" if `Date.now() - receivedAt > staleAfterMs` (default 10 min). Stale devices still appear in `/api/stats` with `stale: true`, and the renderer greys them out — this is intentional, not a bug.

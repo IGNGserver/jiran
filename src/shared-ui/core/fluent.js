@@ -163,14 +163,14 @@ function configureTabs(root) {
 function settingsNavigation(root) {
   const layout = root.querySelector('.settings-layout');
   if (!layout || layout.querySelector('.settings-section-nav')) return;
-  const sections = [...layout.querySelectorAll('.settings-form, .desktop-settings-group')];
+  const sections = [...layout.querySelectorAll('.settings-form, .desktop-settings-group, [data-settings-section]')];
   const nav = document.createElement('nav');
   nav.className = 'settings-section-nav';
   nav.setAttribute('aria-label', document.getElementById('pageTitle').textContent);
   const body = document.createElement('div');
   body.className = 'settings-sections';
   sections.forEach((section, index) => {
-    section.id = `settings-section-${section.dataset.desktopGroup || index}`;
+    section.id = `settings-section-${section.dataset.settingsSection || section.dataset.desktopGroup || index}`;
     const link = document.createElement('a');
     link.href = `#${section.id}`;
     link.id = `nav-${section.id}`;

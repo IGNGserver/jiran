@@ -9,7 +9,9 @@ const { MESSAGE_KEYS, SUPPORTED_LOCALES } = require('../../src/shared-ui/core/i1
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
 const APP_SOURCE = fs.readFileSync(path.join(REPO_ROOT, 'src/shared-ui/app.js'), 'utf8');
+const SETTINGS_SOURCE = fs.readFileSync(path.join(REPO_ROOT, 'src/shared-ui/views/settings.js'), 'utf8');
 const TRANSFER_SOURCE = fs.readFileSync(path.join(REPO_ROOT, 'src/shared-ui/views/transfer.js'), 'utf8');
+const DESKTOP_ROUTER_SOURCE = fs.readFileSync(path.join(REPO_ROOT, 'src/electron/desktopRequestRouter.js'), 'utf8');
 
 /** Every id the rendered navigation groups list, in source order. */
 function navigationGroupIds() {
@@ -19,10 +21,8 @@ function navigationGroupIds() {
 }
 
 test('every navigation id has a label in every supported locale', () => {
-  // `tr()` falls back to English, so a missing translation is invisible at runtime —
-  // which is how `nav.transfer` stayed alive in the catalogue with no caller and the
-  // page then shipped with no navigation entry at all. The reverse is checked here:
-  // an id that navigation renders must be labelled everywhere.
+  // `tr()` falls back to English, so a missing translation is invisible at runtime.
+  // The reverse is checked here: an id that navigation renders must be labelled everywhere.
   for (const id of navigationGroupIds()) {
     for (const locale of SUPPORTED_LOCALES) {
       assert.ok(
@@ -33,33 +33,65 @@ test('every navigation id has a label in every supported locale', () => {
   }
 });
 
-test('device transfer is reachable from the administration navigation', () => {
-  // The endpoint (`POST /api/devices/:id/transfer`), the standalone view, the route and
-  // the five locale labels all existed while no navigation group listed the id, so the
-  // page was reachable only by typing `/transfer`. This is that regression's guard.
+test('device transfer is not a navigation destination', () => {
+  // Transfer is a Hub-web admin operation with exactly one entry point: the
+  // Advanced group inside the web settings page. It must not reappear in the
+  // sidebar, which is what the previous release briefly did (and what made the
+  // standalone page reachable only by typing `/transfer` before that).
   const ids = navigationGroupIds();
-  assert.ok(ids.includes('transfer'), 'transfer must appear in a navigation group');
-  const administration = APP_SOURCE.match(/\['nav\.groupAdministration',\s*\[([^\]]*)\]\]/);
-  assert.ok(administration, 'the administration group must exist');
-  assert.match(administration[1], /'transfer'/, 'transfer belongs to the administration group');
+  assert.ok(!ids.includes('transfer'), 'transfer must not appear in a navigation group');
+  assert.doesNotMatch(APP_SOURCE, /VIEW_PATHS[\s\S]*?\btransfer:/, 'transfer must not have a route');
+  assert.doesNotMatch(APP_SOURCE, /case 'transfer':/, 'transfer must not have a render case');
+  assert.doesNotMatch(APP_SOURCE, /renderTransfer\(/, 'the standalone transfer view must be gone');
 });
 
-test('the transfer view stays admin-gated', () => {
-  // The Hub rejects a non-admin transfer outright, so an entry that is always visible
-  // would only lead to a disabled form. Both halves are asserted: the navigation filter
-  // and the panel's own submit gate.
-  assert.match(APP_SOURCE, /view\.id === 'transfer'\)\s*return admin === true/);
+test('transfer is admin-gated and lives in the web settings Advanced group', () => {
+  // The Hub rejects a non-admin transfer outright, so the group exists exactly
+  // when the action is possible: web host, admin scope. Both halves are asserted —
+  // the settings-page gate and the panel's own submit gate.
+  assert.match(SETTINGS_SOURCE, /!desktopHost && admin/);
+  assert.match(SETTINGS_SOURCE, /data-settings-section="advanced"/);
+  assert.match(SETTINGS_SOURCE, /settings\.groupAdvanced/);
   assert.match(TRANSFER_SOURCE, /scopes\?\.includes\('admin'\)/);
   assert.match(TRANSFER_SOURCE, /transfer\.needsAdmin/);
 });
 
-test('the standalone transfer page does not borrow desktop-only settings scaffolding', () => {
-  // `settings-layout` is a two-column grid above 860px and the `desktop-settings-*`
-  // classes are styled only by the Electron renderer, so a single-panel page built out
-  // of them renders in an empty column on the web dashboard. Asserted on the class
-  // attributes rather than on the file text, so the comment explaining this stays put.
-  assert.match(TRANSFER_SOURCE, /export function renderTransfer\(\)/);
-  assert.doesNotMatch(TRANSFER_SOURCE, /class="[^"]*settings-transfer-layout/);
+test('the desktop host has no transfer code path', () => {
+  // The transfer endpoint is Hub-owned and admin-only; the desktop client must
+  // neither render the panel nor proxy the request. The only rendering site is
+  // gated on the web host, so `capabilities.desktopSettings === true` can never
+  // reach it.
+  assert.doesNotMatch(DESKTOP_ROUTER_SOURCE, /transfer/, 'the desktop router must not proxy transfer');
+  assert.match(SETTINGS_SOURCE, /!desktopHost && admin/);
+});
+
+test('the transfer panel is not a standalone page with desktop settings scaffolding', () => {
+  // `settings-layout` is a two-column grid and the `desktop-settings-*` classes
+  // are styled only by the Electron renderer, so a single-panel page built out of
+  // them renders in an empty column on the web dashboard. The panel is now a
+  // group inside the settings page and must not reintroduce a standalone shell.
+  assert.doesNotMatch(TRANSFER_SOURCE, /export function renderTransfer\(\)/);
   assert.doesNotMatch(TRANSFER_SOURCE, /class="[^"]*desktop-settings-body/);
   assert.doesNotMatch(TRANSFER_SOURCE, /class="[^"]*settings-layout/);
+});
+
+test('both transfer device pickers are Fluent dropdowns backed by a listbox', () => {
+  // Fluent Dropdown binds its listbox through the default slot; options placed
+  // directly on the dropdown leave `dropdown.listbox` undefined, so the trigger
+  // neither opens nor shows a value. That was the source-device bug.
+  assert.doesNotMatch(TRANSFER_SOURCE, /fluent-text-input[^>]*name="targetDevice"/);
+  for (const name of ['sourceDevice', 'targetDevice']) {
+    assert.match(
+      TRANSFER_SOURCE,
+      new RegExp(`<fluent-dropdown name="${name}">`),
+      `${name} must be a dropdown`
+    );
+  }
+  // The options helper is the single place that builds a picker's contents, and
+  // it must wrap them in a listbox with one selected option.
+  const helper = TRANSFER_SOURCE.match(/function deviceOptions\([\s\S]*?\n}/);
+  assert.ok(helper, 'a deviceOptions helper must exist');
+  assert.match(helper[0], /<fluent-listbox>/);
+  assert.match(helper[0], /<fluent-option /);
+  assert.match(helper[0], /selected/);
 });

@@ -114,6 +114,17 @@ function verifyProductScope() {
   const androidFormatters = read('android/app/src/main/java/com/igng/tokenmonitor/android/ui/components/Formatters.kt');
   expect(!androidFormatters.includes('"embedded-hub"'), 'Android must not display the removed embedded runtime label');
 
+  // Device data transfer is a Hub-web admin capability. The desktop client must
+  // have no code path to it: no navigation destination, no desktop render site,
+  // and no proxy of the endpoint through the main process.
+  const desktopRouter = read('src/electron/desktopRequestRouter.js');
+  expect(!desktopRouter.includes('transfer'), 'the desktop request router must not proxy device transfer');
+  const navigationGroupTable = read('src/shared-ui/app.js').match(/const navGroups = \[[\s\S]*?\];/);
+  expect(Boolean(navigationGroupTable), 'the shared UI must keep a navigation group table');
+  expect(!navigationGroupTable[0].includes("'transfer'"), 'device transfer must not be a navigation destination');
+  const settingsView = read('src/shared-ui/views/settings.js');
+  expect(/!desktopHost && admin/.test(settingsView), 'the transfer panel must render only for the web host and an admin');
+
   expectAbsent('worker');
   expectAbsent('scripts/sync-worker-shared.js');
   expectAbsent('deploy');

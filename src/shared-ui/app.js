@@ -38,7 +38,7 @@ import { renderDevices } from './views/devices.js';
 import { renderAccountsPage } from './views/accounts.js';
 import { readDesktopSettingsPatch } from './views/settingsDesktop.js';
 import { renderSettingsPage } from './views/settings.js';
-import { renderTransfer, submitTransfer } from './views/transfer.js';
+import { submitTransfer } from './views/transfer.js';
 import { usageMetricCard } from './views/rows.js';
 import {
   renderTrends,
@@ -79,7 +79,6 @@ const UI_ICON_PATHS = Object.freeze({
   subscriptions: '<path d="M5 7h14M5 12h14M5 17h8"/><path d="M17 16v4M15 18h4"/>',
   pricing: '<path d="M6 4h12M6 20h12M8 4c0 4 8 4 8 8s-8 4-8 8"/><path d="M16 4c0 4-8 4-8 8s8 4 8 8"/>',
   management: '<path d="M4 7h16M4 12h16M4 17h10"/><path d="M17 15v6M14 18h6"/>',
-  transfer: '<path d="M4 8h12M13 4l4 4-4 4"/><path d="M20 16H8"/><path d="m11 12-4 4 4 4"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   back: '<path d="m15 5-7 7 7 7"/><path d="M8 12h12"/>',
   range: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 9h16M8 13h3M13 13h3M8 16h3"/>',
@@ -112,7 +111,6 @@ const VIEWS = [
   { id: 'trends', icon: 'trends' },
   { id: 'accounts', icon: 'accounts' },
   { id: 'management', icon: 'management' },
-  { id: 'transfer', icon: 'transfer' },
   { id: 'settings', icon: 'settings' }
 ];
 
@@ -145,7 +143,6 @@ const VIEW_PATHS = Object.freeze({
   accounts: '/accounts',
   trends: '/trends',
   management: '/management',
-  transfer: '/transfer',
   settings: '/settings'
 });
 
@@ -768,14 +765,12 @@ function viewUsesUsageScope(view = state.prefs.view) {
 
 function viewKicker(view = state.prefs.view) {
   if (view === 'settings') return tr(isCapable('desktopSettings') ? 'settings.desktopTitle' : 'settings.webOnly');
-  if (view === 'transfer') return tr('transfer.title');
   if (view === 'limits') return tr('limits.health');
   return tr('page.overview.kicker');
 }
 
 function viewDescription(view = state.prefs.view) {
   if (view === 'settings' && isCapable('desktopSettings')) return tr('settings.desktopDescription');
-  if (view === 'transfer') return tr('transfer.description');
   return tr(`page.${view}.description`);
 }
 
@@ -786,12 +781,6 @@ function renderChrome() {
   const visibleViews = VIEWS.filter((view) => {
     if (view.id === 'accounts') return capabilities.hubAccounts !== false;
     if (view.id === 'management') return capabilities.subscriptions !== false || (capabilities.pricing !== false && admin);
-    // Device data transfer is an admin-only Hub mutation (`POST /api/devices/:id/transfer`
-    // requires the admin scope), so the entry exists exactly when the action is possible.
-    // It used to be reachable only by typing `/transfer`: the view, the route and the
-    // `nav.transfer` labels all shipped, but no navigation group ever listed the id, so
-    // the page was invisible in the dashboard and the label was dead in all five locales.
-    if (view.id === 'transfer') return admin === true;
     return true;
   });
   if (!visibleViews.some((view) => view.id === state.prefs.view)) state.prefs.view = 'overview';
@@ -805,7 +794,7 @@ function renderChrome() {
   const navGroups = [
     ['nav.groupInsights', ['overview', 'usage', 'trends']],
     ['nav.groupResources', ['devices', 'limits']],
-    ['nav.groupAdministration', ['accounts', 'management', 'transfer', 'settings']]
+    ['nav.groupAdministration', ['accounts', 'management', 'settings']]
   ];
   els.primaryNav.innerHTML = navGroups.map(([label, ids]) => {
     const items = visibleViews.filter((view) => ids.includes(view.id));
@@ -1668,9 +1657,6 @@ function render() {
         break;
       case 'management':
         html = renderManagement();
-        break;
-      case 'transfer':
-        html = renderTransfer();
         break;
       case 'settings':
         html = renderSettingsPage();
@@ -3132,8 +3118,23 @@ function bindEvents() {
   });
 
   // Desktop settings persist on change: a form round-trip would be needed to
-  // batch them, but each control owns exactly one key.
+  // batch them, but each control owns exactly one key. The transfer form's two
+  // device pickers are kept apart here: a collision moves the other dropdown to
+  // an unused device, so the pair can never be submitted as same-device (the
+  // Hub rejects that with `same_device`).
   els.content.addEventListener('change', (event) => {
+    const transferForm = event.target.closest('[data-transfer-form]');
+    if (transferForm) {
+      const source = transferForm.querySelector('[name="sourceDevice"]');
+      const target = transferForm.querySelector('[name="targetDevice"]');
+      if (source?.value && target?.value && source.value === target.value) {
+        const alternative = [...target.querySelectorAll('fluent-option')]
+          .map((option) => option.value)
+          .find((value) => value !== source.value);
+        if (alternative) setFluentDropdownValue(target, alternative);
+      }
+      return;
+    }
     const control = event.target.closest('[data-desktop-settings] [name]');
     if (!control) return;
     const form = control.closest('[data-desktop-settings]');
