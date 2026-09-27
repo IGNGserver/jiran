@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -170,17 +171,18 @@ fun DevicesScreen(
  * fleet gets the whole card shape.
  */
 private fun deviceGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape {
-  // The radius is the `cardCorner` step, named as a dp because a *percentage*
-  // `RoundedCornerShape` does not expose per-corner dp values to copy from.  (It is
-  // asserted equal to `FluentShapeDefaults.cardCorner` by the JVM suite, so the token
-  // cannot drift out from under this literal.)
-  val top = if (index == 0) CARD_CORNER_DP.dp else 0.dp
-  val bottom = if (index == count - 1) CARD_CORNER_DP.dp else 0.dp
-  return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
+  // Read straight off the `cardCorner` token rather than re-stating its dp value: the
+  // per-corner `CornerSize` is what the token holds, so a change to the token moves this
+  // shape with it and there is no second copy of the radius to keep in step.
+  val corner = FluentShapeDefaults.cardCorner.topStart
+  val square = CornerSize(0.dp)
+  return RoundedCornerShape(
+    topStart = if (index == 0) corner else square,
+    topEnd = if (index == 0) corner else square,
+    bottomStart = if (index == count - 1) corner else square,
+    bottomEnd = if (index == count - 1) corner else square
+  )
 }
-
-/** The `cardCorner` radius as a dp, for the group caps above. */
-internal const val CARD_CORNER_DP = 8
 
 @Composable
 private fun DeviceRow(
