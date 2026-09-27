@@ -1,3 +1,16 @@
+> 设备级规范：`~/.qoder/coder-rules/global-rules.md`（本机所有 harness 已引入）。以下 6 行是模式判定，正文为仓库自有约定；冲突时安全条款以设备级为准。
+Collaboration: solo
+Default branch: main
+Integration: direct-after-validation
+Release: tag + Actions（`.github/workflows/` 4 个，含各平台 dist 与 verify:deb）
+Validation: 以 package.json 实际存在的脚本为准（`npm test`、`npm run test:mysql`、`npm run verify:deb` 等），不得臆造
+Worktree: `~/项目/.wt/token记录系统/<slug>`
+
+## 补充
+- 本文件是 158 行的架构与约定权威文档：改动架构约定必须同步更新本文件。`CLAUDE.md` 已用 `@AGENTS.md` 引用本文件，不要再往它里面写内容。
+- 历史里有 19 个外部作者邮箱，来自导入的上游历史，不代表有外部协作者：仍是 solo。
+- 本机 8G 内存、仓库在 NAS 共享上：多 worktree 并行时依赖与产物走共享目录，不要各存一份。
+
 # AGENTS.md
 
 This is the single source of project guidance, shared by every coding agent (Claude Code, Codex, Cursor, …). `CLAUDE.md` is a Claude Code compatibility shim that just imports this file — edit **this** file, not `CLAUDE.md`.
