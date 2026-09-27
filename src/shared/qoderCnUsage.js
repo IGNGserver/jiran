@@ -985,6 +985,26 @@ function localDateKey(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * One calendar window over already-collected Qoder rows.
+ *
+ * `buildQoderCnPeriods` answers the fixed today / month / allTime windows, which
+ * is why 昨日 / 本周 and any custom range used to report nothing for both Qoder
+ * sites: the tick path never handed its row set to a window-aware builder. Rows
+ * carry `createdAt`, so the window is exact; undated rows stay out, because a row
+ * that cannot be placed in time cannot be credited to a range (the fixed all-time
+ * window still counts them). `buildTokscaleJson` keeps propagating the row-level
+ * `estimated` flag, so the range answer carries the same provenance mark as 今日.
+ */
+function buildQoderCnRangeJson(range, options = {}) {
+  const clientId = normalizeQoderClientId(options.clientId, 'qodercn');
+  const startMs = Number(range?.startMs) || 0;
+  const endMs = Number(range?.endMs) || 0;
+  const rows = (Array.isArray(options.rows) ? options.rows : [])
+    .filter((row) => row && row.createdAt >= startMs && (!endMs || row.createdAt <= endMs));
+  return buildTokscaleJson(startMs, rows, options.pricingByModel, false, clientId);
+}
+
 function buildQoderCnHistoryGraph(options = {}) {
   const client = resolveQoderSiteOptions(options).clientId;
   const days = new Map();
@@ -1688,6 +1708,7 @@ function mergeQoderCnRows(dbRows = [], transcriptRows = [], diagnostics = null, 
 }
 
 module.exports = {
+  buildQoderCnRangeJson,
   QODER_CN_READ_BUDGET_ERROR,
   QODER_CN_SQLITE_BACKEND_UNAVAILABLE,
   QODER_CN_TRANSCRIPT_BUDGET_CODES,
