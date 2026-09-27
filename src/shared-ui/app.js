@@ -786,6 +786,12 @@ function renderChrome() {
   const visibleViews = VIEWS.filter((view) => {
     if (view.id === 'accounts') return capabilities.hubAccounts !== false;
     if (view.id === 'management') return capabilities.subscriptions !== false || (capabilities.pricing !== false && admin);
+    // Device data transfer is an admin-only Hub mutation (`POST /api/devices/:id/transfer`
+    // requires the admin scope), so the entry exists exactly when the action is possible.
+    // It used to be reachable only by typing `/transfer`: the view, the route and the
+    // `nav.transfer` labels all shipped, but no navigation group ever listed the id, so
+    // the page was invisible in the dashboard and the label was dead in all five locales.
+    if (view.id === 'transfer') return admin === true;
     return true;
   });
   if (!visibleViews.some((view) => view.id === state.prefs.view)) state.prefs.view = 'overview';
@@ -799,7 +805,7 @@ function renderChrome() {
   const navGroups = [
     ['nav.groupInsights', ['overview', 'usage', 'trends']],
     ['nav.groupResources', ['devices', 'limits']],
-    ['nav.groupAdministration', ['accounts', 'management', 'settings']]
+    ['nav.groupAdministration', ['accounts', 'management', 'transfer', 'settings']]
   ];
   els.primaryNav.innerHTML = navGroups.map(([label, ids]) => {
     const items = visibleViews.filter((view) => ids.includes(view.id));
