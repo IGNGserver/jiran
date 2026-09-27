@@ -483,14 +483,20 @@ test('the global site ignores an ambient QODER_CONFIG_DIR but honours its own ov
   });
   assert.deepEqual(ambient.transcriptRoots, [path.join('/home/test', '.qoder', 'projects')]);
 
-  // The CN site still relocates through its own variable.
+  // The CN site still relocates through its own variable.  Configured roots go through
+  // `path.resolve`, so the expectation is built the same way: on Windows the POSIX-style
+  // input resolves onto the current drive, exactly as the sibling override test above
+  // asserts.
   const cn = qoderDataPaths({
     site: 'cn',
     homeDir: '/home/test',
     platform: 'linux',
     env: { QODERCN_CONFIG_DIR: '/home/test/.qoder-cn' }
   });
-  assert.deepEqual(cn.transcriptRoots, [path.join('/home/test', '.qoder-cn', 'projects')]);
+  assert.deepEqual(
+    cn.transcriptRoots,
+    [path.join(path.resolve('/home/test/.qoder-cn'), 'projects')]
+  );
 
   // Token-Monitor-namespaced overrides work for both sites and stay separate.
   const overridden = qoderDataPaths({
