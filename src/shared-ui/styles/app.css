@@ -23,6 +23,7 @@
   --radius: var(--borderRadiusXLarge);
   --radius-sm: var(--borderRadiusMedium);
   --sidebar-width: 232px;
+  --mobile-nav-height: 56px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
   --font: var(--fontFamilyBase);
@@ -912,6 +913,11 @@ html[data-theme="dark"] .heat.lvl-4 { fill: rgba(110, 168, 255, 0.92); }
   font-weight: 600;
   box-shadow: var(--shadow);
 }
+@media (max-width: 860px) {
+  .toast {
+    bottom: calc(var(--mobile-nav-height) + var(--safe-bottom) + 12px);
+  }
+}
 
 .hidden { display: none !important; }
 .mobile-only { display: none; }
@@ -1015,7 +1021,7 @@ html[data-theme="dark"] .heat.lvl-4 { fill: rgba(110, 168, 255, 0.92); }
   .pwa-banner {
     flex-direction: column;
     align-items: stretch;
-    bottom: calc(84px + var(--safe-bottom));
+    bottom: calc(var(--mobile-nav-height) + var(--safe-bottom) + 12px);
   }
   .pwa-banner-actions { justify-content: flex-end; }
 }
@@ -2064,15 +2070,57 @@ html:not([data-motion="full"]) fluent-spinner { visibility: hidden; }
   .account-updated::before { content: attr(data-label) ': '; color: var(--muted); font-size: 11px; }
   .account-row-actions { grid-column: 2; grid-row: 3; }
 }
+@media (min-width: 561px) and (max-width: 1000px) {
+  /* Tablet optimization: Master-Detail and two-column density */
+  .overview-health {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overview-breakdowns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .devices-layout {
+    grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.4fr);
+    gap: 16px;
+  }
+  .devices-layout > .panel:first-child { order: 0; }
+  .devices-layout > .panel:last-child { order: 1; }
+}
+
 @media (max-width: 560px) {
   .main { padding-inline: 14px; }
   .main > .topbar { align-items: flex-start; gap: 10px; }
   .topbar-actions { gap: 6px; }
-  .scope-commandbar { align-items: stretch; }
+  .scope-commandbar {
+    align-items: stretch;
+    padding: 8px 10px;
+    gap: 8px;
+    border-radius: var(--borderRadiusLarge);
+  }
   .scope-commandbar .device-filter { width: 100%; }
-  .scope-commandbar .period-tabs { width: 100%; justify-content: space-between; }
-  .scope-commandbar .period-tabs .choice-option { flex: 1 1 auto; justify-content: center; padding-inline: 6px; }
-  .hero { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+  .scope-commandbar .period-tabs {
+    width: 100%;
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding-bottom: 2px;
+  }
+  .scope-commandbar .period-tabs::-webkit-scrollbar { display: none; }
+  .scope-commandbar .period-tabs .choice-option {
+    flex: 0 0 auto;
+    justify-content: center;
+    padding-inline: 10px;
+    min-height: 34px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .hero {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    border-radius: var(--borderRadiusLarge);
+  }
   .hero-card:first-child { grid-column: 1 / -1; border-bottom: 1px solid var(--line); }
   .hero-card:not(:first-child) { padding-inline: 8px; }
   .hero-card:nth-child(2) { border-left: 0; }
@@ -2114,6 +2162,45 @@ html:not([data-motion="full"]) fluent-spinner { visibility: hidden; }
   .field-wide { grid-column: auto; }
   .topup-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .topup-remove { grid-column: 1 / -1; justify-self: end; }
+
+  /* Mobile Bottom Sheet transformations for Drawers and Modals */
+  .drawer-panel, .management-drawer .drawer-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 86dvh;
+    height: auto;
+    border-radius: var(--borderRadius3XLarge) var(--borderRadius3XLarge) 0 0;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.2);
+    border-top: 1px solid var(--line);
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    padding-bottom: var(--safe-bottom);
+  }
+  .drawer.hidden .drawer-panel {
+    transform: translateY(100%);
+  }
+  .popover {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .popover-card {
+    width: 100%;
+    max-height: 86dvh;
+    border-radius: var(--borderRadius3XLarge) var(--borderRadius3XLarge) 0 0;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.2);
+    border-top: 1px solid var(--line);
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    padding-bottom: var(--safe-bottom);
+  }
+  .popover.hidden .popover-card {
+    transform: translateY(100%);
+  }
 }
 @media (forced-colors: active) {
   .row-action-menu > summary, .row-action-popover, .account-row, .pricing-row, .limit-card, .trend-ranking { border-color: CanvasText; }
@@ -2136,6 +2223,90 @@ fluent-text-input::part(label) { font-size: 14px; line-height: 20px; font-weight
 @media (pointer: coarse) { fluent-text-input::part(control) { min-height: 44px; font-size: 16px; } }
 @keyframes fluent-refresh-spin { to { transform: rotate(360deg); } }
 #refreshBtn[aria-busy="true"] .ui-icon { animation: fluent-refresh-spin 900ms linear infinite; }
+
+/* Fluent 2 Bottom Navigation Bar for Mobile */
+.mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .app {
+    padding-bottom: calc(var(--mobile-nav-height) + var(--safe-bottom));
+  }
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(var(--mobile-nav-height) + var(--safe-bottom));
+    padding-bottom: var(--safe-bottom);
+    background: color-mix(in srgb, var(--bg-elevated) 95%, transparent);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--line);
+    z-index: 28;
+    align-items: stretch;
+    justify-content: space-around;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.04);
+  }
+  .mobile-nav-item {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    text-decoration: none;
+    color: var(--colorNeutralForeground2);
+    min-width: 0;
+    padding: 6px 4px;
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: color var(--durationFast) var(--curveEasyEase);
+  }
+  .mobile-nav-item:active {
+    opacity: 0.72;
+    transform: scale(0.96);
+  }
+  .mobile-nav-item.active {
+    color: var(--colorBrandForeground1);
+  }
+  .mobile-nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 3px;
+    background: var(--colorBrandBackground);
+    border-radius: 0 0 3px 3px;
+  }
+  .mobile-nav-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 22px;
+  }
+  .mobile-nav-icon .ui-icon {
+    width: 22px;
+    height: 22px;
+  }
+  .mobile-nav-label {
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .mobile-nav-item.active .mobile-nav-label {
+    font-weight: 600;
+  }
+}
 
 /* The vendor switch floats its thumb inside a padded track, which reads as
    "centred" when off. Pin the thumb flush to the inline edge in both states so

@@ -1622,6 +1622,7 @@ const MESSAGES = {
 const PAGE_MESSAGES = {
   en: {
     'nav.primary': 'Primary navigation',
+    'nav.more': 'More',
     'filters.scope': 'Usage scope and period',
     'nav.overview': 'Overview',
     'nav.groupInsights': 'Insights',
@@ -1791,6 +1792,7 @@ const PAGE_MESSAGES = {
   },
   'zh-CN': {
     'nav.primary': '主导航',
+    'nav.more': '更多',
     'filters.scope': '用量范围与周期',
     'nav.overview': '总览',
     'nav.groupInsights': '分析',
@@ -1960,6 +1962,7 @@ const PAGE_MESSAGES = {
   },
   'zh-TW': {
     'nav.primary': '主要導覽',
+    'nav.more': '更多',
     'filters.scope': '用量範圍與期間',
     'nav.overview': '總覽',
     'nav.groupInsights': '分析',
@@ -2129,6 +2132,7 @@ const PAGE_MESSAGES = {
   },
   ja: {
     'nav.primary': 'メイン ナビゲーション',
+    'nav.more': 'その他',
     'filters.scope': '使用量の範囲と期間',
     'nav.overview': '概要',
     'nav.groupInsights': '分析',
@@ -2298,6 +2302,7 @@ const PAGE_MESSAGES = {
   },
   ko: {
     'nav.primary': '기본 탐색',
+    'nav.more': '더보기',
     'filters.scope': '사용량 범위 및 기간',
     'nav.overview': '개요',
     'nav.groupInsights': '분석',

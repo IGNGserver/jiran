@@ -89,7 +89,8 @@ const UI_ICON_PATHS = Object.freeze({
   warning: '<path d="m12 3 9 16H3z"/><path d="M12 9v4M12 16h.01"/>',
   check: '<path d="m5 12 4 4L19 6"/>',
   chevronDown: '<path d="m6 9 6 6 6-6"/>',
-  arrowUpRight: '<path d="M7 17 17 7M8 7h9v9"/>'
+  arrowUpRight: '<path d="M7 17 17 7M8 7h9v9"/>',
+  moreHorizontal: '<circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/>'
 });
 
 function uiIcon(name) {
@@ -869,7 +870,50 @@ function renderChrome() {
     setFluentDropdownValue(els.deviceFilter, selectedDeviceOption);
     els.deviceFilter.title = selectedDevice?.hostname || selectedDevice?.deviceId || tr('filters.allDevices');
   }
+  renderMobileNav();
   refreshPwaUi();
+}
+
+function renderMobileNav() {
+  if (typeof document === 'undefined') return;
+  let nav = document.getElementById('mobileBottomNav');
+  if (!nav) {
+    nav = document.createElement('nav');
+    nav.id = 'mobileBottomNav';
+    nav.className = 'mobile-bottom-nav';
+    nav.setAttribute('aria-label', tr('nav.primary'));
+    nav.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-view]');
+      if (!btn) return;
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      const targetView = btn.dataset.view;
+      if (targetView === 'more') {
+        openNav(!state.navOpen);
+      } else {
+        switchView(targetView);
+      }
+    });
+    document.body.appendChild(nav);
+  }
+  nav.setAttribute('aria-label', tr('nav.primary'));
+  const currentView = state.prefs.view;
+  const primaryKeys = ['overview', 'usage', 'devices'];
+  const isMoreActive = !primaryKeys.includes(currentView);
+
+  const items = [
+    { id: 'overview', icon: 'home', label: tr('nav.overview'), active: currentView === 'overview' },
+    { id: 'usage', icon: 'usage', label: tr('nav.usage'), active: currentView === 'usage' },
+    { id: 'devices', icon: 'device', label: tr('nav.devices'), active: currentView === 'devices' },
+    { id: 'more', icon: 'moreHorizontal', label: tr('nav.more'), active: isMoreActive }
+  ];
+
+  nav.innerHTML = items.map((item) => `
+    <a href="${isCapable('desktopSettings') ? '#' : ''}${VIEW_PATHS[item.id] || '#'}" class="mobile-nav-item ${item.active ? 'active' : ''}" data-view="${item.id}" ${item.active ? 'aria-current="page"' : ''}>
+      <span class="mobile-nav-icon">${uiIcon(item.icon)}</span>
+      <span class="mobile-nav-label">${escapeHtml(item.label)}</span>
+    </a>
+  `).join('');
 }
 
 function rowHtml(row, { showIcon = false, sub } = {}) {
