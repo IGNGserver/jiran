@@ -3,11 +3,11 @@
 ## 本次更新
 
 <!-- app-update-notes:zh:start -->
-### Hub 网页端：设备迁移收入「设置 → 高级」，并修好源设备下拉
-- **迁移入口从侧边栏收回设置：** 上一版把设备迁移挂进了侧边栏「管理」组，这一版把它移入 **设置 →「高级」** 分组，仍然只对 admin 显示。网页面板的设置页会为管理员渲染这个分组，桌面 App 不再渲染迁移面板。
-- **桌面端不再有迁移代码：** 迁移是中枢侧的管理员操作，桌面客户端既不再渲染面板，也不再代理 `POST /api/devices/:id/transfer`（`desktopRequestRouter` 已移除该路由），源码守卫会拦住回退。
-- **修复源设备下拉框点开空白：** 选项此前直接挂在 `<fluent-dropdown>` 上、缺少 `fluent-listbox` 包裹，Fluent 因此拿不到 listbox，控件既打不开也不显示当前值。现在源、目标两个下拉都会列出已有设备。
-- **目标设备从手输 ID 改为下拉选择：** 不再需要手动粘贴设备 ID；两个下拉默认给出一组有效且不相等的设备，源设备切换撞到目标时会自动把目标换到另一台。
+### 恢复单用户 Owner 鉴权并统一跨端管理权限
+- **恢复单一 Owner 模型：** Hub 现在只接受 `TOKEN_MONITOR_SECRET` 作为唯一操作者凭证，读取、数据上报、设备管理、订阅、定价和额度账号管理均由同一凭证完成。
+- **移除误导性的多用户权限层级：** 不再把 `admin`、`viewer`、`device`、`legacy` 当作 Token Monitor 用户；设备 ID 只表示数据来源，Provider Accounts 仍表示第三方 AI 服务商额度账号。
+- **统一 Web、Desktop 与 Android：** 各端改用认证状态和宿主能力控制界面，不再因为旧的 admin scope 隐藏管理功能；鉴权 API 合同升级为 v3，并停止暴露认证拓扑。
+- **兼容与安全：** 旧 split credential 配置不再作为正式登录模式，URL query secret 被拒绝；认证失败限流、TLS 要求、设备数据校验和 Hub 账号凭据保护继续保留。
 <!-- app-update-notes:zh:end -->
 
 ## 快捷下载
