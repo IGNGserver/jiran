@@ -98,6 +98,7 @@ const NODE_RUNTIME_SOURCE_FILES = Object.freeze([
   'src/shared/sakanaLimits.js',
   'src/shared/selfSyncThrottle.js',
   'src/shared/sessionFiles.js',
+  'src/shared/sessionUsageArchive.js',
   'src/shared/tokscaleConfig.js',
   'src/shared/tokscalePlatform.js',
   'src/shared/thirdPartyLimits.js',

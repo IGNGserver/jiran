@@ -359,6 +359,34 @@ function applySessionUsageArchive(summary, archive, options = {}) {
   return next;
 }
 
+/**
+ * Restore archived (pruned) sessions into one arbitrary calendar window.
+ *
+ * `applySessionUsageArchive` answers the fixed today/month/allTime tabs. A custom
+ * range — and the 昨日 / 本周 presets, which are ranges the UI computes — needs the
+ * same restoration, or a day whose tool already pruned its sessions reads lower
+ * here than in the 本月 tab: the same day measured two ways. Membership is decided
+ * by the archived day bucket, de-duplication by the shared `client:sessionId` key,
+ * and the caller's own hour-level filter still runs afterwards, so a partial window
+ * cannot gain a day it does not cover.
+ */
+function applySessionUsageArchiveRange(period, archive, range) {
+  if (!period || typeof period !== 'object') return period;
+  const startDate = String(range?.startDate || '');
+  const endDate = String(range?.endDate || '');
+  if (!startDate || !endDate) return period;
+  if (!period.sessions || typeof period.sessions !== 'object') period.sessions = Object.create(null);
+  const normalized = normalizeSessionUsageArchive(archive);
+  for (const entry of Object.values(normalized.sessions || {})) {
+    const session = entry?.periods?.today;
+    if (!session || !hasSessionUsage(session)) continue;
+    const day = entry?.periodWindows?.today?.day || entry?.day;
+    if (!day || day < startDate || day > endDate) continue;
+    addArchivedSession(period, session);
+  }
+  return period;
+}
+
 function sessionUsageArchivePath(options = {}) {
   return options.path || path.join(sharedDataDir(options), 'session-usage-archive.json');
 }
@@ -385,6 +413,7 @@ function clearSessionUsageArchive(options = {}) {
 }
 
 module.exports = {
+  applySessionUsageArchiveRange,
   applySessionUsageArchive,
   captureSessionUsageArchive,
   clearSessionUsageArchive,

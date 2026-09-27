@@ -20,7 +20,12 @@ const {
   normalizeClientName,
   UNATTRIBUTED_USAGE_CLIENT
 } = require('./usage');
-const { collectWslUsage: collectWslUsageImpl, emptyWslBundle, probeWslState: probeWslStateImpl } = require('./wslUsage');
+const {
+  collectWslUsage: collectWslUsageImpl,
+  collectWslRangeUsage: collectWslRangeUsageImpl,
+  emptyWslBundle,
+  probeWslState: probeWslStateImpl
+} = require('./wslUsage');
 const { hermesProfileWatchDirs, resolveHermesHome } = require('./hermesProfiles');
 const { mergeHistories, parseGraphResult, normalizeHistory } = require('./history');
 const { retainDailyHistory, retainLiveDailyHistory } = require('./dailyHistoryArchive');
@@ -4237,6 +4242,65 @@ async function collectCustomRangeOnce(options = {}) {
     homeDir,
     { ...localSessionMetadataDeps, retryMisses: true, resolveProjects: projectsEnabled }
   );
+
+  // Sessions the source tool already pruned come back here exactly as they do on
+  // the fixed tabs: without this, a day whose tool cleaned up after itself reads
+  // lower in 昨日 / 本周 than in 本月 — the same day measured two ways. Membership
+  // is the archived day bucket, de-duplication the shared `client:sessionId` key,
+  // and the hour filter below still runs, so a partial window gains nothing.
+  if (options.sessionUsageArchiveEnabled !== false) {
+    try {
+      // Required here rather than at module scope, like the Proma and Claude
+      // Desktop adapters below: the archive is only touched by a range answer, and
+      // the Hub bundles this file for a path it never runs itself (its own ranges
+      // come from stored events). The new edge is declared in
+      // `scripts/hub-build-manifest.js`, which pins the Hub's dependency closure.
+      const archiveModule = require('./sessionUsageArchive');
+      const readArchive = options.readSessionUsageArchive || archiveModule.readSessionUsageArchive;
+      const archive = options.sessionUsageArchive || readArchive({ env: options.env || process.env });
+      archiveModule.applySessionUsageArchiveRange(period, archive, range);
+    } catch (error) {
+      if (typeof options.logger === 'function') options.logger(`session archive range restore failed: ${error.message}`);
+    }
+  }
+
+  // Running distros answer a calendar window exactly as they answer the fixed
+  // periods. Skipping this made 昨日 / 本周 / any custom range read lower than
+  // 今日 / 本月 / 全部 on a Windows host whose work happens in WSL — the same
+  // day measured twice and reported as one number.
+  if (normalizedClients && options.wslScanEnabled !== false) {
+    const collectWslRange = options.collectWslRangeUsage || collectWslRangeUsageImpl;
+    try {
+      const wslPeriod = await collectWslRange({
+        clients: tokscaleClients,
+        trackedClients: normalizedClients,
+        range,
+        now: new Date(),
+        commandTimeoutMs,
+        runTokscale: runTokscaleFn,
+        logger: options.logger,
+        decoratePeriods: (periods, home) => applySessionTimestamps(periods, home, {
+          scopedHome: true,
+          resolveProjects: projectsEnabled
+        }),
+        promaRangePeriod: async (rows) => {
+          const { buildTokscaleJson } = require('./promaUsage');
+          const pricingByModel = await resolvePromaPricing(rows, {
+            lookupModelPricing: options.lookupModelPricing,
+            commandTimeoutMs: options.pricingTimeoutMs
+              ?? Math.min(commandTimeoutMs || PROMA_PRICING_LOOKUP_TIMEOUT_MS, PROMA_PRICING_LOOKUP_TIMEOUT_MS),
+            pricingRevision: options.pricingRevision
+          });
+          return extractUsageFromTokscale(buildTokscaleJson({}, { rows, pricingByModel }));
+        }
+      });
+      period = mergePeriods(period, wslPeriod);
+    } catch (error) {
+      // A failed WSL pass must not void the host answer, exactly as in the
+      // period scan — but say so, because the range is now knowingly partial.
+      if (typeof options.logger === 'function') options.logger(`wsl custom-range scan failed: ${error.message}`);
+    }
+  }
 
   period = filterPeriodByCustomRange(period, range, { projectsEnabled });
   return {

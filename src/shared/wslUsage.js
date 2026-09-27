@@ -75,8 +75,15 @@ const WSL_DATA_MARKERS = [
   '.local/share/crush/projects.json',
   '.local/share/goose/sessions/sessions.db',
   '.config/manicode/projects',
+  // The four self-synced clients materialise their sessions under
+  // `.config/tokscale/<client>-cache`. A distro whose only tracked tool is one of
+  // these is otherwise invisible to the marker scan, so its home is never
+  // collected at all. cursor/antigravity were missing while trae/warp were listed,
+  // which is exactly the "one derivation of a rule" trap.
   '.config/tokscale/trae-cache',
   '.config/tokscale/warp-cache',
+  '.config/tokscale/cursor-cache',
+  '.config/tokscale/antigravity-cache',
   '.gjc/agent/sessions',
   '.jcode/sessions',
   '.junie/sessions',
@@ -151,6 +158,8 @@ const MARKER_CLIENTS = {
   '.config/manicode/projects': 'codebuff',
   '.config/tokscale/trae-cache': 'trae',
   '.config/tokscale/warp-cache': 'warp',
+  '.config/tokscale/cursor-cache': 'cursor',
+  '.config/tokscale/antigravity-cache': 'antigravity',
   '.gjc/agent/sessions': 'gjc',
   '.jcode/sessions': 'jcode',
   '.junie/sessions': 'junie',
@@ -355,8 +364,76 @@ async function collectWslUsage(options = {}, deps = {}) {
   return { bundle, detected: [...detected] };
 }
 
+// One calendar window over every running distro.
+//
+// The period scan answers today / month / allTime only, so a hand-picked or
+// preset range (昨日 / 本周 / any custom window, resolved through
+// /api/usage/range) had no WSL part at all: on a Windows host those tabs read
+// lower than 今日 / 本月 / 全部 for anyone who works inside a distro, which is
+// two measurements of the same day presented as one product. This is the same
+// per-home loop with the range's own `--since / --until`, sharing marker
+// discovery, the Reasonix / Proma exclusions and the failure behaviour of the
+// period scan, and it returns one period rather than a three-window bundle.
+async function collectWslRangeUsage(options = {}, deps = {}) {
+  const { clients, range, commandTimeoutMs, now, runTokscale, logger } = options;
+  const collectProma = options.collectPromaRows || collectPromaRows;
+  const existsSync = deps.existsSync || fs.existsSync;
+  const readdirSync = deps.readdirSync || fs.readdirSync;
+  let period = emptyPeriod();
+  if (!clients || !range?.since || !range?.until) return period;
+  const tracked = new Set(String(options.trackedClients || clients).split(',').map((c) => c.trim()).filter(Boolean));
+  // Same exclusions as the period scan: Reasonix for the upstream path-root
+  // conflict, Proma because it is locally parsed just below.
+  const clientsCsv = String(clients).split(',').map((c) => c.trim()).filter(Boolean)
+    .filter((client) => client !== REASONIX_CLIENT && client !== 'proma')
+    .join(',');
+  for (const home of wslUsageHomes(deps)) {
+    const homeDataClients = homeHasData(home, existsSync, readdirSync);
+    if (clientsCsv) {
+      try {
+        const json = await runTokscale({
+          clients: clientsCsv,
+          flags: ['--since', range.since, '--until', range.until, '--home', home],
+          commandTimeoutMs
+        });
+        let scanned = extractUsageFromTokscale(json);
+        // Session timestamps and project identity resolve against the scanned
+        // home, exactly as the period scan does, so a range can break a WSL-only
+        // client down by project instead of dropping it into one lump.
+        if (typeof options.decoratePeriods === 'function') {
+          const decorated = options.decoratePeriods(
+            { today: scanned, month: emptyPeriod(), allTime: emptyPeriod() },
+            home
+          );
+          if (decorated?.today) scanned = decorated.today;
+        }
+        period = mergePeriods(period, scanned);
+      } catch (error) {
+        if (typeof logger === 'function') logger(`wsl range scan failed for ${home}: ${error.message}`);
+      }
+    }
+    if (tracked.has('proma') && homeDataClients.includes('proma')
+      && typeof options.promaRangePeriod === 'function') {
+      try {
+        const rows = collectProma({
+          now,
+          allTimeSince: range.since,
+          roots: [wslHomePath(home, '.proma/agent-sessions')]
+        });
+        const rangedRows = rows.filter((row) => row.createdAt >= range.startMs && row.createdAt <= range.endMs);
+        if (rangedRows.length) period = mergePeriods(period, await options.promaRangePeriod(rangedRows));
+      } catch (error) {
+        if (typeof logger === 'function') logger(`wsl Proma range parse failed for ${home}: ${error.message}`);
+      }
+    }
+  }
+  return period;
+}
+
+
 module.exports = {
   WSL_DATA_MARKERS,
+  collectWslRangeUsage,
   MARKER_CLIENTS,
   collectWslUsage,
   emptyWslBundle,
