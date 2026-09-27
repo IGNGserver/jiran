@@ -124,8 +124,6 @@ test('every tracked client has a watch candidate unless it is a known self-synce
 const WSL_UNREACHABLE = {
   'claude-desktop': 'a desktop app; its data root is Windows/macOS Application Support',
   'devin-desktop': 'macOS Application Support only (documented in wslUsage.js)',
-  qoder: 'local SQLite/transcript adapter, unreadable over a \\\\wsl$ UNC path',
-  qodercn: 'local SQLite/transcript adapter, unreadable over a \\\\wsl$ UNC path',
   reasonix: 'tokscale PathRoot::ReasonixHome conflicts with the Linux .reasonix/stats path',
   // One directory holds both Codebuff and Freebuff chats, so the marker fires for
   // the home and tokscale splits the rows by root agent id. Only the *status*

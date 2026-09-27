@@ -5,6 +5,17 @@ const { execFileSync } = require('node:child_process');
 const { emptyPeriod, extractUsageFromTokscale, mergePeriods } = require('./usage');
 const { REASONIX_CLIENT } = require('./reasonixPaths');
 const { buildPromaPeriods, collectPromaRows } = require('./promaUsage');
+const {
+  collectQoderCnMainRows,
+  collectQoderCnRows,
+  collectQoderCnTranscriptRows,
+  mergeQoderCnRows,
+  buildQoderCnPeriods,
+  buildQoderCnRangeJson,
+  resolveQoderCnPricing,
+  QODER_CLIENT_IDS,
+  QODER_SITE_BY_CLIENT_ID
+} = require('./qoderCnUsage');
 
 const LXSS_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss';
 
@@ -15,16 +26,6 @@ const LXSS_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss';
 // is still discovered. The `.vscode-server` entries cover Cline / Kilo Code
 // running through the VS Code WSL remote.
 //
-// Both Qoder sites (`qoder`, `qodercn`) are deliberately absent even though their
-// Linux roots (`~/.config/QoderCN`, `~/.qoder-cn`) could appear in a WSL home. A
-// marker on its own would be worse than none: attribution is marker-based, so a
-// Qoder-only home would be reported as an active client while contributing zero
-// tokens, because tokscale has no Qoder entry and the usage comes from this
-// project's own SQLite/transcript adapter. Doing it properly needs a Proma-style
-// local-adapter branch here, and reading SQLite (plus its `-wal`/`-shm`
-// sidecars) over a `\\wsl$\…` UNC path is unverified. On a Linux host the
-// ordinary collector already reads the real home, so this only affects a Windows
-// host reaching into a distro that runs Qoder's Linux build.
 const WSL_DATA_MARKERS = [
   '.claude/projects',
   '.claude/transcripts',
@@ -98,7 +99,11 @@ const WSL_DATA_MARKERS = [
   '.fx/sessions',
   '.lmstudio/server-logs',
   '.unsloth/studio/studio.db',
-  '.hindsight/usage'
+  '.hindsight/usage',
+  '.qoder/projects',
+  '.qoder-cn/projects',
+  '.config/Qoder/SharedClientCache/cache/db/local.db',
+  '.config/QoderCN/SharedClientCache/cache/db/local.db'
 ];
 
 // Maps every WSL_DATA_MARKERS entry to the tracked-client id that owns it, so a
@@ -174,7 +179,11 @@ const MARKER_CLIENTS = {
   '.fx/sessions': 'fx',
   '.lmstudio/server-logs': 'lmstudio',
   '.unsloth/studio/studio.db': 'unsloth',
-  '.hindsight/usage': 'hindsight'
+  '.hindsight/usage': 'hindsight',
+  '.qoder/projects': 'qoder',
+  '.qoder-cn/projects': 'qodercn',
+  '.config/Qoder/SharedClientCache/cache/db/local.db': 'qoder',
+  '.config/QoderCN/SharedClientCache/cache/db/local.db': 'qodercn'
 };
 
 // Default command runner. reg output is ANSI/utf8; wsl.exe output is UTF-16LE.
@@ -252,6 +261,76 @@ function homeHasData(home, existsSync, readdirSync = fs.readdirSync) {
   return [...ids];
 }
 
+async function collectWslQoderUsage(home, options, bundle) {
+  const tracked = new Set(String(options.trackedClients || '').split(',').filter(Boolean));
+  for (const clientId of QODER_CLIENT_IDS) {
+    if (!tracked.has(clientId)) continue;
+    const site = QODER_SITE_BY_CLIENT_ID[clientId];
+    const sourceOptions = {
+      clientId, site, homeDir: home, platform: 'linux',
+      env: options.env || {}, logger: options.logger
+    };
+    try {
+      const [legacy, main, transcript] = await Promise.all([
+        collectQoderCnRows(sourceOptions),
+        collectQoderCnMainRows(sourceOptions),
+        Promise.resolve(collectQoderCnTranscriptRows(sourceOptions))
+      ]);
+      const rows = mergeQoderCnRows([...legacy, ...main], transcript, null, {
+        databaseSources: { legacy: legacy.length > 0, main: main.length > 0 }
+      });
+      if (!rows.length) continue;
+      const pricing = await resolveQoderCnPricing(rows, {
+        lookupModelPricing: options.lookupModelPricing || (() => Promise.resolve(null)),
+        commandTimeoutMs: options.pricingTimeoutMs
+      });
+      const periods = buildQoderCnPeriods({
+        now: options.now,
+        allTimeSince: options.allTimeSince,
+        rows,
+        pricingByModel: pricing,
+        clientId
+      });
+      bundle.today = mergePeriods(bundle.today, extractUsageFromTokscale(periods.today));
+      bundle.month = mergePeriods(bundle.month, extractUsageFromTokscale(periods.month));
+      bundle.allTime = mergePeriods(bundle.allTime, extractUsageFromTokscale(periods.allTime));
+    } catch (error) {
+      options.logger?.(`wsl ${clientId} usage parse failed: ${error.message}`);
+    }
+  }
+}
+
+async function collectWslQoderRangeUsage(home, options, period) {
+  const tracked = new Set(String(options.trackedClients || '').split(',').filter(Boolean));
+  for (const clientId of QODER_CLIENT_IDS) {
+    if (!tracked.has(clientId)) continue;
+    const site = QODER_SITE_BY_CLIENT_ID[clientId];
+    const sourceOptions = {
+      clientId, site, homeDir: home, platform: 'linux',
+      env: options.env || {}, logger: options.logger
+    };
+    try {
+      const legacy = await collectQoderCnRows({ ...sourceOptions, sinceMs: options.range.startMs });
+      const main = await collectQoderCnMainRows({ ...sourceOptions, sinceMs: options.range.startMs });
+      const transcript = collectQoderCnTranscriptRows({ ...sourceOptions, sinceMs: options.range.startMs });
+      const rows = mergeQoderCnRows([...legacy, ...main], transcript, null, {
+        databaseSources: { legacy: legacy.length > 0, main: main.length > 0 }
+      });
+      if (!rows.length) continue;
+      const pricing = await resolveQoderCnPricing(rows, {
+        lookupModelPricing: options.lookupModelPricing || (() => Promise.resolve(null)),
+        commandTimeoutMs: options.pricingTimeoutMs
+      });
+      period = mergePeriods(period, extractUsageFromTokscale(buildQoderCnRangeJson(options.range, {
+        rows, pricingByModel: pricing, clientId
+      })));
+    } catch (error) {
+      options.logger?.(`wsl ${clientId} range parse failed: ${error.message}`);
+    }
+  }
+  return period;
+}
+
 function wslUsageHomes(deps = {}) {
   const readdirSync = deps.readdirSync || fs.readdirSync;
   const existsSync = deps.existsSync || fs.existsSync;
@@ -307,6 +386,7 @@ async function collectWslUsage(options = {}, deps = {}) {
     for (const id of homeDataClients) {
       if (tracked.has(id)) detected.add(id);
     }
+    await collectWslQoderUsage(home, options, bundle);
     // Proma is locally parsed rather than tokscale-backed. Scan its WSL JSONL
     // root directly so a Proma-only home contributes actual usage, not merely
     // marker detection. The root is isolated per home to avoid double-counting
@@ -426,6 +506,7 @@ async function collectWslRangeUsage(options = {}, deps = {}) {
         if (typeof logger === 'function') logger(`wsl Proma range parse failed for ${home}: ${error.message}`);
       }
     }
+    period = await collectWslQoderRangeUsage(home, options, period);
   }
   return period;
 }

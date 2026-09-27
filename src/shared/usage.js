@@ -168,6 +168,11 @@ function emptyPeriod() {
     // by, and a sum is what lets the anchored delta and the Hub aggregation
     // treat it additively.
     clientCredits: {},
+    // Common measurement metadata. Legacy clientEstimated/clientCredits remain
+    // below as compatibility aliases while every host migrates to this shape.
+    // `tokens` and `costUsd` describe the provenance of the corresponding
+    // aggregate; native meters retain their provider unit and provenance.
+    clientMeasurements: {},
     // Which clients contributed content-estimated token totals. The period-level
     // `estimated` flag says "at least one row here was estimated", which on a
     // machine tracking Claude and Qoder would brand the whole period — and every
@@ -733,6 +738,53 @@ function normalizePeriod(input, options = {}) {
       if (key && asNumber(value) > 0) period.clientCredits[key] = mapNumber(period.clientCredits, key) + asNumber(value);
     }
   }
+  if (input.clientMeasurements && typeof input.clientMeasurements === 'object') {
+    for (const [client, measurement] of Object.entries(input.clientMeasurements)) {
+      const key = normalizeClientName(client);
+      if (!key || !measurement || typeof measurement !== 'object') continue;
+      const tokens = ['exact', 'estimated', 'unknown'].includes(measurement.tokens)
+        ? measurement.tokens : undefined;
+      const costUsd = ['exact', 'estimated', 'unknown'].includes(measurement.costUsd)
+        ? measurement.costUsd : undefined;
+      const meters = {};
+      for (const [meter, value] of Object.entries(measurement.meters || {})) {
+        if (!value || typeof value !== 'object') continue;
+        const amount = asNumber(value.value);
+        const provenance = ['exact', 'estimated', 'unknown'].includes(value.provenance)
+          ? value.provenance : 'unknown';
+        if (amount > 0) meters[String(meter).slice(0, 32)] = { value: amount, provenance };
+      }
+      if (tokens || costUsd || Object.keys(meters).length) {
+        period.clientMeasurements[key] = {
+          ...(tokens ? { tokens } : {}),
+          ...(costUsd ? { costUsd } : {}),
+          ...(Object.keys(meters).length ? { meters } : {})
+        };
+      }
+    }
+  }
+  // Older producers only carried the sparse estimate/credit maps. Promote them
+  // at the normalization boundary so all downstream consumers can use one
+  // measurement contract without making old devices resend their snapshots.
+  const measurementClients = new Set([
+    ...Object.keys(period.clients),
+    ...Object.keys(period.clientCredits),
+    ...Object.keys(period.clientMeasurements)
+  ]);
+  for (const client of measurementClients) {
+    const measurement = period.clientMeasurements[client] || {};
+    if (period.clientEstimated[client] === true || input.clientEstimated?.[client] === true) measurement.tokens = 'estimated';
+    else if (!measurement.tokens) measurement.tokens = 'unknown';
+    if (!measurement.costUsd) measurement.costUsd = period.clientEstimated[client] === true ? 'estimated' : 'unknown';
+    const credits = period.clientCredits[client];
+    if (credits > 0) {
+      measurement.meters = {
+        ...(measurement.meters || {}),
+        credits: { value: credits, provenance: 'exact' }
+      };
+    }
+    period.clientMeasurements[client] = measurement;
+  }
   if (input.clientEstimated && typeof input.clientEstimated === 'object') {
     for (const [client, value] of Object.entries(input.clientEstimated)) {
       const key = normalizeClientName(client);
@@ -877,6 +929,25 @@ function addUsageRowToPeriod(period, row, detectedClient = detectClient(row)) {
   // credit and one that reports zero credits both leave the client absent, which
   // is what lets the map stay sparse across dozens of non-credit clients.
   if (client && credits > 0) period.clientCredits[client] = mapNumber(period.clientCredits, client) + credits;
+  if (client && credits > 0) {
+    const measurement = period.clientMeasurements[client] || {};
+    measurement.meters = {
+      ...(measurement.meters || {}),
+      credits: {
+        value: mapNumber(period.clientCredits, client),
+        provenance: row?.meterProvenance || 'exact'
+      }
+    };
+    period.clientMeasurements[client] = measurement;
+  }
+  if (client && (tokens > 0 || cost > 0 || credits > 0)) {
+    const measurement = period.clientMeasurements[client] || {};
+    const tokenProvenance = row?.tokenProvenance || (row?.estimated === true ? 'estimated' : 'exact');
+    const costProvenance = row?.costProvenance || (row?.estimated === true ? 'estimated' : 'exact');
+    if (measurement.tokens !== 'estimated' || tokenProvenance === 'estimated') measurement.tokens = tokenProvenance;
+    if (measurement.costUsd !== 'estimated' || costProvenance === 'estimated') measurement.costUsd = costProvenance;
+    period.clientMeasurements[client] = measurement;
+  }
   if (model && tokens > 0) {
     period.models[model] = mapNumber(period.models, model) + Math.round(tokens);
     if (cacheRead > 0) period.modelCacheReads[model] = mapNumber(period.modelCacheReads, model) + cacheRead;
@@ -1536,6 +1607,30 @@ function addPeriodInto(target, source) {
   for (const [rawClient, estimated] of Object.entries(source.clientEstimated)) {
     const client = normalizeClientName(rawClient);
     if (client && estimated === true) target.clientEstimated[client] = true;
+  }
+  for (const [rawClient, measurement] of Object.entries(source.clientMeasurements || {})) {
+    const client = normalizeClientName(rawClient);
+    if (!client || !measurement || typeof measurement !== 'object') continue;
+    const targetMeasurement = target.clientMeasurements[client] || {};
+    const provenanceRank = { unknown: 0, exact: 1, estimated: 2 };
+    for (const field of ['tokens', 'costUsd']) {
+      const sourceValue = measurement[field];
+      if (!['exact', 'estimated', 'unknown'].includes(sourceValue)) continue;
+      if (!targetMeasurement[field] || provenanceRank[sourceValue] > provenanceRank[targetMeasurement[field]]) {
+        targetMeasurement[field] = sourceValue;
+      }
+    }
+    for (const [meter, value] of Object.entries(measurement.meters || {})) {
+      if (!value || typeof value !== 'object') continue;
+      const current = targetMeasurement.meters?.[meter];
+      if (!targetMeasurement.meters) targetMeasurement.meters = {};
+      targetMeasurement.meters[meter] = {
+        value: mapNumber(current ? { value: current.value } : {}, 'value') + asNumber(value.value),
+        provenance: current?.provenance === 'estimated' || value.provenance === 'estimated'
+          ? 'estimated' : (current?.provenance || value.provenance || 'unknown')
+      };
+    }
+    target.clientMeasurements[client] = targetMeasurement;
   }
   for (const [rawModel, tokens] of Object.entries(source.models)) {
     const model = normalizeModelName(rawModel);

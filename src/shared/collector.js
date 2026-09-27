@@ -57,6 +57,7 @@ const {
   qoderSourceFingerprint,
   resolveQoderCnPricing
 } = require('./qoderCnUsage');
+const { LOCAL_USAGE_CLIENT_IDS } = require('./localUsageAdapters');
 const { REASONIX_SOURCE_CHECK_ID, resolveReasonixStatsDir } = require('./reasonixPaths');
 const {
   createReasonixNativeSessionCache,
@@ -628,7 +629,7 @@ function resetPromaPricingCache() {
 // store natively (`--client dsh`), so it flows through the ordinary scan and the
 // local parser is gone. Both Qoder sites are here because tokscale's `--client`
 // value-enum has no Qoder entry at all — see QODER_SITE_BY_CLIENT_ID.
-const LOCAL_PARSED_CLIENTS = new Set(['proma', 'claude-desktop', ...QODER_CLIENT_IDS]);
+const LOCAL_PARSED_CLIENTS = new Set(LOCAL_USAGE_CLIENT_IDS);
 
 function collectionDate(now) {
   const value = typeof now === 'function' ? now() : now;
@@ -1691,6 +1692,8 @@ async function collectUsageOnce(options) {
           commandTimeoutMs: options.pricingTimeoutMs ?? Math.min(commandTimeoutMs || PROMA_PRICING_LOOKUP_TIMEOUT_MS, PROMA_PRICING_LOOKUP_TIMEOUT_MS),
           pricingRevision: options.pricingRevision
         }),
+        lookupModelPricing: options.lookupModelPricing || lookupModelPricing,
+        pricingTimeoutMs: options.pricingTimeoutMs,
         logger: options.logger,
         decoratePeriods: (periods, home) => applySessionTimestamps(periods, home, { scopedHome: true, resolveProjects: projectsEnabled })
       });
@@ -1711,6 +1714,8 @@ async function collectUsageOnce(options) {
           commandTimeoutMs: options.pricingTimeoutMs ?? Math.min(commandTimeoutMs || PROMA_PRICING_LOOKUP_TIMEOUT_MS, PROMA_PRICING_LOOKUP_TIMEOUT_MS),
           pricingRevision: options.pricingRevision
         }),
+        lookupModelPricing: options.lookupModelPricing || lookupModelPricing,
+        pricingTimeoutMs: options.pricingTimeoutMs,
         logger: options.logger,
         decoratePeriods: (periods, home) => applySessionTimestamps(periods, home, { scopedHome: true, resolveProjects: projectsEnabled })
       });

@@ -377,6 +377,7 @@ fun DeviceDetailScreen(
         selectedPeriod.clientCosts,
         selectedPeriod.clientEstimated,
         selectedPeriod.clientCredits,
+        selectedPeriod.clientMeasurements,
         limit = 6
       )
       if (clients.isNotEmpty()) {

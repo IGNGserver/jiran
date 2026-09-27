@@ -191,6 +191,7 @@ private fun ShareAnalyticsTab(
       // tokens with an estimated one.
       period?.clientEstimated.orEmpty(),
       period?.clientCredits.orEmpty(),
+      period?.clientMeasurements.orEmpty(),
       limit = 8
     )
   } else {
