@@ -174,21 +174,9 @@ function group(id, titleKey, body) {
   </section>`;
 }
 
-const NUMERIC_FIELDS = new Set([]);
 const CHECKBOX_FIELDS = new Set([
   'startAtLogin', 'startHidden', 'closeToTray', 'allowInsecureHubHttp'
 ]);
-
-/**
- * A field-level problem the main process would otherwise only *silently* correct.
- * Returning the message lets the form refuse the write and say why.
- */
-export function desktopSettingsFieldError(form, name) {
-  if (!form || !name) return '';
-  const input = form.querySelector(`[name="${name}"]`);
-  if (!input) return '';
-  return '';
-}
 
 /** Read a form back into a settings patch. */
 export function readDesktopSettingsPatch(form) {
@@ -198,12 +186,6 @@ export function readDesktopSettingsPatch(form) {
   for (const name of CHECKBOX_FIELDS) {
     const input = form.querySelector(`[name="${name}"]`);
     if (input) patch[name] = input.checked;
-  }
-  for (const name of NUMERIC_FIELDS) {
-    const input = form.querySelector(`[name="${name}"]`);
-    if (!input) continue;
-    const value = Number(input.value);
-    if (Number.isFinite(value)) patch[name] = value;
   }
   for (const name of ['deviceId', 'hubUrl']) {
     const input = form.querySelector(`[name="${name}"]`);

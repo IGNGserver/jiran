@@ -29,7 +29,7 @@ export const CLIENT_LABELS = {
   kilocode: 'Kilo Code',
   kimi: 'Kimi',
   qwen: 'Qwen',
-  grok: 'Grok',
+  grok: 'Grok Build',
   copilot: 'GitHub Copilot',
   pi: 'Pi',
   zed: 'Zed',
@@ -693,20 +693,6 @@ export function deviceRows(stats, periodKey) {
       };
     })
     .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
-}
-
-/**
- * Redact an account address for display so a shared screen or screenshot does not
- * reveal it. Only the presentation changes — identity comparisons keep using the
- * real value.
- */
-export function maskAccountEmail(value) {
-  const email = String(value || '').trim();
-  if (!email) return '';
-  const at = email.lastIndexOf('@');
-  if (at < 1) return '•••';
-  const name = email.slice(0, at);
-  return `${name[0]}•••@${email.slice(at + 1)}`;
 }
 
 export function limitCards(stats, locale = 'en') {

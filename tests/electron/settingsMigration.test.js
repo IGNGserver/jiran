@@ -16,31 +16,28 @@ const test = require('node:test');
 const root = path.join(__dirname, '..', '..');
 const main = fs.readFileSync(path.join(root, 'src', 'electron', 'main.js'), 'utf8');
 
-// Keys the plan retains as device-local. Each must still exist in
-// defaultSettings(), or an upgraded profile would lose it on the next write.
+// Keys the desktop settings document still owns. Each must appear in
+// defaultSettings(), and — unlike before this pass — every one of them has a
+// writer: a settings form control, a shared-UI preference, the tray, an in-app
+// gesture, or the main process itself. Keys whose only surface disappeared keep
+// their behaviour as code constants instead (src/shared/collectorConfig.js).
 const RETAINED_KEYS = [
   'hubMode', 'hubUrl', 'secret', 'allowInsecureHubHttp', 'deviceId',
-  'projectsEnabled', 'historyEnabled', 'historyIntervalMs',
-  'sessionUsageArchiveEnabled', 'wslScanEnabled', 'allTimeSince',
-  'collectionMode', 'collectionIntervalMs', 'watchEnabled', 'watchDebounceMs',
-  'exportAutoEnabled', 'exportDir', 'exportIntervalMs',
-  'customModelPricing',
-  'systemGlass', 'macosGlassStyle', 'theme', 'windowsBackdrop',
-  'reduceMotion', 'showLiveDot', 'showToolIcons', 'titleIconOnly',
-  'showCompactTotalTokens', 'zoomFactor', 'heatmapMetric', 'homeActiveDaysWindow',
-  'themeColors', 'vendorColors',
-  'viewDisplayOrder', 'hiddenViews', 'homeModuleOrder', 'hiddenHomeModules',
-  'homeLimitProviderOrder', 'hiddenHomeLimitProviders', 'homeLimitAccountCount',
-  'showHomeLimitBars', 'showHomeLimitProviderNames', 'limitProviderOrder',
-  'showLimitSource', 'maskLimitAccountEmails', 'showLimitUsed',
-  'startAtLogin', 'automaticAppUpdates', 'appUpdate', 'discordRpcEnabled',
-  'collectionPaused', 'closeToTray', 'startHidden',
+  'theme', 'systemGlass', 'macosGlassStyle', 'windowsBackdrop', 'reduceMotion',
   'language', 'currency', 'currencyRates',
-  'windowBounds', 'lastViewState', 'lastPostedDeviceId'
+  'heatmapMetric', 'homeActiveDaysWindow', 'homeLimitAccountCount',
+  'startAtLogin', 'closeToTray', 'startHidden', 'collectionPaused',
+  'windowBounds', 'lastViewState', 'lastPostedDeviceId', 'zoomFactor', 'appUpdate'
 ];
 
-// Keys that must NOT survive: nothing reads them now. Both widget-era leftovers
-// and the retired service-status / client-selection preferences land here.
+// Keys that must NOT survive: nothing reads them, or what read them is now a
+// constant. Parsed straight out of main.js so the list cannot drift from it.
+function retiredKeysFromMain() {
+  const declared = /const RETIRED_SETTING_KEYS = Object\.freeze\(\[([\s\S]*?)\]\)/.exec(main);
+  assert.ok(declared, 'main.js must keep one RETIRED_SETTING_KEYS list');
+  return [...declared[1].matchAll(/'([A-Za-z]+)'/g)].map((match) => match[1]);
+}
+
 const DROPPED_KEYS = [
   'windowBehavior', 'alwaysOnTop', 'floatingBubbleEnabled', 'floatingBubbleTrigger',
   'floatingBubbleContent', 'floatingBubbleCustomLayout', 'floatingBubbleBounds',
@@ -57,7 +54,9 @@ const DROPPED_KEYS = [
 function defaultSettingsBlock() {
   const start = main.indexOf('function defaultSettings()');
   assert.ok(start >= 0, 'defaultSettings should exist');
-  return main.slice(start, main.indexOf('function normalizeCollectionMode', start));
+  const end = main.indexOf('\n}', start);
+  assert.ok(end > start, 'defaultSettings must close');
+  return main.slice(start, end);
 }
 
 test('every retained device-local setting still has a default', () => {
@@ -77,21 +76,47 @@ test('widget-only settings are not declared and are stripped on read', () => {
   // so settings.json stops implying the keys still work.
   // Slice from the comment that introduces the strip list to the call that ends
   // it, using the *last* index so an earlier function definition does not bound it.
-  const stripStart = main.indexOf('Widget-era keys are dropped');
-  const stripEnd = main.indexOf('invalidateLegacyLocalLimitData()', stripStart);
-  assert.ok(stripStart > 0 && stripEnd > stripStart, 'the widget-key strip block should be present');
-  const stripBlock = main.slice(stripStart, stripEnd);
-  const unstripped = DROPPED_KEYS.filter((key) => !stripBlock.includes(`'${key}'`));
+  const retired = retiredKeysFromMain();
+  const unstripped = DROPPED_KEYS.filter((key) => !retired.includes(key));
   assert.deepEqual(unstripped, [], `widget keys not stripped on read: ${unstripped.join(', ')}`);
 });
 
-test('removed client-selection keys cannot be revived through settings:update', () => {
-  // The renderer snapshot omits them, but an old preload or a hand-written patch
-  // could still send one; the update path must drop it rather than write it back.
-  assert.match(
-    main,
-    /for \(const key of \['clients', 'migratedDefaultClients', 'clientDisplayOrder',\s+'hiddenClients', 'pinnedClients', 'archivedClientUsage'\]\) \{\s+delete normalizedPatch\[key\];/
-  );
+test('every retired key is stripped on both the read and the write path', () => {
+  // One list governs both directions, so a key cannot come back through the path
+  // that did not retire it: an old renderer, an old preload, or a hand-written
+  // settings.json must all end up with the same fixed behaviour.
+  const retired = retiredKeysFromMain();
+  for (const key of DROPPED_KEYS) {
+    assert.ok(retired.includes(key), `retired list is missing '${key}'`);
+  }
+  assert.match(main, /withoutRetiredKeys\(withoutInternalOnlyKeys\(stripLegacyLocalLimitSettings\(patch\)\)\)/,
+    'a renderer write must not revive a retired key');
+  assert.match(main, /return withoutRetiredKeys\(merged\);/,
+    'settings.json must be filtered against the same list on read');
+});
+
+test('no settings key survives without a writer', () => {
+  // The point of this pass: the settings document may only carry what something
+  // can still change. A key with no control is how a half-retired feature keeps
+  // narrowing collection behind the app's back.
+  const writers = new Set([
+    // settingsDesktop form controls (plus the folded window-material dropdown).
+    'language', 'windowSurface', 'reduceMotion', 'startAtLogin', 'startHidden',
+    'closeToTray', 'hubMode', 'hubUrl', 'allowInsecureHubHttp', 'deviceId',
+    'systemGlass', 'windowsBackdrop', 'secret',
+    // shared-UI preferences persisted through the prefs bridge.
+    'theme', 'currency', 'heatmapMetric', 'homeActiveDaysWindow', 'homeLimitAccountCount',
+    // the tray item and the in-app zoom gesture.
+    'collectionPaused', 'zoomFactor',
+    // operator-editable FX overrides and main-process runtime state.
+    'currencyRates', 'windowBounds', 'lastViewState', 'lastPostedDeviceId', 'appUpdate',
+    // platform-detected default the window code reads.
+    'macosGlassStyle'
+  ]);
+  const block = defaultSettingsBlock();
+  const declared = [...block.matchAll(/^\s{4}([A-Za-z]+):/gm)].map((match) => match[1]);
+  const ownerless = declared.filter((key) => !writers.has(key));
+  assert.deepEqual(ownerless, [], `settings with no writer: ${ownerless.join(', ')}`);
 });
 
 test('the glass preference is normalized to a boolean on both paths', () => {
@@ -111,26 +136,29 @@ test('legacy widget settings keys are invalidated like other removed credentials
   assert.match(main, /stripLegacyLocalLimitSettings/, 'the strip helper must still be applied');
 });
 
-test('saved view preferences migrate onto the shared view set', () => {
-  // The widget had nine breakdown-shaped view ids; the shared UI has eight
-  // pages. A saved order/hidden set must translate, not vanish.
-  const mapping = main.slice(main.indexOf('const LEGACY_TO_SHARED_VIEW'), main.indexOf('const SHARED_VIEW_LIST'));
-  for (const [legacy, shared] of [
-    ['home', 'overview'],
-    ['tool', 'usage'],
-    ['model', 'usage'],
-    ['project', 'usage'],
-    ['session', 'usage'],
-    ['status', 'limits'],
-    ['device', 'devices'],
-    ['limits', 'limits'],
-    ['trends', 'trends']
+test('the retired cadence and display keys are gone from both lists at once', () => {
+  // Guard the shape of this change: nothing that left the GUI may still be
+  // declared as a default, and each retired name must be named exactly once in
+  // the strip list.
+  const block = defaultSettingsBlock();
+  const retired = retiredKeysFromMain();
+  const stillDeclared = retired.filter((key) => new RegExp(`^\\s{4}${key}(?::|,)`, 'm').test(block));
+  assert.deepEqual(stillDeclared, [], `retired keys still declared: ${stillDeclared.join(', ')}`);
+  assert.equal(new Set(retired).size, retired.length, 'the retired list must not repeat a key');
+  for (const key of [
+    'projectsEnabled', 'historyEnabled', 'historyIntervalMs', 'sessionUsageArchiveEnabled',
+    'wslScanEnabled', 'allTimeSince', 'collectionMode', 'collectionIntervalMs',
+    'watchEnabled', 'watchDebounceMs', 'syncUploadIntervalMs',
+    'discordRpcEnabled', 'exportAutoEnabled', 'exportDir', 'exportIntervalMs',
+    'customModelPricing', 'automaticAppUpdates',
+    'viewDisplayOrder', 'hiddenViews', 'homeModuleOrder', 'hiddenHomeModules',
+    'themeColors', 'vendorColors', 'showLiveDot', 'showToolIcons', 'titleIconOnly',
+    'showCompactTotalTokens', 'showHomeLimitBars', 'showHomeLimitProviderNames',
+    'showLimitSource', 'showLimitUsed', 'maskLimitAccountEmails',
+    'limitProviderOrder', 'homeLimitProviderOrder', 'hiddenHomeLimitProviders'
   ]) {
-    assert.match(mapping, new RegExp(`${legacy}:\\s*'${shared}'`), `${legacy} should map to ${shared}`);
+    assert.ok(retired.includes(key), `retired list lost '${key}'`);
   }
-  // The migration is wired into the read path.
-  assert.match(main, /migrateHiddenViewsToShared\(/, 'hidden views must migrate on read');
-  assert.match(main, /migrateViewOrderToShared\(/, 'view order must migrate on read');
 });
 
 test('credentials keep their existing shape', () => {

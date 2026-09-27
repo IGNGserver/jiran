@@ -29,7 +29,7 @@ const appStateValue = { prefs: { currency: 'USD', selectedToolId: 'qoder' }, loc
 
 // Views resolve helpers lazily through the facade, so a render test only has to
 // install the context it actually reads before calling into the view. `toolIconHtml`
-// and `displayFlag` are real facade functions, so they need `state` and nothing else.
+// and the display flags are gone with their settings keys, so it needs `state` and nothing else.
 function installContext(period) {
   configureViewContext({
     tr: lookup,

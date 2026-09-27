@@ -34,7 +34,7 @@ function loadView(state = {}) {
   })});
     `);
   const factory = new Function(`${source.replace(/^export /gm, '')}
-    return { renderDesktopSettings, readDesktopSettingsPatch, desktopSettingsFieldError, surfaceValueFromSettings, settingsPatchForSurface };`);
+    return { renderDesktopSettings, readDesktopSettingsPatch, surfaceValueFromSettings, settingsPatchForSurface };`);
   return factory();
 }
 

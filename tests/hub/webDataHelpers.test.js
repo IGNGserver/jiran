@@ -60,7 +60,6 @@ test('hub web app wires status, heatmap, and active-days controls', () => {
   const app = uiSource();
   assert.match(app, /data-heatmap-metric|heatmap-metric/);
   assert.match(app, /data-active-days-window|active-days-window/);
-  assert.match(app, /data-device-period|deviceDetailPeriod/);
   assert.match(app, /renderHeatmap\(/);
   assert.match(app, /devicePlatformLabel\(/);
   assert.match(app, /id: 'status'/);

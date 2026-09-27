@@ -20,7 +20,6 @@ const PREFS_KEYS = Object.freeze([
   'deviceFilter',
   'selectedDeviceId',
   'selectedToolId',
-  'deviceDetailPeriod',
   'view',
   'usageTab',
   'managementTab',
@@ -122,9 +121,7 @@ contextBridge.exposeInMainWorld('tokenMonitor', {
     remove: (id) => ipcRenderer.invoke('hubAccounts:remove', id),
     refresh: (id) => ipcRenderer.invoke('hubAccounts:refresh', id)
   },
-  exportNow: () => ipcRenderer.invoke('export:now'),
   exportDiagnostics: () => ipcRenderer.invoke('diagnostics:export'),
-  pickExportDir: () => ipcRenderer.invoke('export:pickAutoDir'),
   getTokscaleStatus: () => ipcRenderer.invoke('tokscale:getStatus'),
   checkTokscaleNpm: () => ipcRenderer.invoke('tokscale:checkNpm'),
   downloadTokscaleFromNpm: () => ipcRenderer.invoke('tokscale:downloadFromNpm'),

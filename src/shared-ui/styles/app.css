@@ -204,8 +204,6 @@ a { color: inherit; }
 }
 .stream-status[data-state="live"] { color: var(--text); }
 .stream-status[data-state="error"] .stream-dot { background: var(--bad); }
-/* `showLiveDot` is a desktop preference; the status text still reports state. */
-body.hide-live-dot .stream-dot { display: none; }
 
 .main {
   min-width: 0;

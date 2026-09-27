@@ -27,11 +27,12 @@ test('clearing retained session usage also clears retained daily history', () =>
 
 test('the headless agent retains daily history without mutating storage in dry-run mode', () => {
   assert.match(agent, /usageConfigFromSource\(usageSource/);
-  assert.match(agent, /sessionUsageArchiveEnabled:\s*usageOptions\.dailyHistoryArchiveEnabled/);
   assert.match(agent, /dailyHistoryArchiveWriteEnabled:\s*!dryRun/);
   assert.match(agent, /canWriteSessionUsageArchive:\s*!dryRun/);
-  assert.equal(usageConfigFromSource({ sessionUsageArchiveEnabled: true }).dailyHistoryArchiveEnabled, true);
-  assert.equal(usageConfigFromSource({ sessionUsageArchiveEnabled: false }).dailyHistoryArchiveEnabled, false);
+  // The archive is no longer a choice: neither a settings.json value nor an env
+  // var can turn it off, so both runtimes must report it enabled.
+  assert.equal(usageConfigFromSource({ sessionUsageArchiveEnabled: false }).dailyHistoryArchiveEnabled, true);
+  assert.equal(usageConfigFromSource({}).dailyHistoryArchiveEnabled, true);
 });
 
 test('a non-dry-run one-shot agent claims archive ownership before collecting', () => {

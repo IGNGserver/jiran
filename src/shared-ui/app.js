@@ -1,4 +1,4 @@
-import { finishFluentRender, setupFluentInteractions, syncFluentMotion, syncShellDisplayFlags, animateNavigation, animateDataUpdate, setFluentDropdownValue } from './core/fluent.js';
+import { finishFluentRender, setupFluentInteractions, syncFluentMotion, animateNavigation, animateDataUpdate, setFluentDropdownValue } from './core/fluent.js';
 import {
   capabilities,
   clearSecret,
@@ -29,14 +29,14 @@ import {
   presetRangeWindowMatches,
   resolveScopePeriod
 } from './core/dateRanges.js';
-import { configureViewContext, displayFlag, VIEW_HELPER_NAMES } from './core/viewContext.js';
+import { configureViewContext, VIEW_HELPER_NAMES } from './core/viewContext.js';
 import { syncHealthStateLabel } from './core/syncHealth.js';
 import { renderLimits } from './views/limits.js';
 import { renderHome } from './views/home.js';
 import { renderUsage, renderTokenMix } from './views/usage.js';
 import { renderDevices } from './views/devices.js';
 import { renderAccountsPage } from './views/accounts.js';
-import { readDesktopSettingsPatch, desktopSettingsFieldError } from './views/settingsDesktop.js';
+import { readDesktopSettingsPatch } from './views/settingsDesktop.js';
 import { renderSettingsPage } from './views/settings.js';
 import { renderTransfer, submitTransfer } from './views/transfer.js';
 import { usageMetricCard } from './views/rows.js';
@@ -301,7 +301,6 @@ const state = {
     deviceFilter: '',
     selectedDeviceId: '',
     selectedToolId: '',
-    deviceDetailPeriod: 'today',
     ...storedPrefs,
     view: initialRoute.view || viewFromLocation() || 'overview',
     usageTab: initialRoute.usageTab || 'tools',
@@ -786,11 +785,6 @@ function renderChrome() {
   const capabilities = state.authorization?.capabilities || state.health?.capabilities || {};
   const admin = state.authorization?.scopes?.includes('admin');
   normalizePeriodSelection();
-  // Two flags act on the shell rather than a view (live dot, title strip).
-  syncShellDisplayFlags({
-    hideLiveDot: !displayFlag('showLiveDot', true),
-    titleIconOnly: displayFlag('titleIconOnly', false)
-  });
   const visibleViews = VIEWS.filter((view) => {
     if (view.id === 'accounts') return capabilities.hubAccounts !== false;
     if (view.id === 'management') return capabilities.subscriptions !== false || (capabilities.pricing !== false && admin);
@@ -917,10 +911,10 @@ function renderMobileNav() {
 }
 
 function rowHtml(row, { showIcon = false, sub } = {}) {
-  // A hidden tool icon falls back to the colour swatch rather than collapsing the
-  // row's leading column, so the metric columns stay aligned across lists.
+  // A row with no known client falls back to the colour swatch rather than
+  // collapsing the row's leading column, so the metric columns stay aligned.
   const iconId = row.client || row.key;
-  const icon = showIcon && displayFlag('showToolIcons', true) && iconId
+  const icon = showIcon && iconId
     ? `<img class="client-icon" src="${clientIconPath(iconId)}" alt="" onerror="this.style.display='none'" />`
     : `<span class="swatch" style="background:${row.color}"></span>`;
   return `
@@ -1217,7 +1211,7 @@ function segButtons(options, current, groupName) {
   }).join('');
 }
 
-function shareBarHtml(rows, { clientIcons = displayFlag('showToolIcons', true) } = {}) {
+function shareBarHtml(rows, { clientIcons = true } = {}) {
   if (!rows.length) return emptyHtml('empty.usage');
   // `estimated` and `credits` are only ever attached to client rows, so model and
   // project rows passed through here render unchanged — a model row can mix an
@@ -1280,9 +1274,9 @@ function renderHero() {
   const period = activePeriod();
   const stats = viewStats();
   const tokens = period.totalTokens || 0;
-  // The exact figure is always available on hover; the compact form is the
-  // desktop preference and the only one the narrow hero card fits.
-  els.totalTokens.textContent = displayFlag('showCompactTotalTokens', true) ? formatCompact(tokens) : formatNumber(tokens);
+  // The exact figure is always available on hover; the narrow hero card only
+  // fits the compact form.
+  els.totalTokens.textContent = formatCompact(tokens);
   els.totalTokens.title = formatNumber(tokens);
   els.totalCost.textContent = formatCost(period.costUsd || 0, state.prefs.currency);
   els.deviceCount.textContent = formatNumber(stats?.devices?.length || 0);
@@ -3090,7 +3084,6 @@ function bindEvents() {
       const preferences = {
         heatmapMetric: ['tokens', 'cost'].includes(value) ? value : 'tokens',
         activeDaysWindow: value === 'year' ? 'year' : 'all',
-        devicePeriod: ['today', 'month', 'allTime'].includes(value) ? value : 'today',
         trendsStack: value === 'model' ? 'model' : 'client',
         trendsRange: ['7', '30', '90', '365', 'all'].includes(value) ? value : '30',
         trendsMetric: ['tokens', 'cost', 'activeTime'].includes(value) ? value : 'tokens'
@@ -3141,11 +3134,6 @@ function bindEvents() {
     if (!control) return;
     const form = control.closest('[data-desktop-settings]');
     if (!form) return;
-    const fieldError = desktopSettingsFieldError(form, control.name);
-    if (fieldError) {
-      showToast(fieldError);
-      return;
-    }
     void saveDesktopSettings(readDesktopSettingsPatch(form));
   });
 
@@ -3413,18 +3401,6 @@ async function runDesktopAction(action, element) {
   if (!desktop) return;
   try {
     switch (action) {
-      case 'pick-export-dir': {
-        const result = await desktop.pickExportDir();
-        const dir = result?.path || result?.dir;
-        if (dir) await saveDesktopSettings({ exportDir: dir });
-        render();
-        break;
-      }
-      case 'export-now': {
-        const result = await desktop.exportNow();
-        showToast(result?.ok === false ? tr('error.generic') : tr('toast.saved'));
-        break;
-      }
       case 'export-diagnostics': {
         // The save dialog is where the user reads the bundle, so a cancelled dialog
         // is a normal outcome and says nothing.
