@@ -3,6 +3,10 @@
 ## 本次更新
 
 <!-- app-update-notes:zh:start -->
+### 统一本地采集测量与 Qoder WSL 支持
+- **统一测量语义：** 本地适配器现在通过统一的 `clientMeasurements` 传递 Token / 成本精度与 Provider 原生计量；旧的 `clientEstimated` / `clientCredits` 字段继续兼容。
+- **Qoder / Qoder CN 跨端一致：** Web、Android、Hub 范围查询和本地采集共享同一套 provenance 与 Credits 规则，估算 Token 仍明确显示 `~`，Credits 不再伪装成 USD 成本。
+- **补齐 WSL：** Windows 上运行中的 WSL Linux home 现在也会使用 Qoder 本地适配器采集 Global / CN 数据，并保留原有去重、失败保护和范围查询行为。
 ### 恢复单用户 Owner 鉴权并统一跨端管理权限
 - **恢复单一 Owner 模型：** Hub 现在只接受 `TOKEN_MONITOR_SECRET` 作为唯一操作者凭证，读取、数据上报、设备管理、订阅、定价和额度账号管理均由同一凭证完成。
 - **移除误导性的多用户权限层级：** 不再把 `admin`、`viewer`、`device`、`legacy` 当作 Token Monitor 用户；设备 ID 只表示数据来源，Provider Accounts 仍表示第三方 AI 服务商额度账号。
