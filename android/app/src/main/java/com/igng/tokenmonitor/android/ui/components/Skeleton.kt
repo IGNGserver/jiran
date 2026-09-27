@@ -3,6 +3,7 @@ package com.igng.tokenmonitor.android.ui.components
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.LinearEasing
 import com.igng.tokenmonitor.android.ui.theme.fluentMotionEnabled
+import com.igng.tokenmonitor.android.ui.theme.rememberAmbientMotion
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -66,19 +67,25 @@ fun SkeletonBox(
   // duration still recomposes forever, so the branch has to skip the transition
   // rather than shorten it.
   val motion = fluentMotionEnabled()
-  val shift = if (motion) {
-    val transition = rememberInfiniteTransition(label = "skeleton")
-    transition.animateFloat(
-      initialValue = 0f,
-      targetValue = 1f,
-      animationSpec = infiniteRepeatable(
-        animation = tween(FluentMotion.slower, easing = LinearEasing),
-        repeatMode = RepeatMode.Restart
-      ),
-      label = "skeletonShift"
-    ).value
-  } else {
-    0.5f
+  // Shared with every other ambient mark on screen; see `ProvideAmbientMotion`. On first
+  // load a dashboard shows a dozen boxes, and a private loop each is a dozen frame
+  // clocks (and, with SSE frames recreating them, a dozen unrelated phases).
+  val ambient = rememberAmbientMotion()
+  val shift = when {
+    !motion -> 0.5f
+    ambient != null -> ambient.phase(FluentMotion.slower)
+    else -> {
+      val transition = rememberInfiniteTransition(label = "skeleton")
+      transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+          animation = tween(FluentMotion.slower, easing = LinearEasing),
+          repeatMode = RepeatMode.Restart
+        ),
+        label = "skeletonShift"
+      ).value
+    }
   }
   val brush = Brush.linearGradient(
     colors = listOf(base, highlight, base),

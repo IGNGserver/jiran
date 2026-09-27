@@ -136,8 +136,6 @@ fun MoreHubScreen(
 
     Spacer(Modifier.height(FluentSpacingDefaults.s))
 
-    var row = 0
-
     // Group 1: 监控与分析 (Monitoring & Analytics)
     FluentSection(
       title = "监控与分析",
@@ -145,7 +143,6 @@ fun MoreHubScreen(
     ) {
       FluentCardList(modifier = Modifier.padding(horizontal = FluentSpacingDefaults.l)) {
         MoreNavRow(
-          index = row++,
           title = "服务状态",
           subtitle = "各账号额度与健康状态",
           icon = FluentIcons.Heart,
@@ -156,7 +153,6 @@ fun MoreHubScreen(
           }
         )
         MoreNavRow(
-          index = row++,
           title = "对话",
           subtitle = "查看会话快照与 token 拆解",
           icon = FluentIcons.Chat,
@@ -167,7 +163,6 @@ fun MoreHubScreen(
           }
         )
         MoreNavRow(
-          index = row++,
           title = "项目",
           subtitle = "按工作区汇总 token / 费用",
           icon = FluentIcons.Folder,
@@ -189,7 +184,6 @@ fun MoreHubScreen(
     ) {
       FluentCardList(modifier = Modifier.padding(horizontal = FluentSpacingDefaults.l)) {
         MoreNavRow(
-          index = row++,
           title = "配额账号",
           subtitle = "Hub 托管的凭据、启用状态与立即刷新",
           icon = FluentIcons.Wallet,
@@ -201,8 +195,7 @@ fun MoreHubScreen(
         )
         if (state.authorization?.capabilities?.subscriptions != false) {
           MoreNavRow(
-            index = row++,
-            title = "订阅",
+              title = "订阅",
             subtitle = "手工记账的计划价与月度折算",
             icon = FluentIcons.Timeline,
             dividerAbove = true,
@@ -224,16 +217,18 @@ fun MoreHubScreen(
       subtitle = "定价同步与应用设置"
     ) {
       FluentCardList(modifier = Modifier.padding(horizontal = FluentSpacingDefaults.l)) {
-        var groupIndex = 0
-        if (state.authorization?.capabilities?.pricing == true &&
+        // `dividerAbove` is decided from what is actually above the row, not from a
+        // counter mutated during composition: that counter re-initialised on every
+        // recomposition, so the hairlines depended on evaluation order rather than on
+        // the list they separate.
+        val showPricing = state.authorization?.capabilities?.pricing == true &&
           state.authorization.scopes.contains("admin")
-        ) {
+        if (showPricing) {
           MoreNavRow(
-            index = row++,
             title = "定价",
             subtitle = "管理模型单价与上游同步",
             icon = FluentIcons.ArrowExport,
-            dividerAbove = groupIndex++ > 0,
+            dividerAbove = false,
             onClick = {
               haptics.perform(HapticEvent.Tap)
               navController.navigate("pricing")
@@ -241,11 +236,10 @@ fun MoreHubScreen(
           )
         }
         MoreNavRow(
-          index = row++,
           title = "设置",
           subtitle = "外观、触感、币种与 Hub 连接",
           icon = FluentIcons.Settings,
-          dividerAbove = groupIndex > 0,
+          dividerAbove = showPricing,
           onClick = {
             haptics.perform(HapticEvent.Tap)
             navController.navigate("settings")
@@ -258,7 +252,6 @@ fun MoreHubScreen(
 
 @Composable
 private fun MoreNavRow(
-  index: Int,
   title: String,
   subtitle: String,
   @DrawableRes icon: Int,

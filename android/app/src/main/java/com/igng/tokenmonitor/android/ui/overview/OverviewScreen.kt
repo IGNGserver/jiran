@@ -28,6 +28,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import com.igng.tokenmonitor.android.ui.theme.FluentElevationDefaults
 import com.igng.tokenmonitor.android.ui.theme.fluentMotionEnabled
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -64,7 +65,6 @@ import com.igng.tokenmonitor.android.ui.components.DeviceComparisonChart
 import com.igng.tokenmonitor.android.ui.components.DonutChart
 import com.igng.tokenmonitor.android.ui.components.EmptyState
 import com.igng.tokenmonitor.android.ui.components.FluentPageHeader
-import com.igng.tokenmonitor.android.ui.components.FluentStaggeredIn
 import com.igng.tokenmonitor.android.ui.components.FluentProgressRing
 import com.igng.tokenmonitor.android.ui.components.FluentTabStrip
 import com.igng.tokenmonitor.android.ui.components.HeatmapMetric
@@ -150,6 +150,36 @@ fun OverviewScreen(
   val summary = historySource?.summary
   val urgentLimit = remember(state.stats?.limits) { findUrgentLimit(state.stats?.limits) }
 
+  // ─── One-shot screen entrance ─────────────────────────────────────────────
+  //
+  // The screen reveals itself once, when it first has data to show, and never again: an
+  // SSE frame, a scroll recycle or a returned tab must not re-run it, or the list the
+  // user is reading re-fades every few seconds.  `rememberSaveable` makes it a per-*visit*
+  // event, so a rotation does not make the user watch the entrance over again either.
+  //
+  // One clock for the whole list rather than one per item.  Per-item reveals are what the
+  // client used to do, and they are why a conditional block (the sync chip, an urgent-limit
+  // banner) re-grew on the frame that created it and displaced the content below it: a
+  // per-item effect cannot tell a new *list* from a new *row*.  A card that appears later
+  // simply appears, which is the honest reading — the data changed, the screen did not
+  // arrive again.
+  //
+  // Opacity only, never height.  Animating a LazyColumn item's size is what moves the
+  // scroll offset, and it is what made an unkeyed list lose the row the user was on.
+  var revealed by rememberSaveable { mutableStateOf(false) }
+  LaunchedEffect(state.stats != null) {
+    if (state.stats != null) revealed = true
+  }
+  val entrance by animateFloatAsState(
+    targetValue = if (revealed) 1f else 0f,
+    animationSpec = tween(
+      FluentMotion.normal,
+      easing = FluentMotion.decelerate
+    ),
+    label = "overviewEntrance"
+  )
+  val entranceLayer = Modifier.graphicsLayer { alpha = entrance }
+
   var trendMetricIndex by rememberSaveable { mutableIntStateOf(0) }
   val trendMetric = when (trendMetricIndex) {
     1 -> TrendMetric.Cost
@@ -223,41 +253,51 @@ fun OverviewScreen(
           contentPadding = PaddingValues(bottom = FluentSpacingDefaults.xxxl),
           verticalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.m)
         ) {
-          item {
+          item(key = "ov-header") {
             FluentPageHeader(
               title = "总览",
               subtitle = "多设备 Token 汇总与健康度",
-              trailing = { RealtimeStatusChip(state.realtime) }
+              modifier = entranceLayer,
+              trailing = {
+                Row(
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.s)
+                ) {
+                  // "Syncing" used to be a list item, which inserted a row above the
+                  // content on every refresh — including the one `setForeground`
+                  // triggers on each resume — and shifted whatever the user was
+                  // reading.  As header chrome it is visible, honest and inert.
+                  if (state.isRefreshing) {
+                    Row(
+                      verticalAlignment = Alignment.CenterVertically,
+                      horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.xs)
+                    ) {
+                      FluentProgressRing(size = 14.dp, strokeWidth = 2.dp)
+                      Text(
+                        "同步中",
+                        style = FluentTypeRamp.caption2,
+                        color = colors.neutralForeground2
+                      )
+                    }
+                  }
+                  RealtimeStatusChip(state.realtime)
+                }
+              }
             )
           }
 
-          if (state.isRefreshing) {
-            item {
-              Row(
-                Modifier.padding(horizontal = FluentSpacingDefaults.l),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.s)
-              ) {
-                FluentProgressRing(size = 16.dp, strokeWidth = 2.dp)
-                Text("正在同步最新数据…", style = FluentTypeRamp.caption1, color = colors.neutralForeground2)
-              }
-            }
-          }
-
           if (urgentLimit != null) {
-            item {
-              FluentStaggeredIn(index = 0) {
-                UrgentLimitAlertBar(
-                  provider = urgentLimit.first,
-                  remainingPercent = urgentLimit.second,
-                  onClick = { onOpenLimits?.invoke() ?: onOpenSettings() },
-                  modifier = Modifier.padding(horizontal = FluentSpacingDefaults.l)
-                )
-              }
+            item(key = "ov-urgent-limit") {
+              UrgentLimitAlertBar(
+                provider = urgentLimit.first,
+                remainingPercent = urgentLimit.second,
+                onClick = { onOpenLimits?.invoke() ?: onOpenSettings() },
+                modifier = entranceLayer.padding(horizontal = FluentSpacingDefaults.l)
+              )
             }
           }
 
-          item {
+          item(key = "ov-period-tabs") {
             FluentTabStrip(
               options = periodOptions,
               selectedIndex = selectedPeriodIndex,
@@ -283,7 +323,7 @@ fun OverviewScreen(
             )
           }
 
-          item {
+          item(key = "ov-hero") {
             val periodTitle = when (state.analyticsPeriod) {
               AnalyticsPeriodKind.Today -> "今日用量"
               AnalyticsPeriodKind.Yesterday -> "昨日用量"
@@ -298,193 +338,179 @@ fun OverviewScreen(
               AnalyticsPeriodKind.Yesterday -> state.customRange?.label ?: "昨日"
               else -> null
             }
-            FluentStaggeredIn(index = 1) {
-              Column(Modifier.padding(horizontal = FluentSpacingDefaults.l)) {
-                MetricHeroCard(
-                  title = periodTitle,
-                  subtitle = periodSubtitle,
-                  period = activePeriod,
-                  trailing = if (clientShares.isNotEmpty()) {
-                    {
-                      DonutChart(
-                        entries = clientShares,
-                        chartSize = 140.dp,
-                        strokeWidth = 16.dp,
-                        showLegend = false,
-                        centerPrimary = null,
-                        centerSecondary = null
-                      )
-                    }
-                  } else null
-                )
-                // The window label already sits in the hero's own subtitle, so this only
-                // carries what the card cannot say: which source answered, and the fact
-                // that a range tab has no answer yet instead of a bare zero.
-                ScopeRangeNotice(
-                  windowLabel = null,
-                  sourceLabel = scopeSourceLabel,
-                  loading = scopeIsLoading,
-                  unavailable = scopeIsUnavailable,
-                  onRetry = { hubViewModel.retryScopeRange() }
-                )
-              }
-            }
-          }
-
-          item {
-            FluentStaggeredIn(index = 2) {
-              LimitsSection(
-                state.stats?.limits,
-                maxAccounts = prefs.homeLimitAccountCount,
-                modifier = Modifier.padding(horizontal = FluentSpacingDefaults.l)
+            Column(Modifier.padding(horizontal = FluentSpacingDefaults.l)) {
+              MetricHeroCard(
+                title = periodTitle,
+                subtitle = periodSubtitle,
+                period = activePeriod,
+                trailing = if (clientShares.isNotEmpty()) {
+                  {
+                    DonutChart(
+                      entries = clientShares,
+                      chartSize = 140.dp,
+                      strokeWidth = 16.dp,
+                      showLegend = false,
+                      centerPrimary = null,
+                      centerSecondary = null
+                    )
+                  }
+                } else null
+              )
+              // The window label already sits in the hero's own subtitle, so this only
+              // carries what the card cannot say: which source answered, and the fact
+              // that a range tab has no answer yet instead of a bare zero.
+              ScopeRangeNotice(
+                windowLabel = null,
+                sourceLabel = scopeSourceLabel,
+                loading = scopeIsLoading,
+                unavailable = scopeIsUnavailable,
+                onRetry = { hubViewModel.retryScopeRange() }
               )
             }
           }
 
-          item {
-            FluentStaggeredIn(index = 3) {
-              AppCard(modifier = Modifier.padding(horizontal = FluentSpacingDefaults.l)) {
+          item(key = "ov-limits") {
+            LimitsSection(
+              state.stats?.limits,
+              maxAccounts = prefs.homeLimitAccountCount,
+              modifier = entranceLayer.padding(horizontal = FluentSpacingDefaults.l)
+            )
+          }
+
+          item(key = "ov-secondary") {
+            AppCard(modifier = entranceLayer.padding(horizontal = FluentSpacingDefaults.l)) {
+              Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.s)
+              ) {
+                CompactMetricCard(
+                  title = "本月",
+                  period = periods?.month,
+                  modifier = Modifier.weight(1f)
+                )
+                CompactMetricCard(
+                  title = "全部",
+                  period = periods?.allTime,
+                  modifier = Modifier.weight(1f)
+                )
+              }
+              if (summary != null) {
+                Spacer(Modifier.height(FluentSpacingDefaults.m))
                 Row(
                   Modifier.fillMaxWidth(),
                   horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.s)
                 ) {
-                  CompactMetricCard(
-                    title = "本月",
-                    period = periods?.month,
-                    modifier = Modifier.weight(1f)
-                  )
-                  CompactMetricCard(
-                    title = "全部",
-                    period = periods?.allTime,
-                    modifier = Modifier.weight(1f)
-                  )
+                  SummaryStat("活跃天", activeDaysValue, Modifier.weight(1f))
+                  SummaryStat("连胜", "${summary.currentStreak.toLong()} 天", Modifier.weight(1f))
+                  SummaryStat("峰值日", formatTokensShort(summary.peakDayTokens.toLong()), Modifier.weight(1f))
                 }
-                if (summary != null) {
-                  Spacer(Modifier.height(FluentSpacingDefaults.m))
-                  Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.s)
-                  ) {
-                    SummaryStat("活跃天", activeDaysValue, Modifier.weight(1f))
-                    SummaryStat("连胜", "${summary.currentStreak.toLong()} 天", Modifier.weight(1f))
-                    SummaryStat("峰值日", formatTokensShort(summary.peakDayTokens.toLong()), Modifier.weight(1f))
+                // The window selector belongs to the figure it changes, so it
+                // lives inside this card rather than floating beneath it.
+                Spacer(Modifier.height(FluentSpacingDefaults.m))
+                FluentTabStrip(
+                  options = listOf("全部活跃天", "近一年"),
+                  selectedIndex = if (activeDaysWindow == "year") 1 else 0,
+                  onSelect = { index ->
+                    haptics.perform(HapticEvent.Selection)
+                    activeDaysWindow = if (index == 1) "year" else "all"
                   }
-                  // The window selector belongs to the figure it changes, so it
-                  // lives inside this card rather than floating beneath it.
-                  Spacer(Modifier.height(FluentSpacingDefaults.m))
-                  FluentTabStrip(
-                    options = listOf("全部活跃天", "近一年"),
-                    selectedIndex = if (activeDaysWindow == "year") 1 else 0,
-                    onSelect = { index ->
-                      haptics.perform(HapticEvent.Selection)
-                      activeDaysWindow = if (index == 1) "year" else "all"
-                    }
-                  )
-                }
+                )
               }
             }
           }
 
           if (clientShares.isNotEmpty() || modelShares.isNotEmpty()) {
-            item {
-              FluentStaggeredIn(index = 4) {
-                AppCard(modifier = Modifier.padding(horizontal = FluentSpacingDefaults.l)) {
-                  SectionHeader(
-                    title = "周期构成",
-                    subtitle = "客户端与模型",
-                    actionLabel = "分析",
-                    onAction = onOpenAnalytics
+            item(key = "ov-composition") {
+              AppCard(modifier = entranceLayer.padding(horizontal = FluentSpacingDefaults.l)) {
+                SectionHeader(
+                  title = "周期构成",
+                  subtitle = "客户端与模型",
+                  actionLabel = "分析",
+                  onAction = onOpenAnalytics
+                )
+                if (clientShares.isNotEmpty()) {
+                  Spacer(Modifier.height(FluentSpacingDefaults.m))
+                  ShareBarList(clientShares)
+                }
+                if (modelShares.isNotEmpty()) {
+                  Spacer(Modifier.height(FluentSpacingDefaults.l))
+                  Text(
+                    "Top 模型",
+                    style = FluentTypeRamp.caption1,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.neutralForeground3
                   )
-                  if (clientShares.isNotEmpty()) {
-                    Spacer(Modifier.height(FluentSpacingDefaults.m))
-                    ShareBarList(clientShares)
-                  }
-                  if (modelShares.isNotEmpty()) {
-                    Spacer(Modifier.height(FluentSpacingDefaults.l))
-                    Text(
-                      "Top 模型",
-                      style = FluentTypeRamp.caption1,
-                      fontWeight = FontWeight.SemiBold,
-                      color = colors.neutralForeground3
-                    )
-                    Spacer(Modifier.height(FluentSpacingDefaults.xs))
-                    ShareBarList(modelShares, brandClients = false)
-                  }
+                  Spacer(Modifier.height(FluentSpacingDefaults.xs))
+                  ShareBarList(modelShares, brandClients = false)
                 }
               }
             }
           }
 
           if (historyDays.isNotEmpty()) {
-            item {
-              FluentStaggeredIn(index = 5) {
-                AppCard(modifier = Modifier.padding(horizontal = FluentSpacingDefaults.l)) {
-                  SectionHeader(
-                    title = "近 7 日趋势",
-                    subtitle = when (trendMetric) {
-                      TrendMetric.Cost -> "按日费用"
-                      TrendMetric.Dual -> "Token + 费用"
-                      else -> "按日 Token 用量"
-                    },
-                    actionLabel = "分析",
-                    onAction = onOpenAnalytics
-                  )
-                  Spacer(Modifier.height(FluentSpacingDefaults.s))
-                  FluentTabStrip(
-                    options = listOf("Token", "费用", "对比"),
-                    selectedIndex = trendMetricIndex,
-                    onSelect = { index ->
-                      haptics.perform(HapticEvent.Selection)
-                      trendMetricIndex = index
-                    }
-                  )
-                  Spacer(Modifier.height(FluentSpacingDefaults.s))
-                  DailyTrendChart(days = historyDays, metric = trendMetric)
-                }
+            item(key = "ov-trend") {
+              AppCard(modifier = entranceLayer.padding(horizontal = FluentSpacingDefaults.l)) {
+                SectionHeader(
+                  title = "近 7 日趋势",
+                  subtitle = when (trendMetric) {
+                    TrendMetric.Cost -> "按日费用"
+                    TrendMetric.Dual -> "Token + 费用"
+                    else -> "按日 Token 用量"
+                  },
+                  actionLabel = "分析",
+                  onAction = onOpenAnalytics
+                )
+                Spacer(Modifier.height(FluentSpacingDefaults.s))
+                FluentTabStrip(
+                  options = listOf("Token", "费用", "对比"),
+                  selectedIndex = trendMetricIndex,
+                  onSelect = { index ->
+                    haptics.perform(HapticEvent.Selection)
+                    trendMetricIndex = index
+                  }
+                )
+                Spacer(Modifier.height(FluentSpacingDefaults.s))
+                DailyTrendChart(days = historyDays, metric = trendMetric)
               }
             }
           }
 
           if (historyDailyAll.isNotEmpty()) {
-            item {
-              FluentStaggeredIn(index = 6) {
-                AppCard(modifier = Modifier.padding(horizontal = FluentSpacingDefaults.l)) {
-                  SectionHeader(
-                    title = "贡献热力图",
-                    subtitle = "近 90 天",
-                    actionLabel = "分析",
-                    onAction = onOpenAnalytics
-                  )
-                  Spacer(Modifier.height(FluentSpacingDefaults.s))
-                  ContributionHeatmap(
-                    daily = historyDailyAll,
-                    metric = heatMetric,
-                    onMetricChange = { next ->
-                      haptics.perform(HapticEvent.Selection)
-                      heatmapMetric = if (next == HeatmapMetric.Tokens) "tokens" else "cost"
-                    }
-                  )
-                }
+            item(key = "ov-heatmap") {
+              AppCard(modifier = entranceLayer.padding(horizontal = FluentSpacingDefaults.l)) {
+                SectionHeader(
+                  title = "贡献热力图",
+                  subtitle = "近 90 天",
+                  actionLabel = "分析",
+                  onAction = onOpenAnalytics
+                )
+                Spacer(Modifier.height(FluentSpacingDefaults.s))
+                ContributionHeatmap(
+                  daily = historyDailyAll,
+                  metric = heatMetric,
+                  onMetricChange = { next ->
+                    haptics.perform(HapticEvent.Selection)
+                    heatmapMetric = if (next == HeatmapMetric.Tokens) "tokens" else "cost"
+                  }
+                )
               }
             }
           }
 
           if (activeDevices.isNotEmpty()) {
-            item {
-              FluentStaggeredIn(index = 7) {
-                AppCard(
-                  modifier = Modifier.padding(horizontal = FluentSpacingDefaults.l),
-                  onClick = onOpenDevices
-                ) {
-                  SectionHeader(
-                    title = "设备对比",
-                    subtitle = "${fleetOnlineCount(devices)}/${devices.size} 在线 · 今日 Token",
-                    actionLabel = "全部",
-                    onAction = onOpenDevices
-                  )
-                  Spacer(Modifier.height(FluentSpacingDefaults.m))
-                  DeviceComparisonChart(devices = activeDevices, limit = 5, showCost = true)
-                }
+            item(key = "ov-devices") {
+              AppCard(
+                modifier = entranceLayer.padding(horizontal = FluentSpacingDefaults.l),
+                onClick = onOpenDevices
+              ) {
+                SectionHeader(
+                  title = "设备对比",
+                  subtitle = "${fleetOnlineCount(devices)}/${devices.size} 在线 · 今日 Token",
+                  actionLabel = "全部",
+                  onAction = onOpenDevices
+                )
+                Spacer(Modifier.height(FluentSpacingDefaults.m))
+                DeviceComparisonChart(devices = activeDevices, limit = 5, showCost = true)
               }
             }
           }

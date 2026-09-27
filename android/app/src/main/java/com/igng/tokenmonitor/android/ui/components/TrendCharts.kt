@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,8 +100,14 @@ private fun DailyTrendChartInner(
   val labels = days.map { shortDayLabel(it.date) }
   val color = seriesColor(metric)
   val colorArgb = color.toArgb()
-  val modelProducer = remember(days, metric) {
-    ChartEntryModelProducer(listOf(values.mapIndexed { index, v -> entryOf(index.toFloat(), v) }))
+  // One producer for the life of the composable, fed by `setEntries`.  Rebuilding it
+  // per frame (`remember(days, metric)`) made Vico re-ingest its whole model and
+  // re-run its entry animation on every SSE tick, which is the trend chart's flicker.
+  val modelProducer = remember { ChartEntryModelProducer() }
+  LaunchedEffect(values) {
+    modelProducer.setEntries(
+      listOf(values.mapIndexed { index, v -> entryOf(index.toFloat(), v) })
+    )
   }
   val labelStep = max(1, days.size / 6)
   val peak = values.maxOrNull() ?: 0f
@@ -278,8 +285,11 @@ private fun MonthlySingle(
   val labels = months.map { shortMonthLabel(it.month) }
   val color = seriesColor(metric)
   val colorArgb = color.toArgb()
-  val modelProducer = remember(months, metric) {
-    ChartEntryModelProducer(listOf(values.mapIndexed { index, v -> entryOf(index.toFloat(), v) }))
+  val modelProducer = remember { ChartEntryModelProducer() }
+  LaunchedEffect(values) {
+    modelProducer.setEntries(
+      listOf(values.mapIndexed { index, v -> entryOf(index.toFloat(), v) })
+    )
   }
   val peak = values.maxOrNull() ?: 0f
   val peakIndex = values.indexOfFirst { it == peak }.takeIf { it >= 0 } ?: 0
@@ -401,7 +411,9 @@ fun StackedDailyTrendChart(
     topKeys.sumOf { key -> map[key]?.tokens ?: 0.0 }.coerceAtLeast(day.tokens)
   }.coerceAtLeast(1.0)
   val grow = animateGrowProgress(
-    resetKey = "${stackMode}:${days.size}:${topKeys.joinToString(",")}",
+    // The reveal answers "did the set of stacked series change", so it is keyed on the
+    // series identity — a refresh that only moves a number must interpolate in place.
+    resetKey = "${stackMode}:${topKeys.joinToString(",")}",
     durationMillis = FluentMotion.slower
   )
 

@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -260,6 +261,13 @@ fun AccountsScreen(
         editing = null
       },
       onStartOAuth = { provider -> viewModel.startOAuth(provider) },
+      // The paste field used to be collected and then dropped: the dialog handed the
+      // provider back with a null credential and nothing ever called the exchange, so a
+      // Hub-side OAuth sign-in could not actually be completed from this screen.
+      onExchangeOAuth = { sessionId, pasted, name, label ->
+        viewModel.exchangeOAuth(sessionId, pasted, name, label)
+      },
+      onClearOAuth = { viewModel.clearOAuthSession() },
       oauthSession = state.oauthSession
     )
   }
@@ -386,6 +394,8 @@ internal fun AccountEditorDialog(
   onDismiss: () -> Unit,
   onSave: (provider: String, name: String?, label: String?, credential: JsonObject?) -> Unit,
   onStartOAuth: (String) -> Unit,
+  onExchangeOAuth: (sessionId: String, pasted: String, name: String?, label: String?) -> Unit,
+  onClearOAuth: () -> Unit,
   oauthSession: com.igng.tokenmonitor.android.data.model.OAuthStartDto?
 ) {
   val colors = LocalFluentColors.current
@@ -397,7 +407,10 @@ internal fun AccountEditorDialog(
     AccountCredentials.fieldsFor(provider).ifEmpty { AccountCredentials.fallbackFieldsFor(provider) }
   }
   val values = remember(provider) { mutableStateOf(fields.associate { it.key to "" }) }
-  var pasted by remember { mutableStateOf("") }
+  // The paste buffer belongs to *one* provider's sign-in.  Switching provider used to
+  // keep the previous authorization code, which the next exchange would have sent.
+  var pasted by remember(provider) { mutableStateOf("") }
+  LaunchedEffect(provider) { onClearOAuth() }
   val isOauth = AccountCredentials.oauthProviders.contains(provider)
   val needsCredential = !isOauth && existing == null
   val credentialFilled = values.value.values.any { it.isNotBlank() }
@@ -411,20 +424,18 @@ internal fun AccountEditorDialog(
     } else {
       "凭据只会发给 Hub 加密保存，响应里不会回传，所以编辑时需要重新粘贴。"
     },
-    confirmText = if (existing == null) "添加" else "保存",
-    onConfirm = if (valid) {
+    // The account is created by the *exchange* for an OAuth provider: posting a null
+    // credential would leave a configured-but-empty account behind.
+    confirmText = if (isOauth) null else if (existing == null) "添加" else "保存",
+    onConfirm = if (!isOauth && valid) {
       {
         onSave(
           provider,
           name.ifBlank { null },
           label.ifBlank { null },
-          if (isOauth) {
-            null
-          } else {
-            buildJsonObject {
-              values.value.forEach { (key, value) ->
-                if (value.isNotBlank()) put(key, JsonPrimitive(value.trim()))
-              }
+          buildJsonObject {
+            values.value.forEach { (key, value) ->
+              if (value.isNotBlank()) put(key, JsonPrimitive(value.trim()))
             }
           }
         )
@@ -459,9 +470,19 @@ internal fun AccountEditorDialog(
         )
       }
       if (isOauth) {
+        Text(
+          "账号由完成授权时创建：先登录，再把回调地址粘回来并点「完成登录」。",
+          style = FluentTypeRamp.caption2,
+          color = colors.neutralForeground3
+        )
         FluentButton(
-          label = "开始登录",
-          onClick = { onStartOAuth(provider) },
+          label = if (oauthSession != null) "重新开始登录" else "开始登录",
+          onClick = {
+            // A fresh sign-in invalidates the previous session; keeping its paste buffer
+            // would let the next 完成登录 exchange a code that was never issued by it.
+            pasted = ""
+            onStartOAuth(provider)
+          },
           variant = FluentButtonVariant.Subtle
         )
         oauthSession?.let { session ->
@@ -477,6 +498,16 @@ internal fun AccountEditorDialog(
             onValueChange = { pasted = it },
             label = "粘贴回调地址或授权码",
             supportingText = "完整回调 URL、带查询串的地址、或裸授权码都可以，客户端不解析。"
+          )
+          FluentButton(
+            label = "完成登录",
+            onClick = {
+              val sessionId = session.sessionId
+              if (!sessionId.isNullOrBlank() && pasted.isNotBlank()) {
+                onExchangeOAuth(sessionId, pasted, name.ifBlank { null }, label.ifBlank { null })
+              }
+            },
+            enabled = !session.sessionId.isNullOrBlank() && pasted.isNotBlank()
           )
         }
       } else {
@@ -619,6 +650,9 @@ fun SubscriptionsScreen(
         modifier = Modifier
           .fillMaxSize()
           .padding(horizontal = FluentSpacingDefaults.l),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+          bottom = FluentSpacingDefaults.xxxl
+        ),
         verticalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.m)
       ) {
         rows.forEachIndexed { index, subscription ->

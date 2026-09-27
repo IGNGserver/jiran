@@ -15,6 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import com.igng.tokenmonitor.android.ui.theme.FluentMotion
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,7 +50,6 @@ import com.igng.tokenmonitor.android.ui.components.DateTimeRangePickerDialog
 import com.igng.tokenmonitor.android.ui.components.DonutChart
 import com.igng.tokenmonitor.android.ui.components.EmptyState
 import com.igng.tokenmonitor.android.ui.components.FluentPageHeader
-import com.igng.tokenmonitor.android.ui.components.FluentStaggeredIn
 import com.igng.tokenmonitor.android.ui.components.FluentProgressRing
 import com.igng.tokenmonitor.android.ui.components.FluentTabStrip
 import com.igng.tokenmonitor.android.ui.components.FluentTopBar
@@ -94,6 +98,18 @@ fun AnalyticsScreen(
 ) {
   var tabIndex by rememberSaveable { mutableIntStateOf(0) }
   val haptics = rememberAppHaptics()
+  // One entrance per lens, keyed on the tab index, so changing tab replays it (a new view
+  // arrived) while a stream frame, a retry or a re-scroll inside the selected lens does
+  // not.  A `remember(tabIndex)` value rather than a `rememberSaveable` one: the tab is
+  // saveable, so the index survives recreation and the entrance is not silently skipped.
+  var entrancePlayed by rememberSaveable(tabIndex) { mutableStateOf(false) }
+  LaunchedEffect(tabIndex) { entrancePlayed = true }
+  val entrance by animateFloatAsState(
+    targetValue = if (entrancePlayed) 1f else 0f,
+    animationSpec = tween(FluentMotion.normal, easing = FluentMotion.decelerate),
+    label = "analyticsEntrance"
+  )
+  val entranceLayer = Modifier.graphicsLayer { alpha = entrance }
 
   Column(Modifier.fillMaxSize()) {
     FluentPageHeader(
@@ -111,24 +127,28 @@ fun AnalyticsScreen(
       contentPadding = FluentSpacingDefaults.l,
     )
 
-    when (tabIndex) {
-      0 -> ShareAnalyticsTab(
-        state = state,
-        viewModel = viewModel,
-        clients = true,
-        onOpenDetail = { id ->
-          navController.navigate("client/${encode(id)}")
-        }
-      )
-      1 -> ShareAnalyticsTab(
-        state = state,
-        viewModel = viewModel,
-        clients = false,
-        onOpenDetail = { id ->
-          navController.navigate("model/${encode(id)}")
-        }
-      )
-      else -> TrendAnalyticsTab(state, onEnsureHistory = { viewModel.refreshHistory() })
+    // `graphicsLayer` rather than a container fade so the switch costs one layer and does
+    // not re-measure the lens below it.
+    Box(entranceLayer.fillMaxSize()) {
+      when (tabIndex) {
+        0 -> ShareAnalyticsTab(
+          state = state,
+          viewModel = viewModel,
+          clients = true,
+          onOpenDetail = { id ->
+            navController.navigate("client/${encode(id)}")
+          }
+        )
+        1 -> ShareAnalyticsTab(
+          state = state,
+          viewModel = viewModel,
+          clients = false,
+          onOpenDetail = { id ->
+            navController.navigate("model/${encode(id)}")
+          }
+        )
+        else -> TrendAnalyticsTab(state, onEnsureHistory = { viewModel.refreshHistory() })
+      }
     }
   }
 }
@@ -273,45 +293,41 @@ private fun ShareAnalyticsTab(
         ),
         verticalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.m)
       ) {
-        item {
-          FluentStaggeredIn(index = 0) {
-            AppCard {
-              Text(
-                if (clients) "客户端份额" else "模型份额",
-                style = FluentTypeRamp.title3,
-                color = colors.neutralForeground1
-              )
-              Text(
-                "${formatTokensShort(period?.totalTokens ?: 0L)} · ${formatUsd(period?.costUsd ?: 0.0)}",
-                style = FluentTypeRamp.caption1,
-                color = colors.neutralForeground2
-              )
-              Spacer(Modifier.height(FluentSpacingDefaults.m))
-              DonutChart(
-                entries = shares,
-                centerPrimary = formatTokensShort(period?.totalTokens ?: 0L),
-                centerSecondary = formatUsd(period?.costUsd ?: 0.0, compact = true)
-              )
-            }
+        item(key = "share-donut") {
+          AppCard {
+            Text(
+              if (clients) "客户端份额" else "模型份额",
+              style = FluentTypeRamp.title3,
+              color = colors.neutralForeground1
+            )
+            Text(
+              "${formatTokensShort(period?.totalTokens ?: 0L)} · ${formatUsd(period?.costUsd ?: 0.0)}",
+              style = FluentTypeRamp.caption1,
+              color = colors.neutralForeground2
+            )
+            Spacer(Modifier.height(FluentSpacingDefaults.m))
+            DonutChart(
+              entries = shares,
+              centerPrimary = formatTokensShort(period?.totalTokens ?: 0L),
+              centerSecondary = formatUsd(period?.costUsd ?: 0.0, compact = true)
+            )
           }
         }
-        item {
-          FluentStaggeredIn(index = 1) {
-            AppCard {
-              SectionHeader(
-                title = "明细",
-                subtitle = if (clients) "点击客户端查看详情" else "点击模型查看详情"
-              )
-              Spacer(Modifier.height(FluentSpacingDefaults.m))
-              ShareBarList(
-                shares,
-                brandClients = clients,
-                onEntryClick = { entry ->
-                  haptics.perform(HapticEvent.Tap)
-                  onOpenDetail(entry.key)
-                }
-              )
-            }
+        item(key = "share-detail") {
+          AppCard {
+            SectionHeader(
+              title = "明细",
+              subtitle = if (clients) "点击客户端查看详情" else "点击模型查看详情"
+            )
+            Spacer(Modifier.height(FluentSpacingDefaults.m))
+            ShareBarList(
+              shares,
+              brandClients = clients,
+              onEntryClick = { entry ->
+                haptics.perform(HapticEvent.Tap)
+                onOpenDetail(entry.key)
+              }
+            )
           }
         }
       }
@@ -618,6 +634,9 @@ private fun TrendAnalyticsTab(state: HubUiState, onEnsureHistory: () -> Unit) {
   var trendsStack by rememberSaveable { mutableStateOf("client") }
   var activeDaysWindow by rememberSaveable { mutableStateOf("all") }
   var heatmapMetric by rememberSaveable { mutableStateOf("cost") }
+  // Re-ask for the fleet history whenever this lens is entered — the first composition
+  // of this tab is the only moment its charts can be missing data, and `refreshHistory`
+  // is the documented retry for a failed `/api/history`.
   LaunchedEffect(Unit) { onEnsureHistory() }
   val rangeLabels = listOf("7 日", "30 日", "12 月")
   val metricLabels = listOf("Token", "费用", "对比", "活跃")
@@ -666,139 +685,133 @@ private fun TrendAnalyticsTab(state: HubUiState, onEnsureHistory: () -> Unit) {
     verticalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.m)
   ) {
     if (summary != null) {
-      item {
-        FluentStaggeredIn(index = 0) {
-          AppCard {
-            SectionHeader(title = "历史摘要", subtitle = "全量上报窗口")
-            Spacer(Modifier.height(FluentSpacingDefaults.s))
-            // The window control sits with the figure it changes.
-            FluentTabStrip(
-              options = listOf("全部活跃天", "近一年"),
-              selectedIndex = if (activeDaysWindow == "year") 1 else 0,
-              onSelect = { index ->
-                haptics.perform(HapticEvent.Selection)
-                activeDaysWindow = if (index == 1) "year" else "all"
-              }
-            )
-            Spacer(Modifier.height(FluentSpacingDefaults.s))
-            SummaryGrid(
-              listOf(
-                "活跃天" to activeDaysValue,
-                "连胜" to "${summary.currentStreak.toLong()} 天",
-                "最长连胜" to "${summary.longestStreak.toLong()} 天",
-                "峰值日" to formatTokensShort(summary.peakDayTokens.toLong()),
-                "累计" to formatTokensShort(summary.totalTokens.toLong()),
-                "费用" to formatUsd(summary.totalCost, compact = true)
-              )
-            )
-            summary.favoriteModel?.takeIf { it.isNotBlank() }?.let {
-              Spacer(Modifier.height(FluentSpacingDefaults.s))
-              Text(
-                "常用模型 $it",
-                style = FluentTypeRamp.caption1,
-                color = colors.neutralForeground2
-              )
+      item(key = "trend-summary") {
+        AppCard {
+          SectionHeader(title = "历史摘要", subtitle = "全量上报窗口")
+          Spacer(Modifier.height(FluentSpacingDefaults.s))
+          // The window control sits with the figure it changes.
+          FluentTabStrip(
+            options = listOf("全部活跃天", "近一年"),
+            selectedIndex = if (activeDaysWindow == "year") 1 else 0,
+            onSelect = { index ->
+              haptics.perform(HapticEvent.Selection)
+              activeDaysWindow = if (index == 1) "year" else "all"
             }
+          )
+          Spacer(Modifier.height(FluentSpacingDefaults.s))
+          SummaryGrid(
+            listOf(
+              "活跃天" to activeDaysValue,
+              "连胜" to "${summary.currentStreak.toLong()} 天",
+              "最长连胜" to "${summary.longestStreak.toLong()} 天",
+              "峰值日" to formatTokensShort(summary.peakDayTokens.toLong()),
+              "累计" to formatTokensShort(summary.totalTokens.toLong()),
+              "费用" to formatUsd(summary.totalCost, compact = true)
+            )
+          )
+          summary.favoriteModel?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(FluentSpacingDefaults.s))
+            Text(
+              "常用模型 $it",
+              style = FluentTypeRamp.caption1,
+              color = colors.neutralForeground2
+            )
           }
         }
       }
     }
 
     if (daily.isNotEmpty()) {
-      item {
-        FluentStaggeredIn(index = 1) {
-          AppCard {
-            SectionHeader(title = "贡献热力图", subtitle = "近 90 天")
-            Spacer(Modifier.height(FluentSpacingDefaults.s))
-            ContributionHeatmap(
-              daily = daily,
-              metric = heatMetric,
-              onMetricChange = { next ->
+      item(key = "trend-heatmap") {
+        AppCard {
+          SectionHeader(title = "贡献热力图", subtitle = "近 90 天")
+          Spacer(Modifier.height(FluentSpacingDefaults.s))
+          ContributionHeatmap(
+            daily = daily,
+            metric = heatMetric,
+            onMetricChange = { next ->
+              haptics.perform(HapticEvent.Selection)
+              heatmapMetric = if (next == HeatmapMetric.Tokens) "tokens" else "cost"
+            }
+          )
+        }
+      }
+    }
+
+    item(key = "trend-charts") {
+      AppCard {
+        val windowTitle = when (rangeIndex) {
+          0 -> "近 7 日"
+          1 -> "近 30 日"
+          else -> "近 12 月"
+        }
+        SectionHeader(
+          title = "${windowTitle}趋势",
+          subtitle = when (metric) {
+            TrendMetric.Cost -> "费用"
+            TrendMetric.Dual -> "Token + 费用"
+            TrendMetric.ActiveTime -> "活跃时长"
+            else -> "Token"
+          }
+        )
+        Spacer(Modifier.height(FluentSpacingDefaults.s))
+        FluentTabStrip(
+          options = rangeLabels,
+          selectedIndex = rangeIndex,
+          onSelect = { rangeIndex = it }
+        )
+        FluentTabStrip(
+          options = metricLabels,
+          selectedIndex = metricIndex,
+          onSelect = { metricIndex = it }
+        )
+        Spacer(Modifier.height(FluentSpacingDefaults.m))
+        if (rangeIndex == 2) {
+          if (monthly.isEmpty()) {
+            Text(
+              "暂无月度数据",
+              style = FluentTypeRamp.caption1,
+              color = colors.neutralForeground3
+            )
+          } else {
+            MonthlyTrendChart(months = monthly, metric = metric)
+          }
+        } else {
+          val range = if (rangeIndex == 0) TrendRange.Days7 else TrendRange.Days30
+          val days = daily.takeRange(range)
+          if (days.isEmpty()) {
+            Text(
+              "暂无日度数据",
+              style = FluentTypeRamp.caption1,
+              color = colors.neutralForeground3
+            )
+          } else {
+            DailyTrendChart(days = days, metric = metric, useLine = rangeIndex == 1)
+            Spacer(Modifier.height(FluentSpacingDefaults.l))
+            SectionHeader(
+              title = "堆叠构成",
+              subtitle = if (trendsStack == "model") "按模型" else "按客户端"
+            )
+            Spacer(Modifier.height(FluentSpacingDefaults.xs))
+            FluentTabStrip(
+              options = listOf("按客户端", "按模型"),
+              selectedIndex = if (trendsStack == "model") 1 else 0,
+              onSelect = { index ->
                 haptics.perform(HapticEvent.Selection)
-                heatmapMetric = if (next == HeatmapMetric.Tokens) "tokens" else "cost"
+                trendsStack = if (index == 1) "model" else "client"
               }
+            )
+            Spacer(Modifier.height(FluentSpacingDefaults.s))
+            StackedDailyTrendChart(
+              days = days,
+              stackMode = if (trendsStack == "model") TrendStackMode.Model else TrendStackMode.Client
             )
           }
         }
       }
     }
 
-    item {
-      FluentStaggeredIn(index = 2) {
-        AppCard {
-          val windowTitle = when (rangeIndex) {
-            0 -> "近 7 日"
-            1 -> "近 30 日"
-            else -> "近 12 月"
-          }
-          SectionHeader(
-            title = "${windowTitle}趋势",
-            subtitle = when (metric) {
-              TrendMetric.Cost -> "费用"
-              TrendMetric.Dual -> "Token + 费用"
-              TrendMetric.ActiveTime -> "活跃时长"
-              else -> "Token"
-            }
-          )
-          Spacer(Modifier.height(FluentSpacingDefaults.s))
-          FluentTabStrip(
-            options = rangeLabels,
-            selectedIndex = rangeIndex,
-            onSelect = { rangeIndex = it }
-          )
-          FluentTabStrip(
-            options = metricLabels,
-            selectedIndex = metricIndex,
-            onSelect = { metricIndex = it }
-          )
-          Spacer(Modifier.height(FluentSpacingDefaults.m))
-          if (rangeIndex == 2) {
-            if (monthly.isEmpty()) {
-              Text(
-                "暂无月度数据",
-                style = FluentTypeRamp.caption1,
-                color = colors.neutralForeground3
-              )
-            } else {
-              MonthlyTrendChart(months = monthly, metric = metric)
-            }
-          } else {
-            val range = if (rangeIndex == 0) TrendRange.Days7 else TrendRange.Days30
-            val days = daily.takeRange(range)
-            if (days.isEmpty()) {
-              Text(
-                "暂无日度数据",
-                style = FluentTypeRamp.caption1,
-                color = colors.neutralForeground3
-              )
-            } else {
-              DailyTrendChart(days = days, metric = metric, useLine = rangeIndex == 1)
-              Spacer(Modifier.height(FluentSpacingDefaults.l))
-              SectionHeader(
-                title = "堆叠构成",
-                subtitle = if (trendsStack == "model") "按模型" else "按客户端"
-              )
-              Spacer(Modifier.height(FluentSpacingDefaults.xs))
-              FluentTabStrip(
-                options = listOf("按客户端", "按模型"),
-                selectedIndex = if (trendsStack == "model") 1 else 0,
-                onSelect = { index ->
-                  haptics.perform(HapticEvent.Selection)
-                  trendsStack = if (index == 1) "model" else "client"
-                }
-              )
-              Spacer(Modifier.height(FluentSpacingDefaults.s))
-              StackedDailyTrendChart(
-                days = days,
-                stackMode = if (trendsStack == "model") TrendStackMode.Model else TrendStackMode.Client
-              )
-            }
-          }
-        }
-      }
-    }
-
-    item { LimitsSection(state.stats?.limits, title = "限额状态") }
+    item(key = "trend-limits") { LimitsSection(state.stats?.limits, title = "限额状态") }
   }
 }
 

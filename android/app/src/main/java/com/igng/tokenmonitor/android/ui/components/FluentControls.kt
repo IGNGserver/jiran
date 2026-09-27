@@ -76,6 +76,7 @@ import com.igng.tokenmonitor.android.ui.theme.FluentTypeRamp
 import com.igng.tokenmonitor.android.ui.theme.LocalFluentAdaptation
 import com.igng.tokenmonitor.android.ui.theme.LocalFluentColors
 import com.igng.tokenmonitor.android.ui.theme.fluentMotionEnabled
+import com.igng.tokenmonitor.android.ui.theme.rememberAmbientMotion
 
 // ─── Fluent 2 interactive controls ─────────────────────────────────────────
 //
@@ -651,7 +652,17 @@ fun FluentProgressRing(
   trackColor: Color = LocalFluentColors.current.neutralStroke3
 ) {
   val motion = fluentMotionEnabled()
-  val sweep = if (motion) {
+  // One clock for every ring on screen. A dashboard paints a dozen of these; giving
+  // each its own infinite transition kept a dozen frame clocks running and — worse —
+  // let every SSE frame restart them at unrelated phases, which is what made the
+  // loading marks look like flicker rather than one ambient pulse.
+  val ambient = rememberAmbientMotion()
+  val sweep = if (!motion) {
+    270f
+  } else if (ambient != null) {
+    ambient.phase(FluentMotion.slower) * 360f
+  } else {
+    // Above the host (preview, isolated test): keep the component self-sufficient.
     val transition = rememberInfiniteTransition(label = "progressRing")
     transition.animateFloat(
       initialValue = 0f,
@@ -662,8 +673,6 @@ fun FluentProgressRing(
       ),
       label = "progressSweep"
     ).value
-  } else {
-    270f
   }
   Canvas(modifier = modifier.size(size)) {
     val style = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round)

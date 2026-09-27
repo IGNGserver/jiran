@@ -12,6 +12,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -255,6 +256,10 @@ fun TokenMonitorTheme(
   CompositionLocalProvider(
     LocalFluentColors provides fluentColors,
     LocalFluentAdaptation provides adaptation,
+    // The resolved mode, not `isSystemInDarkTheme()`.  A component that asks the system
+    // while the user has pinned dark-on-light (or the reverse) paints for the wrong
+    // surface — that is how the client monograms picked their light-mode tile alpha.
+    LocalFluentDark provides dark,
     // M3 primitives resolve `LocalContentColor` from `colorScheme.onSurface`;
     // pin it to the Fluent alias so the inherited text colour is identical to
     // the one first-party components set explicitly.
@@ -263,8 +268,22 @@ fun TokenMonitorTheme(
     MaterialTheme(
       colorScheme = materialScheme,
       typography = typography,
-      shapes = shapes,
-      content = content
-    )
+      shapes = shapes
+    ) {
+      // One ambient clock for every ProgressRing / skeleton shimmer in the app; see
+      // `ProvideAmbientMotion`.  Hosted above the whole tree so the loops that share it
+      // also share a phase — and, because a loop only exists while a consumer registers
+      // one, idle whenever nothing on screen is loading.
+      ProvideAmbientMotion { content() }
+    }
   }
 }
+
+/**
+ * True when the *theme* resolved to dark, whatever the system says.  Screens and
+ * components that need "am I on a dark surface" (to lift a near-black brand colour,
+ * pick a state-layer alpha, …) must read this rather than
+ * `androidx.compose.foundation.isSystemInDarkTheme()`, which ignores the in-app
+ * Appearance setting the client exposes.
+ */
+val LocalFluentDark = staticCompositionLocalOf { false }

@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -196,13 +197,25 @@ fun LimitsSection(
   val providers = if (maxAccounts != null) filtered.take(maxAccounts.coerceIn(1, 12)) else filtered
   if (providers.isEmpty()) return
 
-  // Row expansion is presentation-only state, so it survives refresh frames.
-  // A lone account opens itself: with nothing to scan against, a collapsed row
-  // would hide the entire payload of the section.
+  // Row expansion is presentation-only state, so it survives refresh frames.  A lone
+  // account opens itself: with nothing to scan against, a collapsed row would hide the
+  // entire payload of the section.
+  //
+  val providerKeys = remember(providers) {
+    providers.mapIndexed { index, provider -> limitRowKey(provider, index) }
+  }
+  // What the user has opened, kept across refresh frames.
   var expandedKeys by remember {
     mutableStateOf(
-      if (providers.size == 1) setOf(limitRowKey(providers.first(), 0)) else emptySet<String>()
+      if (providerKeys.size == 1) setOf(providerKeys.first()) else emptySet<String>()
     )
+  }
+  // Intersected, not reset, when the account set changes: a refresh that adds or drops a
+  // provider closes the expanded rows that are *gone* while leaving the ones still on
+  // screen open, and a key that shifted onto a different account (the index fallback for
+  // an account with no stable identifier) is dropped rather than reported as expanded.
+  LaunchedEffect(providerKeys) {
+    expandedKeys = expandedKeys.intersect(providerKeys.toSet())
   }
 
   FluentCardList(modifier = modifier) {
@@ -242,8 +255,11 @@ fun LimitsSection(
 
 private fun limitRowKey(provider: LimitProviderDto, index: Int): String =
   provider.accountKey?.takeIf { it.isNotBlank() }
+    // The index is a last-resort disambiguator for two accounts that are otherwise
+    // identical (same provider, no email, no label); it is stable while the provider
+    // list is, which is why `expandedKeys` is re-derived when it is not.
     ?: "${provider.provider.trim().lowercase(Locale.US)}|${provider.accountEmail.orEmpty()}" +
-      "|${provider.accountLabel.orEmpty()}|$index"
+      "|${provider.accountLabel.orEmpty()}|${provider.accountName.orEmpty()}|$index"
 
 @Composable
 private fun LimitAccountRow(

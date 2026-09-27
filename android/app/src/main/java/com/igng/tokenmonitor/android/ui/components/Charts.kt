@@ -70,7 +70,10 @@ fun DonutChart(
   val palette = FluentChartPalette
   // Fluent's "empty track" is a stroke-coloured ring, not a tinted surface.
   val track = colors.neutralStroke3
-  val resetKey = entries.joinToString("|") { "${it.key}:${it.tokens}" }
+  // The reveal is keyed on which slices exist, never on their magnitudes: an SSE
+  // frame that only moves a number must interpolate, not replay 0→1 (which read as
+  // the chart blinking on every refresh).
+  val resetKey = shareSeriesKey(entries)
   val grow = animateGrowProgress(resetKey = resetKey, durationMillis = FluentMotion.slower)
 
   fun sliceColor(index: Int, key: String): Color =
@@ -368,7 +371,8 @@ fun SegmentedTokenBar(
   val colors = LocalFluentColors.current
   val total = segments.sumOf { it.second }.coerceAtLeast(1L)
   val palette = FluentChartPalette
-  val resetKey = segments.joinToString("|") { "${it.first}:${it.second}" }
+  // Same rule as the donut: the set identifies the reveal, the counts do not.
+  val resetKey = segments.joinToString("|") { it.first }
   val grow = animateGrowProgress(resetKey = resetKey, durationMillis = FluentMotion.slower)
   Column(
     modifier = modifier.fillMaxWidth(),

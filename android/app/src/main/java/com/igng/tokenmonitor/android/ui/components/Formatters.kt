@@ -239,7 +239,7 @@ fun countActiveDays(
 ): Int {
   var days = daily
   if (window == "year" && days.isNotEmpty()) {
-    val cutoff = java.time.LocalDate.now(java.time.ZoneOffset.UTC).minusDays(365).toString()
+    val cutoff = java.time.LocalDate.now().minusDays(365).toString()
     days = days.filter { it.date >= cutoff }
   }
   return days.count { it.tokens > 0.0 || it.cost > 0.0 }

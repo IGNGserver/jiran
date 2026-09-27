@@ -35,17 +35,23 @@ class AppHaptics(
     val mode = forceMode ?: modeProvider()
     if (mode == HapticsMode.Off) return
 
-    if (mode == HapticsMode.Standard) {
+    // ONE channel per interaction.  The standard path used to fire the Compose/view
+    // haptic *and* then a Vibrator effect for the same tap, so every button, tab and
+    // refresh produced two overlapping buzzes — and because the two channels resolve to
+    // different constants, the pair read as a doubled click rather than as feedback.
+    // The Vibrator is the one that carries amplitude and predefined effects on both O+
+    // and Q+, so it is the channel kept; Compose's is the fallback for a device with no
+    // vibrator at all.
+    val vibrator = context.vibratorOrNull()?.takeIf { it.hasVibrator() }
+    if (vibrator == null) {
       when (event) {
         HapticEvent.Tap, HapticEvent.Selection, HapticEvent.ToggleOn, HapticEvent.ToggleOff ->
           composeHaptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         HapticEvent.Confirm, HapticEvent.Success, HapticEvent.Refresh, HapticEvent.Error ->
           composeHaptics.performHapticFeedback(HapticFeedbackType.LongPress)
       }
+      return
     }
-
-    val vibrator = context.vibratorOrNull() ?: return
-    if (!vibrator.hasVibrator()) return
 
     val effect = when (mode) {
       HapticsMode.Off -> return

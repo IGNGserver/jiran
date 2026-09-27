@@ -29,7 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyItemScope
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -37,13 +37,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -142,18 +147,21 @@ fun FluentTopBar(
   modifier: Modifier = Modifier,
   onBack: (() -> Unit)? = null,
   onHome: (() -> Unit)? = null,
-  scrolled: Boolean = false,
+  scrolled: () -> Boolean = { false },
   subtitle: String? = null,
   actions: @Composable RowScope.() -> Unit = {}
 ) {
   val colors = LocalFluentColors.current
+  // Read once per recomposition; the two paint sites below then agree on one value
+  // instead of each re-reading the scroll-derived state.
+  val scrolledNow = scrolled()
   Column(
     modifier
       .fillMaxWidth()
       .background(colors.neutralBackground1)
       .statusBarsPadding()
       .then(
-        if (scrolled) Modifier.border(0.5.dp, colors.neutralStroke2)
+        if (scrolledNow) Modifier.border(0.5.dp, colors.neutralStroke2)
         else Modifier
       )
   ) {
@@ -212,34 +220,42 @@ fun FluentTopBar(
       }
     }
     // A 0-height border above draws nothing; keep an explicit hairline slot so
-    // the bar height is stable whether or not content has scrolled.
-    if (scrolled) {
-      Box(
-        Modifier
-          .fillMaxWidth()
-          .height(0.5.dp)
-          .background(colors.neutralStroke2)
-      )
-    }
+    // the bar height is stable whether or not content has scrolled.  Painting is
+    // conditional so this slot never doubles the scrolled hairline above.
+    Box(
+      Modifier
+        .fillMaxWidth()
+        .height(if (scrolledNow) 0.5.dp else 0.dp)
+        .background(colors.neutralStroke2)
+    )
   }
 }
 
 /**
  * Derives the "content has scrolled away from the top" flag that [FluentTopBar]
  * needs, for the two scrolling containers this app actually uses.
+ *
+ * Returned as a lambda rather than a `Boolean` on purpose.  Handing back the value
+ * (`derivedStateOf { … }.value`) reads it *in composition*, so every time a scroll
+ * crossed the 4 dp threshold the entire screen recomposed — a top bar's hairline is
+ * not worth a full-screen recomposition per scrolled pixel.  A caller that reads the
+ * lambda in a `DrawScope` (`drawBehind`) or in a `graphicsLayer` block pays for the
+ * change only at the layer that draws it.
  */
 @Composable
-fun rememberScrolledFlag(scrollState: androidx.compose.foundation.ScrollState): Boolean {
-  return remember { derivedStateOf { scrollState.value > 4 } }.value
+fun rememberScrolledFlag(scrollState: androidx.compose.foundation.ScrollState): () -> Boolean {
+  val state = remember { derivedStateOf { scrollState.value > 4 } }
+  return { state.value }
 }
 
 @Composable
-fun rememberScrolledFlag(listState: LazyListState): Boolean {
-  return remember {
+fun rememberScrolledFlag(listState: LazyListState): () -> Boolean {
+  val state = remember {
     derivedStateOf {
       listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 4
     }
-  }.value
+  }
+  return { state.value }
 }
 
 // ─── List row ───────────────────────────────────────────────────────────────
@@ -263,12 +279,37 @@ fun FluentListRow(
   disclosure: Boolean = false,
   onClick: (() -> Unit)? = null,
   contentPadding: Dp = FluentSpacingDefaults.l,
-  dividerAbove: Boolean = false
+  dividerAbove: Boolean = false,
+  /**
+   * Container corners for a row that *is* the group surface itself — the virtualized
+   * case, where the rows cannot live inside one [FluentCardList] because that would
+   * compose the whole fleet at once.  `null` keeps the original contract: the row is
+   * transparent and an enclosing [FluentCardList] owns the fill, hairline and corners.
+   */
+  containerShape: Shape? = null,
+  /** Draw the group hairline for a [containerShape] row. Ignored when the shape is null. */
+  containerBorder: Boolean = false
 ) {
   val colors = LocalFluentColors.current
   val interaction = remember { MutableInteractionSource() }
   val pressed by interaction.collectIsPressedAsState()
   val hovered = onClick != null && rememberFluentHover(interaction)
+
+  val containerFill = if (containerShape != null) colors.surfaceCard else Color.Transparent
+  val container = if (containerShape == null) {
+    Modifier
+  } else {
+    Modifier
+      .clip(containerShape)
+      .background(containerFill)
+      .then(
+        if (containerBorder) {
+          Modifier.border(0.5.dp, colors.neutralStroke3, containerShape)
+        } else {
+          Modifier
+        }
+      )
+  }
 
   val row: @Composable () -> Unit = {
     Row(
@@ -278,7 +319,7 @@ fun FluentListRow(
           when {
             pressed -> colors.subtleBackgroundPressed
             hovered -> colors.subtleBackgroundHover
-            else -> colors.surfaceCard
+            else -> containerFill
           }
         )
         .heightIn(min = LocalFluentAdaptation.current.rowMinHeight)
@@ -360,12 +401,13 @@ fun FluentListRow(
             onClick = onClick
           )
       } else Modifier
-    )
+    ).then(container)
   ) {
     Column(Modifier.fillMaxWidth()) {
       if (dividerAbove) {
         // Hairlines start at the content edge, not the container edge: a rule
-        // that runs under the leading media reads as a container seam.
+        // that runs under the leading media reads as a container seam.  Horizontal, not
+        // vertical: in a vertical list a vertical rule would be a column separator.
         Box(
           Modifier
             .fillMaxWidth()
@@ -404,6 +446,15 @@ fun FluentCardList(
 // ─── Filter / period selector ───────────────────────────────────────────────
 
 /**
+ * The horizontal offset of a tab strip.  Saved rather than merely remembered: a strip
+ * that has been scrolled to 自定义 / 对比 used to snap back to the first tab on every
+ * rotation or configuration change, which reads as the selection having moved.
+ */
+@Composable
+private fun rememberTabStripScrollState(): ScrollState =
+  rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+
+/**
  * Fluent "Tab" strip used for period and metric switching.  Material's
  * FilterChip and SegmentedButton both appeared in the old UI for the same job;
  * Fluent has one answer: a horizontally scrollable row of text tabs where the
@@ -427,7 +478,7 @@ fun FluentTabStrip(
   Row(
     modifier
       .fillMaxWidth()
-      .horizontalScroll(rememberScrollState())
+      .horizontalScroll(rememberTabStripScrollState())
       .padding(horizontal = contentPadding),
     horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.xl)
   ) {
@@ -512,42 +563,6 @@ private fun FluentTab(
       )
     }
   }
-}
-
-// ─── Staggered list entrance ────────────────────────────────────────────────
-
-/**
- * Fluent's list entrance: items rise into place on a deceleration curve with a
- * small per-index stagger, so a long list reads as one motion rather than many.
- */
-@Composable
-fun LazyItemScope.FluentStaggeredIn(
-  index: Int,
-  enabled: Boolean = fluentMotionEnabled(),
-  content: @Composable () -> Unit
-) {
-  if (!enabled) {
-    content()
-    return
-  }
-  var visible by remember { androidx.compose.runtime.mutableStateOf(false) }
-  androidx.compose.runtime.LaunchedEffect(Unit) { visible = true }
-  androidx.compose.animation.AnimatedVisibility(
-    visible = visible,
-    enter = androidx.compose.animation.expandVertically(
-      animationSpec = tween(
-        durationMillis = FluentMotion.normal,
-        delayMillis = minOf(index, 8) * FluentMotion.listItemStagger,
-        easing = FluentMotion.decelerate
-      )
-    ) + fadeIn(
-      animationSpec = tween(
-        durationMillis = FluentMotion.normal,
-        delayMillis = minOf(index, 8) * FluentMotion.listItemStagger,
-        easing = FluentMotion.decelerate
-      )
-    )
-  ) { content() }
 }
 
 /** Section grouping: an optional label plus content, Fluent's "group" rhythm. */

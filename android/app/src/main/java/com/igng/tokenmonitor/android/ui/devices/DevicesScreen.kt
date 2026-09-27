@@ -9,6 +9,7 @@ import com.igng.tokenmonitor.android.ui.components.DailyTrendChart
 import com.igng.tokenmonitor.android.ui.components.FluentTextField
 import com.igng.tokenmonitor.android.ui.components.FluentIcons
 import android.net.Uri
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,8 +21,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,24 +35,25 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.igng.tokenmonitor.android.data.model.DeviceDto
 import com.igng.tokenmonitor.android.data.model.PeriodDto
+import com.igng.tokenmonitor.android.data.model.StatsDto
 import com.igng.tokenmonitor.android.ui.components.AppCard
 import com.igng.tokenmonitor.android.ui.components.ClientBranding
 import com.igng.tokenmonitor.android.ui.components.CompactMetricCard
 import com.igng.tokenmonitor.android.ui.components.DeviceComparisonChart
 import com.igng.tokenmonitor.android.ui.components.DevicesSkeleton
 import com.igng.tokenmonitor.android.ui.components.EmptyState
-import com.igng.tokenmonitor.android.ui.components.FluentCardList
 import com.igng.tokenmonitor.android.ui.components.FluentListRow
 import com.igng.tokenmonitor.android.ui.components.FluentPageHeader
-import com.igng.tokenmonitor.android.ui.components.FluentStaggeredIn
 import com.igng.tokenmonitor.android.ui.components.FluentTabStrip
 import com.igng.tokenmonitor.android.ui.components.FluentTopBar
 import com.igng.tokenmonitor.android.ui.components.LimitsSection
@@ -88,8 +92,9 @@ fun DevicesScreen(
 ) {
   val colors = LocalFluentColors.current
   val haptics = rememberAppHaptics()
+  // No top bar on this screen (it uses the page header), so there is no scroll flag to
+  // derive; `rememberScrolledFlag` was computing one nothing read.
   val listState = rememberLazyListState()
-  val scrolled = rememberScrolledFlag(listState)
   val sorted = fleetSorted(devices)
   val activeDevices = sorted.filterNot { it.stale }
   val onlineCount = fleetOnlineCount(devices)
@@ -115,10 +120,13 @@ fun DevicesScreen(
           top = FluentSpacingDefaults.xs,
           bottom = FluentSpacingDefaults.xxxl
         ),
-        verticalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.m)
+        // Rows of one group touch: the group is a single surface separated by
+        // hairlines, not N stacked cards.  External gaps are applied per item below,
+        // which is also what lets the device rows stay virtualized.
+        verticalArrangement = Arrangement.spacedBy(0.dp)
       ) {
-        item {
-          AppCard {
+        item(key = "devices-comparison") {
+          AppCard(modifier = Modifier.padding(bottom = FluentSpacingDefaults.m)) {
             SectionHeader(
               title = "今日对比",
               subtitle = "按设备 Token 用量"
@@ -128,29 +136,59 @@ fun DevicesScreen(
           }
         }
 
-        // One container, hairline-separated rows: Fluent groups homogeneous
-        // collections this way so the list reads as a set, not as N cards.
-        item {
-          FluentCardList {
-            sorted.forEachIndexed { index, device ->
-              DeviceRow(
-                device = device,
-                dividerAbove = index > 0,
-                onClick = {
-                  haptics.perform(HapticEvent.Tap)
-                  navController.navigate("device/${Uri.encode(device.deviceId.orEmpty())}")
-                }
-              )
+        // One row per lazy item, so the fleet stays virtualized: a few hundred machines
+        // used to compose inside a single `item`, which is why this page was the one that
+        // scrolled badly.  `deviceGroupShape` keeps the grouped Fluent look while the rows
+        // are virtualized — the first and last carry the rounded, outlined edges and the
+        // ones between them stay square.  `dividerAbove` asks whether a predecessor exists
+        // rather than trusting the loop index, which is not stable across a keyed list.
+        itemsIndexed(
+          items = sorted,
+          key = { _, device -> device.deviceId.orEmpty().ifBlank { device.hostname.orEmpty() } }
+        ) { index, device ->
+          DeviceRow(
+            device = device,
+            dividerAbove = index > 0,
+            groupShape = deviceGroupShape(index = index, count = sorted.size),
+            onClick = {
+              haptics.perform(HapticEvent.Tap)
+              navController.navigate("device/${Uri.encode(device.deviceId.orEmpty())}")
             }
-          }
+          )
         }
       }
     }
   }
 }
 
+/**
+ * The shape one row of the grouped device list wears.
+ *
+ * A lazy list cannot hand every row to one `FluentCardList` (composing the whole fleet is
+ * what made this page heavy), so the grouping is distributed instead: the first row rounds
+ * its top, the last rounds its bottom, and everything between stays square. A one-device
+ * fleet gets the whole card shape.
+ */
+private fun deviceGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape {
+  // The radius is the `cardCorner` step, named as a dp because a *percentage*
+  // `RoundedCornerShape` does not expose per-corner dp values to copy from.  (It is
+  // asserted equal to `FluentShapeDefaults.cardCorner` by the JVM suite, so the token
+  // cannot drift out from under this literal.)
+  val top = if (index == 0) CARD_CORNER_DP.dp else 0.dp
+  val bottom = if (index == count - 1) CARD_CORNER_DP.dp else 0.dp
+  return RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
+}
+
+/** The `cardCorner` radius as a dp, for the group caps above. */
+internal const val CARD_CORNER_DP = 8
+
 @Composable
-private fun DeviceRow(device: DeviceDto, dividerAbove: Boolean, onClick: () -> Unit) {
+private fun DeviceRow(
+  device: DeviceDto,
+  dividerAbove: Boolean,
+  groupShape: androidx.compose.ui.graphics.Shape = FluentShapeDefaults.cardCorner,
+  onClick: () -> Unit
+) {
   val colors = LocalFluentColors.current
   FluentListRow(
     primary = device.hostname ?: device.deviceId.orEmpty(),
@@ -169,6 +207,11 @@ private fun DeviceRow(device: DeviceDto, dividerAbove: Boolean, onClick: () -> U
     trailingSecondary = formatUsd(device.periods.today.costUsd, compact = true),
     disclosure = true,
     dividerAbove = dividerAbove,
+    containerShape = groupShape,
+    // Only the caps carry the outline: interior rows are separated by the hairline
+    // `dividerAbove` already draws, and a border on every row would stack two strokes
+    // on every interior edge.
+    containerBorder = !dividerAbove,
     onClick = onClick
   )
 }
