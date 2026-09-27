@@ -5,8 +5,8 @@
 // renders the normalized result the Hub returns.
 
 import { formatRelative } from '../core/format.js';
-import { clientLabel, maskAccountEmail, HUB_ACCOUNT_PROVIDERS } from '../core/data.js';
-import { tr, escapeHtml, appState, displayFlag, toolIconHtml, viewHelper } from '../core/viewContext.js';
+import { clientLabel, HUB_ACCOUNT_PROVIDERS } from '../core/data.js';
+import { tr, escapeHtml, appState, toolIconHtml, viewHelper } from '../core/viewContext.js';
 
 const emptyHtml = (key) => viewHelper('emptyHtml')(key);
 const panel = (...args) => viewHelper('panel')(...args);
@@ -74,7 +74,7 @@ export function renderAccounts() {
       const identityParts = [
         record.label ? escapeHtml(record.label) : '',
         record.accountEmail || record.accountKey
-          ? escapeHtml(displayFlag('maskLimitAccountEmails', false) ? maskAccountEmail(record.accountEmail || record.accountKey) : (record.accountEmail || record.accountKey))
+          ? escapeHtml(record.accountEmail || record.accountKey)
           : ''
       ].filter(Boolean);
 

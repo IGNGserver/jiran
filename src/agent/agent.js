@@ -45,24 +45,31 @@ if (args.clients !== undefined || process.env.TOKEN_MONITOR_CLIENTS !== undefine
   console.warn('[config] TOKEN_MONITOR_CLIENTS/--clients is no longer supported; all supported tools are tracked.');
 }
 
+// Only identity and the tokscale timeout are still per-invocation inputs. The
+// cadence knobs (mode / interval / watch / history / archive / projects / WSL /
+// all-time anchor / upload interval) left with the settings surface that carried
+// them; src/shared/collectorConfig.js fixes them for every runtime now.
+for (const [flag, env] of [
+  ['--since', 'TOKEN_MONITOR_ALL_TIME_SINCE'], ['--collectionMode', 'TOKEN_MONITOR_COLLECTION_MODE'],
+  ['--interval', 'TOKEN_MONITOR_INTERVAL_MS'], ['--watch', 'TOKEN_MONITOR_WATCH'],
+  ['--watchDebounceMs', 'TOKEN_MONITOR_WATCH_DEBOUNCE_MS'], ['--history', 'TOKEN_MONITOR_HISTORY_ENABLED'],
+  ['--projects', 'TOKEN_MONITOR_PROJECTS_ENABLED'], ['--sessionArchive', 'TOKEN_MONITOR_SESSION_USAGE_ARCHIVE_ENABLED'],
+  ['--wslScan', 'TOKEN_MONITOR_WSL_SCAN'], ['--syncUploadInterval', 'TOKEN_MONITOR_SYNC_UPLOAD_INTERVAL_MS']
+]) {
+  const name = flag.slice(2);
+  if (args[name] !== undefined || process.env[env] !== undefined) {
+    console.warn(`[config] ${env}/--${name} is no longer supported; collection is fixed and every supported tool is tracked.`);
+  }
+}
+
 const usageSource = {
-  allTimeSince: args.since ?? args.allTimeSince ?? process.env.TOKEN_MONITOR_ALL_TIME_SINCE,
   commandTimeoutMs: args.timeoutMs ?? process.env.TOKEN_MONITOR_TOKSCALE_TIMEOUT_MS,
-  deviceId,
-  collectionMode: args.collectionMode ?? process.env.TOKEN_MONITOR_COLLECTION_MODE,
-  collectionIntervalMs: args.interval ?? args.intervalMs ?? process.env.TOKEN_MONITOR_INTERVAL_MS,
-  watchEnabled: args.watch ?? process.env.TOKEN_MONITOR_WATCH,
-  watchDebounceMs: args.watchDebounceMs ?? process.env.TOKEN_MONITOR_WATCH_DEBOUNCE_MS,
-  historyEnabled: args.history ?? args.historyEnabled ?? process.env.TOKEN_MONITOR_HISTORY_ENABLED,
-  historyIntervalMs: process.env.TOKEN_MONITOR_HISTORY_INTERVAL_MS,
-  projectsEnabled: args.projects ?? args.projectsEnabled ?? process.env.TOKEN_MONITOR_PROJECTS_ENABLED,
-  sessionUsageArchiveEnabled: args.sessionArchive ?? args.sessionUsageArchiveEnabled ?? process.env.TOKEN_MONITOR_SESSION_USAGE_ARCHIVE_ENABLED,
-  wslScanEnabled: args.wslScan ?? args.wslScanEnabled ?? process.env.TOKEN_MONITOR_WSL_SCAN,
-  syncUploadIntervalMs: args.syncUploadIntervalMs ?? args.syncUploadInterval ?? process.env.TOKEN_MONITOR_SYNC_UPLOAD_INTERVAL_MS,
-  anchorPersistenceEnabled: !once && !dryRun
+  deviceId
 };
+const usageSourceExtra = { anchorPersistenceEnabled: !once && !dryRun };
 
 const usageOptions = usageConfigFromSource(usageSource, {
+  ...usageSourceExtra,
   agentVersion: appVersion(),
   agentRuntime: 'headless-agent',
   reasonixNativeSessionsEnabled: true,
@@ -73,7 +80,6 @@ const usageOptions = usageConfigFromSource(usageSource, {
 });
 
 const syncSummaryTransformer = createSyncSummaryTransformer({
-  sessionUsageArchiveEnabled: usageOptions.dailyHistoryArchiveEnabled,
   canWriteSessionUsageArchive: !dryRun,
   onArchiveError: (error, operation) => console.error(`[session-archive] ${operation} failed: ${error.message}`)
 });
@@ -137,7 +143,7 @@ function registerPidFile(stopRuntime) {
 }
 
 async function main() {
-  const startupMessage = `Token Monitor agent device=${deviceId} hub=${hubUrl} mode=${usageSource.collectionMode || 'live'} intervalMs=${usageOptions.intervalMs} uploadIntervalMs=${usageOptions.syncUploadIntervalMs} watch=${usageOptions.watchEnabled} projects=${usageOptions.projectsEnabled ? 'on' : 'off'} history=${usageOptions.historyEnabled ? 'on' : 'off'} sessionArchive=${usageOptions.dailyHistoryArchiveEnabled ? 'on' : 'off'} limits=hub`;
+  const startupMessage = `Token Monitor agent device=${deviceId} hub=${hubUrl} intervalMs=${usageOptions.intervalMs} uploadIntervalMs=${usageOptions.syncUploadIntervalMs} watch=${usageOptions.watchEnabled} projects=${usageOptions.projectsEnabled ? 'on' : 'off'} history=${usageOptions.historyEnabled ? 'on' : 'off'} sessionArchive=${usageOptions.dailyHistoryArchiveEnabled ? 'on' : 'off'} limits=hub`;
   if (dryRun) console.error(startupMessage);
   else console.log(startupMessage);
   if (!secret) console.warn('Warning: TOKEN_MONITOR_SECRET is not set. Posting without authorization header.');

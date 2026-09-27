@@ -1,5 +1,13 @@
 'use strict';
 
+// Which settings changes have to tear a runtime down and build it again.
+//
+// Only the *mode* keys are structural any more. The collector cadence keys
+// (collectionMode / interval / watch / history / archive / projects / WSL /
+// allTimeSince / upload cadence) left the settings document with the surface
+// that used to write them — see src/shared/collectorConfig.js, where they are
+// constants now — so no renderer write can reshape the usage runtime.
+
 const { usageConfigFromSource } = require('../shared/collectorConfig');
 
 const MODE_STRUCTURAL_KEYS = Object.freeze([
@@ -9,19 +17,6 @@ const MODE_STRUCTURAL_KEYS = Object.freeze([
   'secret',
   'deviceId'
 ]);
-const USAGE_STRUCTURAL_KEYS = Object.freeze([
-  'allTimeSince',
-  'collectionIntervalMs',
-  'collectionMode',
-  'watchEnabled',
-  'watchDebounceMs',
-  'historyEnabled',
-  'historyIntervalMs',
-  'sessionUsageArchiveEnabled',
-  'projectsEnabled',
-  'wslScanEnabled'
-]);
-const SINK_STRUCTURAL_KEYS = Object.freeze(['syncUploadIntervalMs']);
 
 function equalSetting(left, right) {
   if (left === right) return true;
@@ -48,15 +43,12 @@ function envelopeFromSettings(settings = {}, context = {}) {
 
 function classifySettingsChange(previous = {}, next = {}) {
   return {
-    modeStructural: changedAny(previous, next, MODE_STRUCTURAL_KEYS),
-    usageStructural: changedAny(previous, next, USAGE_STRUCTURAL_KEYS),
-    sinkStructural: changedAny(previous, next, SINK_STRUCTURAL_KEYS),
-    limitsReconfigure: false,
-    limitScopes: []
+    modeStructural: changedAny(previous, next, MODE_STRUCTURAL_KEYS)
   };
 }
 
 module.exports = {
+  MODE_STRUCTURAL_KEYS,
   classifySettingsChange,
   envelopeFromSettings,
   usageConfigFromSettings

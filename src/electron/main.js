@@ -1,7 +1,6 @@
 'use strict';
 
 const fs = require('node:fs');
-const crypto = require('node:crypto');
 const os = require('node:os');
 const path = require('node:path');
 const { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, net, powerMonitor, screen, session, shell } = require('electron');
@@ -18,7 +17,6 @@ const {
 } = require('../shared/credentialStore');
 const { installSafeStdout } = require('../shared/safeStdio');
 const { appVersion } = require('../shared/appVersion');
-const { exportFileSet, exportSignature, EXPORT_FILENAMES } = require('../shared/exporter');
 const motionPreferenceApi = require('./motionPreference');
 
 // Install EPIPE suppression before anything that might log. Without this,
@@ -28,7 +26,7 @@ installSafeStdout();
 const {
   TRACKED_CLIENTS
 } = require('../shared/clientTracking');
-const { collectCustomRangeOnce, lookupModelPricing, normalizeHistoryIntervalMs } = require('../shared/collector');
+const { collectCustomRangeOnce, lookupModelPricing } = require('../shared/collector');
 const { createDeviceRuntime } = require('../shared/deviceRuntime');
 const { createRequestRouter } = require('./desktopRequestRouter');
 const {
@@ -37,10 +35,7 @@ const {
 } = require('./viewState');
 const { createAppMenu } = require('./appMenu');
 const { createApplicationTray, TRAY_ICON_PATH } = require('./tray');
-const { customPricingPath } = require('../shared/tokscaleConfig');
-const { applyCustomPricing, normalizeCustomPricingSetting } = require('../shared/tokscaleCustomPricing');
 const { requireSafeHubTransport } = require('../shared/hubTransport');
-const { parseLimitProviders } = require('../shared/limitCollector');
 const { isAllowedCodexLoginUrl } = require('../shared/codexLogin');
 const { isAllowedVerificationUrl } = require('../shared/copilotDeviceFlow');
 // The native menu, tray and dialogs localize from the same catalog the shared UI
@@ -50,16 +45,6 @@ const { isAllowedVerificationUrl } = require('../shared/copilotDeviceFlow');
 const { SUPPORTED_LOCALES, resolveLocale, t: translate } = require('../shared-ui/core/i18n.js');
 // Same formatter the dashboard uses, so the tray tooltip never disagrees with it.
 const { formatCompact: formatCompactTokens } = require('../shared-ui/core/format.js');
-const {
-  defaultViewDisplayPreferences,
-  normalizeHiddenViews,
-  normalizeViewDisplayOrder
-} = require('./preferences/viewDisplayPreferences');
-const {
-  defaultHomeModulePreferences,
-  normalizeHiddenHomeModules,
-  normalizeHomeModuleOrder
-} = require('./preferences/homeModulePreferences');
 const {
   checkNpmForNewer,
   cleanupStaleStaging,
@@ -75,7 +60,6 @@ const {
   GITHUB_REPO,
   installFailureErrorKind,
   mergeLatestReleaseMetadata,
-  shouldDownloadAutomaticAppUpdate,
   shouldSkipAppUpdateCheck,
   updateInstallQuitPolicy
 } = require('../shared/appUpdater');
@@ -90,30 +74,12 @@ const { aggregateDevices, aggregateHistory } = require('../shared/usage');
 const { fetchBufferedWithTimeout, fetchWithTimeout } = require('../shared/http');
 const { postSyncPayload } = require('../shared/syncPayload');
 const { renameDeviceOnHub, readDeviceIdentity, writeDeviceIdentity } = require('../shared/deviceIdentity');
-const {
-  DEFAULT_COLLECTION_INTERVAL_MS: SHARED_DEFAULT_COLLECTION_INTERVAL_MS,
-  DEFAULT_SMART_COLLECTION_INTERVAL_MS: SHARED_DEFAULT_SMART_COLLECTION_INTERVAL_MS,
-  normalizeCollectionIntervalMs: normalizeSharedCollectionIntervalMs,
-  normalizeCollectionMode: normalizeSharedCollectionMode,
-  normalizeWatchDebounceMs: normalizeSharedWatchDebounceMs
-} = require('../shared/collectorConfig');
+// Collection cadence is no longer configurable — see src/shared/collectorConfig.js.
 const { createSyncUploadSink } = require('../shared/syncUploadSink');
 const { createSyncSummaryTransformer } = require('../shared/syncSummary');
 const { mergedLocalAllTimeSessions } = require('../shared/localSessions');
 const { historyPreview, historyRevision } = require('../shared/history');
 const { readSessionDetail } = require('../shared/sessionDetail');
-// Loaded lazily: discordRpc.js requires @xhayper/discord-rpc at module scope,
-// which costs ~240 ms warm / ~520 ms cold and 170 modules on every launch, for a
-// feature that is off by default (settings.discordRpcEnabled === false). The
-// first real call pulls it in; when the feature stays disabled it is never loaded.
-let discordRpcApi = null;
-function loadDiscordRpc() {
-  if (!discordRpcApi) discordRpcApi = require('./discordRpc');
-  return discordRpcApi;
-}
-function startDiscordRpc(...args) { return loadDiscordRpc().startDiscordRpc(...args); }
-function stopDiscordRpc(...args) { return loadDiscordRpc().stopDiscordRpc(...args); }
-function updateDiscordRpc(...args) { return loadDiscordRpc().updateDiscordRpc(...args); }
 const linuxAutostart = require('./linuxAutostart');
 const { classifyStreamFailure } = require('./syncConnection');
 const { buildDiagnosticsBundle, diagnosticsFileName } = require('./diagnostics');
@@ -190,7 +156,6 @@ const CSP_HEADER = [
 ].join('; ');
 const HUB_MODE_VALUES = new Set(['local', 'client']);
 const LANGUAGE_VALUES = new Set(['auto', ...SUPPORTED_LOCALES]);
-const DEFAULT_COLLECTION_INTERVAL_MS = SHARED_DEFAULT_COLLECTION_INTERVAL_MS;
 const HUB_REQUEST_TIMEOUT_MS = 15 * 1000;
 // Deliberate: the desktop app reaches the Hub and the rate source with the plain
 // runtime fetch, i.e. it does NOT follow HTTP(S)_PROXY. The operator decision was
@@ -203,62 +168,6 @@ const SSE_RETRY_BASE_MS = 1000;
 const SSE_RETRY_MAX_MS = 30 * 1000;
 const SYNC_REST_POLL_MS = 60 * 1000;
 const SYNC_RECOVERY_TIMEOUT_MS = 20 * 1000;
-// The shared UI exposes eight views. The widget-era client had nine breakdown-oriented ids,
-// so an upgraded profile's saved order/hidden set is translated rather than
-// dropped: tool/model/project/session are now tabs of `usage`, and status is the
-// health tab of `limits`.
-const LEGACY_TO_SHARED_VIEW = Object.freeze({
-  home: 'overview',
-  tool: 'usage',
-  model: 'usage',
-  project: 'usage',
-  session: 'usage',
-  status: 'limits',
-  device: 'devices',
-  limits: 'limits',
-  trends: 'trends',
-  overview: 'overview',
-  usage: 'usage',
-  devices: 'devices',
-  accounts: 'accounts',
-  management: 'management',
-  settings: 'settings'
-});
-const SHARED_VIEW_LIST = ['overview', 'usage', 'devices', 'limits', 'trends', 'accounts', 'management', 'settings'].map((id) => ({ id }));
-// Kept for the display-preference normalizers, which only need ids.
-const DEFAULT_VIEW_LIST = ['home', 'tool', 'status', 'device', 'model', 'project', 'session', 'limits', 'trends'].map((id) => ({ id }));
-
-/** Translate a legacy view id (or list) onto the shared UI's view set. */
-function toSharedViewId(value) {
-  const id = String(value || '').trim().toLowerCase();
-  return LEGACY_TO_SHARED_VIEW[id] || '';
-}
-
-const SHARED_VIEW_IDS = new Set(SHARED_VIEW_LIST.map((view) => view.id));
-
-function migrateViewOrderToShared(value) {
-  const seen = new Set();
-  const order = [];
-  for (const item of String(value || '').split(',')) {
-    const mapped = toSharedViewId(item);
-    // Only ids the shared UI can actually render survive the migration, so a
-    // stale value cannot produce an order entry the navigation cannot show.
-    if (!mapped || seen.has(mapped) || !SHARED_VIEW_IDS.has(mapped)) continue;
-    seen.add(mapped);
-    order.push(mapped);
-  }
-  return order.join(',');
-}
-
-function migrateHiddenViewsToShared(value) {
-  const hidden = new Set();
-  for (const item of String(value || '').split(',')) {
-    const mapped = toSharedViewId(item);
-    if (mapped && SHARED_VIEW_IDS.has(mapped)) hidden.add(mapped);
-  }
-  return [...hidden].join(',');
-}
-const DEFAULT_HOME_MODULE_LIST = ['limits', 'tool', 'device', 'model', 'trends'].map((id) => ({ id }));
 // View ids the shared UI knows; the app menu navigates by these.
 const SHARED_UI_VIEW_IDS = new Set(['overview', 'usage', 'devices', 'limits', 'trends', 'accounts', 'management', 'settings']);
 
@@ -316,6 +225,43 @@ const LEGACY_LOCAL_LIMIT_SETTING_KEYS = Object.freeze([
   'mimoManagedAccounts'
 ]);
 
+// Keys that no longer have any surface to write them. A retired key must be
+// dropped on the way IN (settings.json) and on the way BACK (an IPC patch from an
+// old renderer or preload), or it silently keeps shaping runtime behaviour.
+const RETIRED_SETTING_KEYS = Object.freeze([
+  // Window/widget era.
+  'windowBehavior', 'alwaysOnTop', 'floatingBubbleEnabled', 'floatingBubbleTrigger',
+  'floatingBubbleContent', 'floatingBubbleCustomLayout', 'floatingBubbleBounds', 'showTrayIcon',
+  'trayMode', 'startInTray', 'trayContent', 'trayCustomLayout',
+  'showTrayProviderBadge', 'windowToggleShortcut', 'edgeDrawerEnabled',
+  // Device-side quota probing: the Hub owns accounts and publishes the limits.
+  'limitsEnabled', 'limitProviders',
+  // The retired service-status panel.
+  'serviceProviderDisplayOrder', 'hiddenServiceProviders', 'serviceStatusRefreshMs',
+  // Borderless-widget geometry and the pre-SSE local poll cadence.
+  'refreshMs', 'glassOpacity', 'glassBlur',
+  // Client selection: every wired harness is tracked, so a persisted subset (and
+  // its migration marker) must not linger, and neither may the tool-list display
+  // preferences or the untracked-client usage archive that fed them.
+  'clients', 'migratedDefaultClients',
+  'clientDisplayOrder', 'hiddenClients', 'pinnedClients', 'archivedClientUsage',
+  // Collection cadence: fixed by src/shared/collectorConfig.js now, so no
+  // settings.json value or IPC patch may narrow what is collected.
+  'projectsEnabled', 'historyEnabled', 'historyIntervalMs',
+  'sessionUsageArchiveEnabled', 'wslScanEnabled', 'allTimeSince',
+  'collectionMode', 'collectionIntervalMs', 'watchEnabled', 'watchDebounceMs',
+  'syncUploadIntervalMs',
+  // Features retired together with the settings surface that reached them.
+  'discordRpcEnabled', 'exportAutoEnabled', 'exportDir', 'exportIntervalMs',
+  'customModelPricing', 'automaticAppUpdates',
+  // Display / ordering preferences no view reads any more.
+  'viewDisplayOrder', 'hiddenViews', 'homeModuleOrder', 'hiddenHomeModules',
+  'themeColors', 'vendorColors', 'showLiveDot', 'showToolIcons', 'titleIconOnly',
+  'showCompactTotalTokens', 'showHomeLimitBars', 'showHomeLimitProviderNames',
+  'showLimitSource', 'showLimitUsed', 'maskLimitAccountEmails',
+  'limitProviderOrder', 'homeLimitProviderOrder', 'hiddenHomeLimitProviders'
+]);
+
 const UI_FLAG_PREFIX = 'token-monitor.';
 function isUiFlagKey(key) {
   return String(key || '').startsWith(UI_FLAG_PREFIX);
@@ -324,6 +270,12 @@ function isUiFlagKey(key) {
 function withoutInternalOnlyKeys(value) {
   const clean = { ...(value || {}) };
   for (const key of INTERNAL_ONLY_SETTING_KEYS) delete clean[key];
+  return clean;
+}
+
+function withoutRetiredKeys(value) {
+  const clean = { ...(value || {}) };
+  for (const key of RETIRED_SETTING_KEYS) delete clean[key];
   return clean;
 }
 
@@ -345,12 +297,15 @@ function normalizeHomeLimitAccountCount(value) {
 
 function defaultSettings() {
   const envHubUrl = normalizeHubUrl(process.env.TOKEN_MONITOR_HUB_URL || '');
-  const collectionMode = normalizeCollectionMode(process.env.TOKEN_MONITOR_COLLECTION_MODE);
   return {
+    // Connection (the settings page's 连接 group).
     hubMode: envHubUrl ? 'client' : 'local',
     hubUrl: envHubUrl,
     secret: process.env.TOKEN_MONITOR_SECRET || '',
     allowInsecureHubHttp: parseBoolean(process.env.TOKEN_MONITOR_ALLOW_INSECURE_HTTP, false),
+    deviceId: normalizeDeviceIdValue(process.env.TOKEN_MONITOR_DEVICE_ID, defaultDeviceId()),
+    // Display (the settings page's 显示 group) plus the browser preferences the
+    // shared UI persists through its prefs channel.
     theme: 'system',
     systemGlass: true,
     macosGlassStyle: macosLiquidGlassAvailable({ platform: process.platform, osRelease: os.release() })
@@ -358,63 +313,22 @@ function defaultSettings() {
       : MACOS_GLASS_VIBRANCY,
     windowsBackdrop: 'mica',
     reduceMotion: 'system',
-    showLiveDot: true,
-    showToolIcons: true,
-    titleIconOnly: false,
-    showCompactTotalTokens: true,
-    heatmapMetric: 'cost',
-    homeActiveDaysWindow: 'all',
-    themeColors: {},
-    vendorColors: {},
-    lastViewState: { period: 'today', breakdown: 'tool' },
-    discordRpcEnabled: false,
-    deviceId: normalizeDeviceIdValue(process.env.TOKEN_MONITOR_DEVICE_ID, defaultDeviceId()),
-    lastPostedDeviceId: '',
-    viewDisplayOrder: '',
-    hiddenViews: defaultViewDisplayPreferences().hiddenViews,
-    homeModuleOrder: defaultHomeModulePreferences().homeModuleOrder,
-    hiddenHomeModules: defaultHomeModulePreferences().hiddenHomeModules,
-    showHomeLimitBars: true,
-    showHomeLimitProviderNames: true,
-    projectsEnabled: parseBoolean(process.env.TOKEN_MONITOR_PROJECTS_ENABLED, false),
-    historyEnabled: parseBoolean(process.env.TOKEN_MONITOR_HISTORY_ENABLED, true),
-    historyIntervalMs: normalizeHistoryIntervalMs(process.env.TOKEN_MONITOR_HISTORY_INTERVAL_MS),
-    sessionUsageArchiveEnabled: parseBoolean(process.env.TOKEN_MONITOR_SESSION_USAGE_ARCHIVE_ENABLED, true),
-    wslScanEnabled: parseBoolean(process.env.TOKEN_MONITOR_WSL_SCAN, true),
-    exportAutoEnabled: false,
-    exportDir: '',
-    exportIntervalMs: 60 * 1000,
-    collectionMode,
-    // Pause is a user-visible switch, not a mode: the collectors stop producing
-    // while the window, cache and (in client mode) the Hub stream stay alive.
-    collectionPaused: parseBoolean(process.env.TOKEN_MONITOR_COLLECTION_PAUSED, false),
-    // Default desktop behaviour: closing the window hides it to the tray, and a
-    // login-item launch starts hidden rather than popping a window at sign-in.
-    closeToTray: parseBoolean(process.env.TOKEN_MONITOR_CLOSE_TO_TRAY, true),
-    startHidden: parseBoolean(process.env.TOKEN_MONITOR_START_HIDDEN, true),
-    collectionIntervalMs: normalizeCollectionIntervalMs(
-      process.env.TOKEN_MONITOR_INTERVAL_MS,
-      collectionMode === 'smart' ? SHARED_DEFAULT_SMART_COLLECTION_INTERVAL_MS : SHARED_DEFAULT_COLLECTION_INTERVAL_MS
-    ),
-    watchEnabled: parseBoolean(process.env.TOKEN_MONITOR_WATCH, true),
-    watchDebounceMs: normalizeSharedWatchDebounceMs(process.env.TOKEN_MONITOR_WATCH_DEBOUNCE_MS),
-    syncUploadIntervalMs: normalizeSyncUploadIntervalMs(process.env.TOKEN_MONITOR_SYNC_UPLOAD_INTERVAL_MS),
-    allTimeSince: normalizeAllTimeSince(process.env.TOKEN_MONITOR_ALL_TIME_SINCE),
-    customModelPricing: [],
-    limitProviderOrder: defaultLimitProviderOrder(),
-    homeLimitProviderOrder: '',
-    hiddenHomeLimitProviders: '',
-    homeLimitAccountCount: HOME_LIMIT_ACCOUNT_COUNT_DEFAULT,
-    showLimitSource: parseBoolean(process.env.TOKEN_MONITOR_SHOW_LIMIT_SOURCE, true),
-    maskLimitAccountEmails: false,
-    showLimitUsed: parseBoolean(process.env.TOKEN_MONITOR_SHOW_LIMIT_USED, false),
-    windowBounds: null,
-    zoomFactor: 1,
+    language: 'auto',
     currency: normalizeCurrency(process.env.TOKEN_MONITOR_CURRENCY || 'USD'),
     currencyRates: {},
+    heatmapMetric: 'cost',
+    homeActiveDaysWindow: 'all',
+    homeLimitAccountCount: HOME_LIMIT_ACCOUNT_COUNT_DEFAULT,
+    // Behaviour (the settings page's 行为 group) and the tray's pause switch.
     startAtLogin: false,
-    automaticAppUpdates: false,
-    language: 'auto',
+    closeToTray: parseBoolean(process.env.TOKEN_MONITOR_CLOSE_TO_TRAY, true),
+    startHidden: parseBoolean(process.env.TOKEN_MONITOR_START_HIDDEN, true),
+    collectionPaused: parseBoolean(process.env.TOKEN_MONITOR_COLLECTION_PAUSED, false),
+    // Main-process-owned runtime state, never offered to the renderer.
+    windowBounds: null,
+    lastViewState: { period: 'today', breakdown: 'tool' },
+    lastPostedDeviceId: '',
+    zoomFactor: 1,
     appUpdate: {
       lastCheckedAt: null,
       lastKnownLatest: null,
@@ -423,9 +337,7 @@ function defaultSettings() {
   };
 }
 
-function normalizeCollectionMode(value, fallback = 'live') {
-  return normalizeSharedCollectionMode(value, fallback);
-}
+
 
 function normalizeHeatmapMetric(value, fallback = 'cost') {  const next = String(value || '').trim();
   if (next === 'tokens' || next === 'cost') return next;
@@ -446,16 +358,6 @@ function normalizeThemeChoice(value, fallback = 'system') {
   return THEME_VALUES.has(fallback) ? fallback : 'system';
 }
 
-const ALL_TIME_SINCE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-// tokscale reads this as the anchor of the all-time window, so a malformed value
-// would silently make every "since" figure wrong rather than fail loudly.
-function normalizeAllTimeSince(value, fallback = '2024-01-01') {
-  const raw = String(value || '').trim();
-  if (!ALL_TIME_SINCE_PATTERN.test(raw)) return normalizeAllTimeSince(fallback);
-  const parsed = Date.parse(`${raw}T00:00:00`);
-  if (Number.isNaN(parsed) || parsed > Date.now()) return normalizeAllTimeSince(fallback);
-  return raw;
-}
 
 // The device id is the Hub's row key and part of local file names, so only
 // path/URL-unsafe characters are replaced. Case is preserved deliberately:
@@ -465,21 +367,9 @@ function normalizeDeviceIdValue(value, fallback = '') {
   return cleaned || fallback;
 }
 
-function normalizeCollectionIntervalMs(value, fallback = DEFAULT_COLLECTION_INTERVAL_MS) {
-  return normalizeSharedCollectionIntervalMs(value, fallback);
-}
 
-function collectorIntervalMs() {
-  return normalizeCollectionIntervalMs(settings?.collectionIntervalMs);
-}
 
-function collectorWatchEnabled() {
-  return settings?.watchEnabled !== false && normalizeCollectionMode(settings?.collectionMode) !== 'interval';
-}
 
-function syncUploadIntervalMs() {
-  return normalizeSyncUploadIntervalMs(settings?.syncUploadIntervalMs);
-}
 
 function electronUsageConfig(errorPrefix) {
   return usageConfigFromSettings(settings, {
@@ -487,15 +377,12 @@ function electronUsageConfig(errorPrefix) {
     agentRuntime: 'electron-widget',
     commandTimeoutMs: 120 * 1000,
     defaultDeviceId: defaultDeviceId(),
-    intervalMs: collectorIntervalMs(),
-    historyIntervalMs: normalizeHistoryIntervalMs(settings.historyIntervalMs),
-    watchEnabled: collectorWatchEnabled(),
-    watchDebounceMs: normalizeSharedWatchDebounceMs(settings.watchDebounceMs),
     dailyHistoryArchiveWriteEnabled: () => !isExternalAgentActive(),
     onError: (error, reason) => console.log(`[${errorPrefix}] ${reason}: ${error.message}`),
     logger: (message) => console.log(`[${errorPrefix}] ${message}`)
   });
 }
+
 
 function electronDeviceEnvelope() {
   return envelopeFromSettings(settings, {
@@ -505,49 +392,11 @@ function electronDeviceEnvelope() {
   });
 }
 
-function defaultLimitProviderOrder() {
-  return parseLimitProviders().join(',');
-}
 
-function migrateLimitProviders(value) {
-  // Saved provider selections are user intent. Normalize ids, but do not expand
-  // older defaults into today's full provider list because the saved shape is
-  // indistinguishable from a deliberate "only these providers" choice.
-  return parseLimitProviders(value).join(',');
-}
 
-function migrateLimitProviderOrder(value) {
-  return parseLimitProviders(value).join(',') || defaultLimitProviderOrder();
-}
 
-function migrateHomeLimitProviderOrder(value) {
-  const isEmpty = value === undefined || value === null || value === ''
-    || (Array.isArray(value) && value.length === 0);
-  if (isEmpty) return '';
-  const normalized = parseLimitProviders(value).join(',');
-  return normalized && normalized !== defaultLimitProviderOrder() ? normalized : '';
-}
 
-function normalizeHiddenLimitProviders(value) {
-  const known = new Set(parseLimitProviders());
-  const raw = Array.isArray(value) ? value : String(value || '').split(',');
-  const seen = new Set();
-  const hidden = [];
-  for (const item of raw) {
-    const id = String(item || '').trim().toLowerCase();
-    if (!known.has(id) || seen.has(id)) continue;
-    seen.add(id);
-    hidden.push(id);
-  }
-  return hidden.join(',');
-}
 
-function migrateViewDisplayOrder(value) {
-  const known = new Set(DEFAULT_VIEW_LIST.map((view) => view.id));
-  const raw = Array.isArray(value) ? value : String(value || '').split(',');
-  const hasKnownView = raw.some((item) => known.has(String(item || '').trim().toLowerCase()));
-  return hasKnownView ? normalizeViewDisplayOrder(value, DEFAULT_VIEW_LIST).join(',') : '';
-}
 
 
 function normalizeHubMode(value, fallback = 'local') {
@@ -817,60 +666,7 @@ function readSettings() {
     delete merged.hubHostSecret;
     delete merged.hubHostAdminSecret;
     delete merged.hubAccountCredentialKey;
-    if (saved.limitProviders !== undefined) {
-      merged.limitProviders = migrateLimitProviders(saved.limitProviders);
-    }
-    if (saved.limitProviderOrder !== undefined) {
-      merged.limitProviderOrder = migrateLimitProviderOrder(saved.limitProviderOrder);
-    }
-    if (saved.viewDisplayOrder !== undefined) {
-      merged.viewDisplayOrder = migrateViewDisplayOrder(saved.viewDisplayOrder);
-    }
-    if (saved.hiddenViews !== undefined) {
-      merged.hiddenViews = migrateHiddenViewsToShared(
-        normalizeHiddenViews(saved.hiddenViews, DEFAULT_VIEW_LIST)
-      );
-      merged.viewDisplayOrder = migrateViewOrderToShared(saved.viewDisplayOrder);
-    }
-    if (saved.homeModuleOrder !== undefined) {
-      merged.homeModuleOrder = normalizeHomeModuleOrder(saved.homeModuleOrder, DEFAULT_HOME_MODULE_LIST).join(',');
-    }
-    if (saved.hiddenHomeModules !== undefined) {
-      merged.hiddenHomeModules = normalizeHiddenHomeModules(saved.hiddenHomeModules, DEFAULT_HOME_MODULE_LIST);
-    }
-    merged.showHomeLimitBars = parseBoolean(merged.showHomeLimitBars, true);
-    merged.showHomeLimitProviderNames = parseBoolean(merged.showHomeLimitProviderNames, true);
-    merged.automaticAppUpdates = parseBoolean(merged.automaticAppUpdates, false);
-    if (saved.homeLimitProviderOrder !== undefined) {
-      merged.homeLimitProviderOrder = migrateHomeLimitProviderOrder(saved.homeLimitProviderOrder);
-    }
-    if (saved.hiddenHomeLimitProviders !== undefined) {
-      merged.hiddenHomeLimitProviders = normalizeHiddenLimitProviders(saved.hiddenHomeLimitProviders);
-    }
     merged.homeLimitAccountCount = normalizeHomeLimitAccountCount(merged.homeLimitAccountCount);
-    if (saved.historyEnabled !== undefined) {
-      merged.historyEnabled = parseBoolean(saved.historyEnabled, false);
-    }
-    if (saved.projectsEnabled !== undefined) {
-      merged.projectsEnabled = parseBoolean(saved.projectsEnabled, true);
-    }
-    if (saved.sessionUsageArchiveEnabled !== undefined) {
-      merged.sessionUsageArchiveEnabled = parseBoolean(saved.sessionUsageArchiveEnabled, true);
-    }
-    if (saved.wslScanEnabled !== undefined) {
-      merged.wslScanEnabled = parseBoolean(saved.wslScanEnabled, true);
-    }
-    if (saved.watchEnabled !== undefined) {
-      merged.watchEnabled = parseBoolean(saved.watchEnabled, true);
-    }
-    if (saved.watchDebounceMs !== undefined) {
-      merged.watchDebounceMs = normalizeSharedWatchDebounceMs(saved.watchDebounceMs);
-    }
-    merged.collectionMode = normalizeCollectionMode(merged.collectionMode);
-    merged.collectionIntervalMs = normalizeCollectionIntervalMs(merged.collectionIntervalMs);
-    merged.watchEnabled = parseBoolean(merged.watchEnabled, true);
-    merged.watchDebounceMs = normalizeSharedWatchDebounceMs(merged.watchDebounceMs);
-    merged.syncUploadIntervalMs = normalizeSyncUploadIntervalMs(merged.syncUploadIntervalMs);
     merged.heatmapMetric = normalizeHeatmapMetric(merged.heatmapMetric);
     merged.homeActiveDaysWindow = normalizeHomeActiveDaysWindow(merged.homeActiveDaysWindow);
     merged.reduceMotion = motionPreferenceApi.normalize(merged.reduceMotion);
@@ -878,7 +674,6 @@ function readSettings() {
     // string 'off', which every consumer reads as "glass on" (`=== false`).
     merged.systemGlass = parseBoolean(merged.systemGlass, true);
     merged.theme = normalizeThemeChoice(merged.theme);
-    merged.allTimeSince = normalizeAllTimeSince(merged.allTimeSince);
     merged.deviceId = normalizeDeviceIdValue(merged.deviceId, defaultDeviceId());
     merged.windowsBackdrop = normalizeWindowsBackdropMode(merged.windowsBackdrop);
     merged.macosGlassStyle = normalizeMacosGlassStyle(merged.macosGlassStyle);
@@ -894,38 +689,16 @@ function readSettings() {
     merged.currencyRates = normalizeCurrencyOverrides(merged.currencyRates);
     delete merged.hubAdminSecret;
     merged.allowInsecureHubHttp = parseBoolean(merged.allowInsecureHubHttp, false);
-    delete merged.edgeDrawerEnabled;
-    // Widget-era keys are dropped rather than migrated: nothing reads them now,
-    // and leaving them in settings.json would imply they still do something.
-    // The client-selection keys are the same story: tracked tools are fixed, the
-    // settings surface that chose them is gone, and the tool-list display
-    // preferences left with it.
-    for (const key of ['windowBehavior', 'alwaysOnTop', 'floatingBubbleEnabled', 'floatingBubbleTrigger',
-      'floatingBubbleContent', 'floatingBubbleCustomLayout', 'floatingBubbleBounds', 'showTrayIcon',
-      'trayMode', 'startInTray', 'trayContent', 'trayCustomLayout',
-      'showTrayProviderBadge', 'windowToggleShortcut',
-      // Device-side quota probing is gone; the Hub owns accounts and publishes
-      // the normalized limits, so neither of these selects anything.
-      'limitsEnabled', 'limitProviders',
-      // The service-status panel is retired: nothing polls it and no view renders
-      // it, so its three preferences would only look still live.
-      'serviceProviderDisplayOrder', 'hiddenServiceProviders', 'serviceStatusRefreshMs',
-      // Retired with the borderless widget window: nothing has read the glass
-      // geometry or the old local poll cadence since the shell moved to SSE/IPC.
-      'refreshMs', 'glassOpacity', 'glassBlur',
-      // Client selection: every wired harness is tracked, so a persisted subset
-      // (and its migration marker) must not linger.
-      'clients', 'migratedDefaultClients',
-      // Tool-list display preferences: no view reads them since the settings
-      // rebuild, and the remove/hide/pin UI is gone.
-      'clientDisplayOrder', 'hiddenClients', 'pinnedClients',
-      // The untracked-client usage archive only existed to keep usage of
-      // deselected clients on screen; with nothing deselectable it has no job.
-      'archivedClientUsage']) {
-      delete merged[key];
-    }
+    // Retired keys are dropped rather than migrated: nothing reads them now, and
+    // leaving them in settings.json would imply they still do something — most
+    // importantly a stale collector-cadence or client-selection value that would
+    // otherwise keep narrowing collection behind a UI that cannot show it.
     invalidateLegacyLocalLimitData();
-    return merged;
+    // Retired keys are dropped rather than migrated: nothing reads them now, and
+    // leaving them in settings.json would imply they still do something — most
+    // importantly a stale collector-cadence or client-selection value that would
+    // otherwise keep narrowing collection behind a UI that cannot show it.
+    return withoutRetiredKeys(merged);
   }
   catch (_error) {
     return defaultSettings();
@@ -1040,8 +813,6 @@ function ensureDeviceIdentityLoaded() {
 }
 
 const syncSummaryTransformer = createSyncSummaryTransformer({
-  sessionUsageArchiveEnabled: () => settings?.sessionUsageArchiveEnabled !== false,
-  projectsEnabled: () => settings?.projectsEnabled !== false,
   canWriteSessionUsageArchive: () => !isExternalAgentActive(),
   onArchiveError: (error, operation) => console.log(`[session-archive] ${operation} failed: ${error.message}`)
 });
@@ -1175,7 +946,7 @@ function applyNativeMaterial(source = settings) {
 }
 
 function withHistoryPreview(stats, devices) {
-  const history = settings?.historyEnabled === false ? aggregateHistory([]) : aggregateHistory(devices);
+  const history = aggregateHistory(devices);
   stats.historyPreview = historyPreview(history);
   stats.historyRevision = historyRevision(history);
   return stats;
@@ -1350,15 +1121,6 @@ let localStatsLive = false;
 let desktopSnapshotCache = null;
 let desktopSnapshotCacheLoaded = false;
 let desktopSnapshotCacheWriteTimer = null;
-const DEFAULT_EXPORT_INTERVAL_MS = 60 * 1000;
-let lastExportAt = 0;
-let lastAutoExport = { dir: null, signature: null };
-
-// User-chosen auto-export throttle (Settings), clamped to a sane floor.
-function exportIntervalMs() {
-  const v = Number(settings.exportIntervalMs);
-  return Number.isFinite(v) && v >= 1000 ? v : DEFAULT_EXPORT_INTERVAL_MS;
-}
 let tokScaleNpmMetadata = null;
 let tokScaleUpdaterBusy = false;
 const AGENT_PID_PATH = pidFilePath();
@@ -1577,7 +1339,7 @@ function startSyncCollector() {
     return;
   }
   const syncUploadSink = createSyncUploadSink({
-    intervalMs: syncUploadIntervalMs(),
+    intervalMs: normalizeSyncUploadIntervalMs(),
     flushTimeoutMs: HUB_REQUEST_TIMEOUT_MS,
     upload: async (summary, context) => {
       updateSyncHealth('upload', { state: 'uploading', failureCode: null, status: null });
@@ -1616,7 +1378,6 @@ function startSyncCollector() {
       cacheLocalSnapshot();
       const displayStats = composeLocalSyncStats(latestHubStats, lastCollectedDevice);
       if (displayStats) {
-        updateDiscordRpc(displayStats, settings.currency);
         sendPush({ event: 'stats', data: { type: 'stats', reason: 'local', stats: displayStats, at: new Date().toISOString() } });
       }
       updateSyncHealth('local', { state: 'ok', lastSuccessAt: new Date().toISOString(), failureCode: null });
@@ -1716,11 +1477,6 @@ function flushPush() {
           snapshot: desktopSnapshotMeta()
         }
       };
-      if (settings.exportAutoEnabled && settings.exportDir && Date.now() - lastExportAt >= exportIntervalMs()) {
-        lastExportAt = Date.now();
-        writeExportTo(settings.exportDir, payload.data.stats.periods, { skipUnchanged: true })
-          .catch((err) => console.warn(`[export] auto-export failed: ${err.message}`));
-      }
     }
     if (mainWindow && !mainWindow.isDestroyed()) {
       // Closing to the tray or minimizing hides the document, so no renderer can
@@ -1809,7 +1565,6 @@ async function refreshExchangeRates({ force = false } = {}) {
     } catch (_) { /* silent: keep last cache / built-in defaults */ }
   }
   applyEffectiveRates();
-  if (settings?.discordRpcEnabled && latestStats) updateDiscordRpc(latestStats, settings.currency);
   pushSettingsToRenderer();
 }
 
@@ -1879,7 +1634,6 @@ function startLocalCollector() {
       );
       localStatsLive = true;
       cacheLocalSnapshot();
-      updateDiscordRpc(localStats, settings.currency);
       sendPush({ event: 'stats', data: { type: 'stats', reason, stats: localStats, at: new Date().toISOString() } });
       updateSyncHealth('local', { state: 'ok', lastSuccessAt: new Date().toISOString(), failureCode: null });
       sendStatus(true, { reason });
@@ -2179,7 +1933,6 @@ async function startStatsStream(options = {}) {
           cacheHubSnapshot();
           const displayStats = composeLocalSyncStats(latestHubStats, lastCollectedDevice);
           parsed = { ...parsed, data: { ...parsed.data, stats: displayStats } };
-          updateDiscordRpc(displayStats, settings.currency);
         }
         sendPush(parsed);
       }
@@ -2323,14 +2076,6 @@ function startMode() {
   return modeQueue;
 }
 
-function restartDeviceRuntimeForMode() {
-  if (mode === 'local') {
-    startLocalCollector();
-    return;
-  }
-  if (settings.hubMode === 'client') startSyncCollector();
-  else startLocalCollector();
-}
 
 function stopAll() {
   stopPersistBoundsTimer();
@@ -2341,7 +2086,6 @@ function stopAll() {
   stopStatsStream();
   stopRestBootstrap();
   stopSyncCollector({ skipCloseWatchers: true });
-  stopDiscordRpc();
 }
 
 let quitRequested = false;
@@ -2382,54 +2126,6 @@ function requestAppQuit() {
   performQuit();
 }
 
-// Write the export file set (JSON + CSVs) into `dir`, atomically (temp + rename)
-// so a synced vault / iCloud never reads a half-written file. Pulls history
-// itself; callers pass only `periods` (privacy: devices/limits never enter).
-async function writeExportTo(dir, periods, options = {}) {
-  if (!dir) return { ok: false, reason: 'no-dir' };
-  const history = await getDashboardHistory().catch(() => null);
-  // History unavailable (e.g. a transient hub fetch failure) is NOT the same as
-  // "no history": writing a snapshot-only set would emit empty time-series JSON
-  // AND the orphan cleanup below would delete an existing daily.csv. Never write a
-  // destructive partial — skip and report, so auto-export retries next tick and
-  // manual export can surface the failure instead of silently losing data.
-  if (!history) return { ok: false, reason: 'history-unavailable' };
-  // Auto-export skips rewriting a synced folder when the data is unchanged
-  // (keyed by dir so pointing at a fresh folder always writes). Manual export
-  // never skips. Signature compares inputs, not files, to ignore the volatile
-  // generatedAt in the JSON.
-  let signature = null;
-  if (options.skipUnchanged) {
-    signature = exportSignature(periods || {}, history);
-    if (dir === lastAutoExport.dir && signature === lastAutoExport.signature) return { ok: true, skipped: true };
-  }
-  const files = exportFileSet({
-    periods: periods || {},
-    history,
-    meta: { generatedAt: new Date().toISOString(), app: { name: 'token-monitor', version: appVersion() } }
-  });
-  await fs.promises.mkdir(dir, { recursive: true });
-  // Per-call token so a concurrent auto + manual export to the same folder never
-  // share a temp filename (which would break one side's rename or write half an update).
-  const runToken = crypto.randomUUID();
-  const written = new Set();
-  for (const file of files) {
-    const dest = path.join(dir, file.name);
-    const tmp = `${dest}.tmp-${process.pid}-${runToken}`;
-    await fs.promises.writeFile(tmp, file.contents);
-    await fs.promises.rename(tmp, dest);
-    written.add(file.name);
-  }
-  // Remove orphaned generated files (e.g. a stale daily.csv once history empties)
-  // so consumers never read outdated data.
-  for (const name of EXPORT_FILENAMES) {
-    if (!written.has(name)) await fs.promises.rm(path.join(dir, name), { force: true });
-  }
-  // Record the signature only after a fully successful write, so a failed write
-  // retries next tick instead of being skipped forever.
-  if (options.skipUnchanged) lastAutoExport = { dir, signature };
-  return { ok: true };
-}
 
 async function fetchStats(options = {}) {
   // Apply anything still inside the push coalescing window so callers never see a
@@ -2596,30 +2292,7 @@ function stopSyncNetworkMonitor() {
   lastNetworkOnline = null;
 }
 
-function managedPricingSidecarPath() {
-  return path.join(app.getPath('userData'), 'tokscale-managed-pricing.json');
-}
 
-function regenerateTokscalePricing() {
-  try {
-    applyCustomPricing(settings.customModelPricing || [], {
-      pricingPath: customPricingPath(),
-      sidecarPath: managedPricingSidecarPath()
-    });
-  } catch (error) {
-    console.warn(`[pricing] failed to write custom-pricing.json: ${error.message}`);
-  }
-}
-
-async function refreshAfterPricingChange() {
-  try {
-    if (deviceRuntimeHandle && (mode === 'local' || !isExternalAgentActive())) {
-      await deviceRuntimeHandle.tick('manual', {});
-    }
-  } catch (error) {
-    console.warn(`[pricing] refresh after pricing change failed: ${error.message}`);
-  }
-}
 
 function stripTokscaleMetadata(result) {
   if (!result || typeof result !== 'object') return result;
@@ -2864,7 +2537,7 @@ async function runAppUpdateCheck({ force = false, bypassCooldown = false } = {})
       }
       sendAppUpdatePush();
     }
-    return maybeDownloadAutomaticAppUpdate(deriveAppUpdateState());
+    return deriveAppUpdateState();
   }
   const block = settings?.appUpdate || {};
   if (!bypassCooldown && shouldSkipAppUpdateCheck({
@@ -2874,7 +2547,7 @@ async function runAppUpdateCheck({ force = false, bypassCooldown = false } = {})
     dismissedVersion: block.dismissedVersion,
     currentVersion: app.getVersion()
   })) {
-    return maybeDownloadAutomaticAppUpdate(deriveAppUpdateState());
+    return deriveAppUpdateState();
   }
   const checkTask = (async () => {
     appUpdateCheckInFlight = true;
@@ -2908,15 +2581,7 @@ async function runAppUpdateCheck({ force = false, bypassCooldown = false } = {})
   } finally {
     if (appUpdateCheckPromise === checkTask) appUpdateCheckPromise = null;
   }
-  return maybeDownloadAutomaticAppUpdate(deriveAppUpdateState());
-}
-
-async function maybeDownloadAutomaticAppUpdate(updateState) {
-  if (!shouldDownloadAutomaticAppUpdate({
-    automaticAppUpdates: settings?.automaticAppUpdates,
-    updateState
-  })) return updateState;
-  return downloadAndPrepareAppUpdate();
+  return deriveAppUpdateState();
 }
 
 function maybeRunBackgroundUpdateCheck() {
@@ -3207,7 +2872,6 @@ function handleZoomShortcut(event, input) {
 
 
 async function getDashboardHistory(options = {}) {
-  if (settings?.historyEnabled === false) return aggregateHistory([]);
   const deviceId = String(options?.query?.get?.('deviceId') || '').trim();
   const localDeviceHistory = () => deviceId && String(localDevice?.deviceId || '') === deviceId
     ? aggregateHistory([localDevice])
@@ -3306,7 +2970,7 @@ function localCapabilitiesForRenderer() {
     scopes: ['read', 'admin'],
     capabilities: {
       stats: true,
-      history: settings?.historyEnabled !== false,
+      history: true,
       statsStream: clientMode,
       subscriptions: clientMode && hubCaps.subscriptions !== false,
       usageRange: !clientMode || hubCaps.usageRange !== false,
@@ -3459,7 +3123,6 @@ async function fetchCustomRangeStats(rangeInput) {
         clients,
         range,
         commandTimeoutMs,
-        projectsEnabled: settings.projectsEnabled !== false,
         homeDir: os.homedir()
       });
       return { ok: true, ...result };
@@ -3740,8 +3403,6 @@ app.whenReady().then(() => {
   cleanupStaleStaging().catch((error) => console.log(`[tokscale] staging cleanup failed: ${error.message}`));
   buildApplicationMenu();
   powerMonitor.on('resume', handleSystemResume);
-  regenerateTokscalePricing();
-  if (settings.discordRpcEnabled) startDiscordRpc();
   rateCache = readRateCache();
   applyEffectiveRates();                 // use cache/defaults immediately, avoid first-paint gap
   refreshExchangeRates();                // non-blocking: only fetches when stale
@@ -3774,20 +3435,14 @@ app.whenReady().then(() => {
     const previousRuntimeSettings = JSON.parse(JSON.stringify(settings));
     const previousNativeMaterial = nativeBlurEnabled();
     const previousWindowsSurface = windowsSurfaceFor({ systemGlass: previousNativeMaterial }).kind;
-    const previousDiscordRpcEnabled = settings.discordRpcEnabled;
-    const previousCurrency = settings.currency;
     const previousStartAtLogin = settings.startAtLogin;
-    const previousAutomaticAppUpdates = settings.automaticAppUpdates;
-    const previousCustomModelPricing = JSON.stringify(settings.customModelPricing || []);
     const normalizedCurrency = patch.currency !== undefined ? normalizeCurrency(patch.currency, settings.currency) : normalizeCurrency(settings.currency);
-    const normalizedPatch = { ...withoutInternalOnlyKeys(stripLegacyLocalLimitSettings(patch)), currency: normalizedCurrency };
-    delete normalizedPatch.customModelPricing;
-    // Client selection and the tool-list preferences it fed are gone. A renderer
-    // (or an old preload) that still sends them must not resurrect the keys.
-    for (const key of ['clients', 'migratedDefaultClients', 'clientDisplayOrder',
-      'hiddenClients', 'pinnedClients', 'archivedClientUsage']) {
-      delete normalizedPatch[key];
-    }
+    // A renderer (or an old preload) must not resurrect a key the app has
+    // retired: the same list readSettings drops on load is dropped on write.
+    const normalizedPatch = {
+      ...withoutRetiredKeys(withoutInternalOnlyKeys(stripLegacyLocalLimitSettings(patch))),
+      currency: normalizedCurrency
+    };
     if (patch.hubUrl !== undefined) normalizedPatch.hubUrl = normalizeHubUrl(patch.hubUrl);
     delete normalizedPatch.hubAdminSecret;
     if (patch.allowInsecureHubHttp !== undefined) {
@@ -3805,11 +3460,6 @@ app.whenReady().then(() => {
     delete normalizedPatch.hubHostSecret;
     delete normalizedPatch.hubHostAdminSecret;
     delete normalizedPatch.hubAccountCredentialKey;
-    if (patch.collectionMode !== undefined) normalizedPatch.collectionMode = normalizeCollectionMode(patch.collectionMode, settings.collectionMode);
-    if (patch.collectionIntervalMs !== undefined) normalizedPatch.collectionIntervalMs = normalizeCollectionIntervalMs(patch.collectionIntervalMs, settings.collectionIntervalMs);
-    if (patch.syncUploadIntervalMs !== undefined) normalizedPatch.syncUploadIntervalMs = normalizeSyncUploadIntervalMs(patch.syncUploadIntervalMs, settings.syncUploadIntervalMs);
-    if (patch.watchEnabled !== undefined) normalizedPatch.watchEnabled = parseBoolean(patch.watchEnabled, settings.watchEnabled !== false);
-    if (patch.watchDebounceMs !== undefined) normalizedPatch.watchDebounceMs = normalizeSharedWatchDebounceMs(patch.watchDebounceMs, settings.watchDebounceMs);
     if (patch.heatmapMetric !== undefined) normalizedPatch.heatmapMetric = normalizeHeatmapMetric(patch.heatmapMetric, settings.heatmapMetric);
     if (patch.homeActiveDaysWindow !== undefined) normalizedPatch.homeActiveDaysWindow = normalizeHomeActiveDaysWindow(patch.homeActiveDaysWindow, settings.homeActiveDaysWindow);
     settings = {
@@ -3818,7 +3468,6 @@ app.whenReady().then(() => {
       hubMode: patch.hubMode !== undefined ? normalizeHubMode(patch.hubMode, settings.hubMode) : settings.hubMode,
       deviceId: normalizeDeviceIdValue(patch.deviceId !== undefined ? patch.deviceId : settings.deviceId, defaultDeviceId()),
       theme: normalizeThemeChoice(patch.theme !== undefined ? patch.theme : settings.theme),
-      allTimeSince: normalizeAllTimeSince(patch.allTimeSince !== undefined ? patch.allTimeSince : settings.allTimeSince),
       systemGlass: parseBoolean(patch.systemGlass ?? settings.systemGlass, true),
       collectionPaused: parseBoolean(patch.collectionPaused ?? settings.collectionPaused, false),
       closeToTray: parseBoolean(patch.closeToTray ?? settings.closeToTray, true),
@@ -3826,43 +3475,12 @@ app.whenReady().then(() => {
       macosGlassStyle: normalizeMacosGlassStyle(patch.macosGlassStyle ?? settings.macosGlassStyle),
       windowsBackdrop: normalizeWindowsBackdropMode(patch.windowsBackdrop ?? settings.windowsBackdrop),
       reduceMotion: motionPreferenceApi.normalize(patch.reduceMotion ?? settings.reduceMotion),
-      showLiveDot: patch.showLiveDot ?? settings.showLiveDot ?? true,
-      showToolIcons: patch.showToolIcons ?? settings.showToolIcons ?? true,
-      titleIconOnly: parseBoolean(patch.titleIconOnly ?? settings.titleIconOnly, false),
-      showCompactTotalTokens: parseBoolean(patch.showCompactTotalTokens ?? settings.showCompactTotalTokens, true),
-      discordRpcEnabled: patch.discordRpcEnabled ?? settings.discordRpcEnabled ?? false,
-      limitProviderOrder: patch.limitProviderOrder !== undefined ? migrateLimitProviderOrder(patch.limitProviderOrder) : settings.limitProviderOrder,
-      viewDisplayOrder: patch.viewDisplayOrder !== undefined ? migrateViewOrderToShared(patch.viewDisplayOrder) : (settings.viewDisplayOrder || ''),
-      hiddenViews: patch.hiddenViews !== undefined ? normalizeHiddenViews(patch.hiddenViews, DEFAULT_VIEW_LIST) : normalizeHiddenViews(settings.hiddenViews, DEFAULT_VIEW_LIST),
-      homeModuleOrder: patch.homeModuleOrder !== undefined ? normalizeHomeModuleOrder(patch.homeModuleOrder, DEFAULT_HOME_MODULE_LIST).join(',') : normalizeHomeModuleOrder(settings.homeModuleOrder, DEFAULT_HOME_MODULE_LIST).join(','),
-      hiddenHomeModules: patch.hiddenHomeModules !== undefined ? normalizeHiddenHomeModules(patch.hiddenHomeModules, DEFAULT_HOME_MODULE_LIST) : normalizeHiddenHomeModules(settings.hiddenHomeModules, DEFAULT_HOME_MODULE_LIST),
-      showHomeLimitBars: parseBoolean(patch.showHomeLimitBars ?? settings.showHomeLimitBars, true),
-      showHomeLimitProviderNames: parseBoolean(patch.showHomeLimitProviderNames ?? settings.showHomeLimitProviderNames, true),
-      homeLimitProviderOrder: patch.homeLimitProviderOrder !== undefined ? migrateHomeLimitProviderOrder(patch.homeLimitProviderOrder) : (settings.homeLimitProviderOrder || ''),
-      hiddenHomeLimitProviders: patch.hiddenHomeLimitProviders !== undefined ? normalizeHiddenLimitProviders(patch.hiddenHomeLimitProviders) : normalizeHiddenLimitProviders(settings.hiddenHomeLimitProviders),
       homeLimitAccountCount: normalizeHomeLimitAccountCount(patch.homeLimitAccountCount ?? settings.homeLimitAccountCount),
-      historyEnabled: parseBoolean(patch.historyEnabled ?? settings.historyEnabled, false),
-      projectsEnabled: parseBoolean(patch.projectsEnabled ?? settings.projectsEnabled, true),
-      historyIntervalMs: normalizeHistoryIntervalMs(patch.historyIntervalMs ?? settings.historyIntervalMs),
-      sessionUsageArchiveEnabled: parseBoolean(patch.sessionUsageArchiveEnabled ?? settings.sessionUsageArchiveEnabled, true),
-      wslScanEnabled: parseBoolean(patch.wslScanEnabled ?? settings.wslScanEnabled, true),
-      collectionMode: normalizeCollectionMode(patch.collectionMode ?? settings.collectionMode),
-      collectionIntervalMs: normalizeCollectionIntervalMs(patch.collectionIntervalMs ?? settings.collectionIntervalMs),
-      watchEnabled: parseBoolean(patch.watchEnabled ?? settings.watchEnabled, true),
-      watchDebounceMs: normalizeSharedWatchDebounceMs(patch.watchDebounceMs ?? settings.watchDebounceMs),
-      syncUploadIntervalMs: normalizeSyncUploadIntervalMs(patch.syncUploadIntervalMs ?? settings.syncUploadIntervalMs),
-      showLimitSource: parseBoolean(patch.showLimitSource ?? settings.showLimitSource, true),
-      maskLimitAccountEmails: parseBoolean(patch.maskLimitAccountEmails ?? settings.maskLimitAccountEmails, false),
-      showLimitUsed: parseBoolean(patch.showLimitUsed ?? settings.showLimitUsed, false),
       zoomFactor: clampZoom(patch.zoomFactor ?? settings.zoomFactor),
       currency: normalizedCurrency,
       currencyRates: patch.currencyRates !== undefined ? normalizeCurrencyOverrides(patch.currencyRates) : normalizeCurrencyOverrides(settings.currencyRates),
       language: patch.language !== undefined ? normalizeLanguageSetting(patch.language, settings.language) : normalizeLanguageSetting(settings.language),
-      startAtLogin: loginItemEnabledHere() ? parseBoolean(patch.startAtLogin ?? settings.startAtLogin, false) : false,
-      automaticAppUpdates: parseBoolean(patch.automaticAppUpdates ?? settings.automaticAppUpdates, false),
-      customModelPricing: patch.customModelPricing !== undefined
-        ? normalizeCustomPricingSetting(patch.customModelPricing)
-        : normalizeCustomPricingSetting(settings.customModelPricing)
+      startAtLogin: loginItemEnabledHere() ? parseBoolean(patch.startAtLogin ?? settings.startAtLogin, false) : false
     };
     delete settings.edgeDrawerEnabled;
     try {
@@ -3870,10 +3488,6 @@ app.whenReady().then(() => {
     } catch (error) {
       settings = previousSettingsState;
       throw error;
-    }
-    if (JSON.stringify(settings.customModelPricing || []) !== previousCustomModelPricing) {
-      regenerateTokscalePricing();
-      refreshAfterPricingChange();
     }
     if (settings.startAtLogin !== previousStartAtLogin) {
       // Trust the request over the read-back: an OS layer that cannot confirm
@@ -3891,16 +3505,7 @@ app.whenReady().then(() => {
       // did not change.
       applyLoginItem(true);
     }
-    if (settings.automaticAppUpdates && !previousAutomaticAppUpdates) {
-      runAppUpdateCheck({ bypassCooldown: true }).catch(() => {});
-    }
     if (patch.zoomFactor !== undefined) applyZoomFactor();
-    if (settings.discordRpcEnabled && !previousDiscordRpcEnabled) {
-      startDiscordRpc();
-      if (latestStats) updateDiscordRpc(latestStats, settings.currency);
-    }
-    else if (!settings.discordRpcEnabled && previousDiscordRpcEnabled) stopDiscordRpc();
-    else if (settings.discordRpcEnabled && settings.currency !== previousCurrency && latestStats) updateDiscordRpc(latestStats, settings.currency);
     applyWindowSettings();
     applyNativeTheme(mainWindow, settings);
     const nextNativeMaterial = nativeBlurEnabled();
@@ -3920,12 +3525,9 @@ app.whenReady().then(() => {
       startMode();
     } else if (runtimeChange.modeStructural) {
       startMode();
-    } else if (runtimeChange.usageStructural || runtimeChange.sinkStructural) {
-      restartDeviceRuntimeForMode();
     }
     if (patch.currency !== undefined || patch.currencyRates !== undefined) {
       applyEffectiveRates();               // sync: settingsForRenderer() below sees fresh effective map
-      if (settings.discordRpcEnabled && latestStats) updateDiscordRpc(latestStats, settings.currency);
       refreshExchangeRates();              // async: fetch if stale, then re-push
     }
     refreshApplicationTrayMenu();
@@ -3947,25 +3549,6 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('stats:getCustomRange', (_event, rangeInput) => fetchCustomRangeStats(rangeInput));
 
-  ipcMain.handle('export:now', async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory', 'createDirectory'],
-      defaultPath: settings.exportDir || app.getPath('home')
-    });
-    if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true };
-    const stats = await fetchStats();
-    const written = await writeExportTo(result.filePaths[0], stats.periods);
-    if (!written.ok) return { ok: false, dir: result.filePaths[0], reason: written.reason || 'write-failed' };
-    return { ok: true, dir: result.filePaths[0] };
-  });
-  ipcMain.handle('export:pickAutoDir', async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory', 'createDirectory'],
-      defaultPath: settings.exportDir || app.getPath('home')
-    });
-    if (result.canceled || !result.filePaths[0]) return { ok: false, canceled: true };
-    return { ok: true, dir: result.filePaths[0] };
-  });
   ipcMain.handle('diagnostics:export', async () => {
     // Save dialog rather than a fixed folder: the point is that the user reads the
     // file before attaching it anywhere.

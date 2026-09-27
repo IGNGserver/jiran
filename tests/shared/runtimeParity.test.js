@@ -57,11 +57,32 @@ test('Electron and headless usage configuration is built by one shared contract'
   assert.equal(usageConfigFromSettings(source, context).clients, TRACKED_CLIENTS);
 });
 
-test('smart mode uses the configured shared collection interval in both runtimes', () => {
-  const source = { collectionMode: 'smart', collectionIntervalMs: 750000 };
-  assert.equal(usageConfigFromSource(source).intervalMs, 750000);
-  assert.equal(usageConfigFromSettings(source).intervalMs, 750000);
-  assert.equal(usageConfigFromSource({ collectionMode: 'smart' }).intervalMs, 600000);
+test('a retired cadence value cannot narrow either runtime', () => {
+  // collectionMode / collectionIntervalMs / watch / history / projects / WSL left
+  // the settings document with the surface that wrote them: both runtimes must
+  // report the fixed live cadence whatever a stale settings.json or env says.
+  const retired = {
+    collectionMode: 'interval',
+    collectionIntervalMs: 750000,
+    watchEnabled: false,
+    historyEnabled: false,
+    projectsEnabled: false,
+    sessionUsageArchiveEnabled: false,
+    wslScanEnabled: false,
+    allTimeSince: '2020-01-01',
+    clients: 'claude'
+  };
+  for (const build of [usageConfigFromSource, usageConfigFromSettings]) {
+    const config = build(retired);
+    assert.equal(config.intervalMs, 300000);
+    assert.equal(config.watchEnabled, true);
+    assert.equal(config.historyEnabled, true);
+    assert.equal(config.projectsEnabled, true);
+    assert.equal(config.dailyHistoryArchiveEnabled, true);
+    assert.equal(config.wslScanEnabled, true);
+    assert.equal(config.allTimeSince, '2024-01-01');
+    assert.equal(config.clients, TRACKED_CLIENTS);
+  }
 });
 
 test('both modes serialize the same transformed detection snapshot', () => {

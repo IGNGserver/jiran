@@ -1,91 +1,59 @@
 'use strict';
 
-const { parseBoolean } = require('./config');
+// The single place that fixes how usage is collected.
+//
+// Every knob below used to be a settings.json key plus an env var plus (for the
+// agent) a CLI flag. The desktop settings surface that carried them is gone, so
+// the keys are gone with it: a persisted `settings.historyEnabled = false` or a
+// `TOKEN_MONITOR_PROJECTS_ENABLED=0` must not keep narrowing collection for a
+// machine that has no way to discover or change the switch any more. What is
+// left here is a constant, and `source` only carries the two values that are
+// genuinely per-device inputs (identity and the tokscale timeout).
+//
+// The *wire* fields (projectsEnabled / syncUploadIntervalMs / periodWindows)
+// keep their shape — they are a producer manifest documented in docs/API.md and
+// older agents and third-party producers still send them. Only the local
+// configuration surface disappeared.
+
 const { TRACKED_CLIENTS } = require('./clientTracking');
 const { normalizeHistoryIntervalMs } = require('./collector');
 const { normalizeSyncUploadIntervalMs } = require('./syncUploadScheduler');
 
-const COLLECTION_MODES = Object.freeze(['live', 'interval', 'smart']);
-const COLLECTION_INTERVAL_OPTIONS = Object.freeze([
-  5 * 60 * 1000,
-  15 * 60 * 1000,
-  30 * 60 * 1000
-]);
+// "live" cadence, which is the only behaviour the product promises: watch the
+// source files, fall back to a 5 minute interval scan, derive month/allTime
+// exactly from the last full scan (AGENTS.md, collector pipeline).
 const DEFAULT_COLLECTION_INTERVAL_MS = 5 * 60 * 1000;
-const DEFAULT_SMART_COLLECTION_INTERVAL_MS = 10 * 60 * 1000;
 const DEFAULT_WATCH_DEBOUNCE_MS = 1500;
 const DEFAULT_COMMAND_TIMEOUT_MS = 120 * 1000;
 const DEFAULT_SYNC_UPLOAD_TIMEOUT_MS = 15 * 1000;
-const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
-
-function normalizeCollectionMode(value, fallback = 'live') {
-  const next = String(value || '').trim().toLowerCase();
-  if (COLLECTION_MODES.includes(next)) return next;
-  const fallbackValue = String(fallback || '').trim().toLowerCase();
-  return COLLECTION_MODES.includes(fallbackValue) ? fallbackValue : 'live';
-}
-
-function normalizeCollectionIntervalMs(value, fallback = DEFAULT_COLLECTION_INTERVAL_MS) {
-  const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed > 0 && parsed <= MAX_TIMER_DELAY_MS) return parsed;
-  const fallbackParsed = Number(fallback);
-  if (Number.isFinite(fallbackParsed) && fallbackParsed > 0 && fallbackParsed <= MAX_TIMER_DELAY_MS) return fallbackParsed;
-  return DEFAULT_COLLECTION_INTERVAL_MS;
-}
-
-function normalizeWatchDebounceMs(value, fallback = DEFAULT_WATCH_DEBOUNCE_MS) {
-  return normalizeCollectionIntervalMs(value, fallback);
-}
+const DEFAULT_ALL_TIME_SINCE = '2024-01-01';
 
 function usageConfigFromSource(source = {}, context = {}) {
-  const mode = normalizeCollectionMode(
-    source.collectionMode ?? context.collectionMode,
-    context.collectionMode || 'live'
-  );
-  const configuredInterval = context.intervalMs ?? source.collectionIntervalMs;
-  const intervalMs = mode === 'smart'
-    ? normalizeCollectionIntervalMs(
-      context.smartIntervalMs ?? source.smartIntervalMs ?? configuredInterval,
-      DEFAULT_SMART_COLLECTION_INTERVAL_MS
-    )
-    : normalizeCollectionIntervalMs(configuredInterval, DEFAULT_COLLECTION_INTERVAL_MS);
-  const configuredWatch = context.watchEnabled ?? source.watchEnabled;
-  const watchEnabled = mode === 'interval'
-    ? false
-    : configuredWatch === undefined
-      ? true
-      : parseBoolean(configuredWatch, true);
-  const watchTriggersCollection = context.watchTriggersCollection ?? mode === 'live';
-  const intervalRequiresActivity = context.intervalRequiresActivity ?? mode === 'smart';
-
   return {
-    // The tracked set is fixed. Neither runtime narrows it any more — the desktop
-    // settings surface that selected clients is gone and the headless agent no
-    // longer accepts --clients / TOKEN_MONITOR_CLIENTS — so `source.clients` is
-    // intentionally ignored rather than honoured.
+    // The tracked set is complete and fixed: every wired harness is collected by
+    // every runtime. `source.clients` is ignored on purpose — a persisted or
+    // env-supplied subset must not resurrect the deleted selection surface.
     clients: TRACKED_CLIENTS,
-    allTimeSince: source.allTimeSince || '2024-01-01',
+    allTimeSince: DEFAULT_ALL_TIME_SINCE,
     commandTimeoutMs: Number(context.commandTimeoutMs ?? source.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS),
     deviceId: source.deviceId || context.defaultDeviceId,
     agentVersion: context.agentVersion,
     agentRuntime: context.agentRuntime || 'electron-widget',
-    projectsEnabled: parseBoolean(source.projectsEnabled, false),
-    reasonixNativeSessionsEnabled: context.reasonixNativeSessionsEnabled ?? source.reasonixNativeSessionsEnabled ?? true,
-    historyEnabled: parseBoolean(source.historyEnabled, true),
-    historyIntervalMs: context.historyIntervalMs ?? normalizeHistoryIntervalMs(source.historyIntervalMs),
-    dailyHistoryArchiveEnabled: parseBoolean(source.sessionUsageArchiveEnabled, true),
+    projectsEnabled: true,
+    reasonixNativeSessionsEnabled: context.reasonixNativeSessionsEnabled ?? true,
+    historyEnabled: true,
+    historyIntervalMs: context.historyIntervalMs ?? normalizeHistoryIntervalMs(),
+    dailyHistoryArchiveEnabled: true,
     dailyHistoryArchiveWriteEnabled: context.dailyHistoryArchiveWriteEnabled,
-    anchorPersistenceEnabled: context.anchorPersistenceEnabled ?? source.anchorPersistenceEnabled,
-    intervalMs,
-    watchEnabled,
-    watchTriggersCollection,
-    intervalRequiresActivity,
-    watchDebounceMs: normalizeWatchDebounceMs(context.watchDebounceMs ?? source.watchDebounceMs),
-    wslScanEnabled: parseBoolean(source.wslScanEnabled, true),
-    syncUploadIntervalMs: normalizeSyncUploadIntervalMs(
-      context.syncUploadIntervalMs ?? source.syncUploadIntervalMs
-    ),
-    uploadTimeoutMs: Number(context.uploadTimeoutMs ?? source.uploadTimeoutMs ?? DEFAULT_SYNC_UPLOAD_TIMEOUT_MS),
+    anchorPersistenceEnabled: context.anchorPersistenceEnabled,
+    intervalMs: context.intervalMs ?? DEFAULT_COLLECTION_INTERVAL_MS,
+    watchEnabled: true,
+    watchTriggersCollection: true,
+    intervalRequiresActivity: false,
+    watchDebounceMs: context.watchDebounceMs ?? DEFAULT_WATCH_DEBOUNCE_MS,
+    wslScanEnabled: true,
+    syncUploadIntervalMs: normalizeSyncUploadIntervalMs(context.syncUploadIntervalMs),
+    uploadTimeoutMs: Number(context.uploadTimeoutMs ?? DEFAULT_SYNC_UPLOAD_TIMEOUT_MS),
     onError: context.onError,
     onDiagnosticEvent: context.onDiagnosticEvent,
     logger: context.logger
@@ -93,15 +61,10 @@ function usageConfigFromSource(source = {}, context = {}) {
 }
 
 module.exports = {
-  COLLECTION_INTERVAL_OPTIONS,
-  COLLECTION_MODES,
+  DEFAULT_ALL_TIME_SINCE,
   DEFAULT_COLLECTION_INTERVAL_MS,
   DEFAULT_COMMAND_TIMEOUT_MS,
-  DEFAULT_SMART_COLLECTION_INTERVAL_MS,
   DEFAULT_SYNC_UPLOAD_TIMEOUT_MS,
   DEFAULT_WATCH_DEBOUNCE_MS,
-  normalizeCollectionIntervalMs,
-  normalizeCollectionMode,
-  normalizeWatchDebounceMs,
   usageConfigFromSource
 };

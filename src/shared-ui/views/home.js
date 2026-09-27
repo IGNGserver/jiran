@@ -22,7 +22,7 @@ import {
   modelRows,
   toolRows
 } from '../core/data.js';
-import { tr, escapeHtml, appState, displayFlag, toolIconHtml, viewHelper } from '../core/viewContext.js';
+import { tr, escapeHtml, appState, toolIconHtml, viewHelper } from '../core/viewContext.js';
 import { historySource, renderSparkline, renderHeatmap, renderHistoryScopeNotice } from './trends.js';
 
 const emptyHtml = (key) => viewHelper('emptyHtml')(key);
@@ -139,8 +139,6 @@ export function renderHome() {
     : emptyHtml('empty.usage');
 
   // Limits: graphical cards with progress bars and remaining tone
-  const showHomeLimitBars = displayFlag('showHomeLimitBars', true);
-  const showHomeLimitProviderNames = displayFlag('showHomeLimitProviderNames', true);
   const limitsBody = limits.length
     ? `<div class="home-limits-grid">${limits.map((card) => {
         const remaining = card.lowestRemaining;
@@ -148,7 +146,7 @@ export function renderHome() {
         const toneClass = `meter-${tone}`;
         const pct = remaining == null ? 0 : Math.max(0, Math.min(100, Math.round(remaining)));
         const subParts = [
-          showHomeLimitProviderNames ? clientLabel(card.provider) : '',
+          clientLabel(card.provider),
           card.plan || ''
         ].filter(Boolean);
         return `
@@ -160,7 +158,7 @@ export function renderHome() {
               </div>
               <span class="home-limit-val remaining-tone-${tone}">${remaining == null ? '—' : `${pct}%`}</span>
             </div>
-            ${showHomeLimitBars ? `<div class="home-limit-bar ${toneClass}"><span style="width:${pct}%"></span></div>` : ''}
+            <div class="home-limit-bar ${toneClass}"><span style="width:${pct}%"></span></div>
             ${subParts.length ? `<div class="home-limit-sub">${escapeHtml(subParts.join(' · '))}</div>` : ''}
           </fluent-button>
         `;

@@ -18,18 +18,11 @@ const SECRET_KEY_PATTERN = /(^|[^a-z])(secret|cookie|credential|password|authori
 // wrong". Everything not listed here is omitted, including every raw credential.
 const DIAGNOSTIC_SETTING_KEYS = Object.freeze([
   'hubMode', 'hubUrl', 'allowInsecureHubHttp', 'deviceId', 'lastPostedDeviceId',
-  'collectionMode', 'collectionIntervalMs', 'collectionPaused',
-  'watchEnabled', 'watchDebounceMs', 'projectsEnabled',
-  'historyEnabled', 'historyIntervalMs', 'sessionUsageArchiveEnabled', 'wslScanEnabled',
-  'allTimeSince', 'trackedClients', 'clientStatus', 'wslStatus', 'periodWindows',
+  'collectionPaused', 'trackedClients', 'clientStatus', 'wslStatus', 'periodWindows',
   'language', 'theme', 'currency', 'reduceMotion', 'zoomFactor',
   'systemGlass', 'macosGlassStyle', 'windowsBackdrop', 'windowsSurface',
-  'closeToTray', 'startAtLogin', 'startHidden', 'automaticAppUpdates', 'discordRpcEnabled',
-  'exportAutoEnabled', 'exportIntervalMs', 'syncUploadIntervalMs',
-  'showToolIcons', 'showLiveDot', 'showCompactTotalTokens', 'titleIconOnly',
-  'showLimitSource', 'showLimitUsed', 'maskLimitAccountEmails',
-  'showHomeLimitBars', 'showHomeLimitProviderNames', 'homeLimitAccountCount',
-  'heatmapMetric', 'homeActiveDaysWindow', 'hiddenViews'
+  'closeToTray', 'startAtLogin', 'startHidden', 'homeLimitAccountCount',
+  'heatmapMetric', 'homeActiveDaysWindow'
 ]);
 
 function pickSettings(settings) {

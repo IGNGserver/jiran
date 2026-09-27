@@ -60,16 +60,6 @@ body.is-win32 .desktop-window-title {
   letter-spacing: 0.01em;
 }
 
-/* `titleIconOnly` collapses the strip to the mark: the window is already labelled
-   by the taskbar and the caption buttons, so the text is the redundant half. */
-body.title-icon-only .desktop-window-title,
-body.title-icon-only .desktop-window-context {
-  display: none;
-}
-
-body.title-icon-only .desktop-window-strip {
-  padding-left: 12px;
-}
 
 body.is-win32 .desktop-window-context {
   font-size: 11px;

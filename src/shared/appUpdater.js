@@ -531,20 +531,6 @@ function downloadedAppUpdateMatchesLatest({
   return Boolean(version && latestVersion && version === latestVersion);
 }
 
-function shouldDownloadAutomaticAppUpdate({
-  automaticAppUpdates = false,
-  updateState = null
-} = {}) {
-  return Boolean(
-    automaticAppUpdates
-    && updateState?.hasUpdate
-    && updateState.installSupported
-    && updateState.dismissedVersion !== updateState.latest?.version
-    && !updateState.downloaded
-    && !updateState.installBusy
-    && !updateState.installRetryBlocked
-  );
-}
 
 function deriveAppUpdateAvailability({
   currentVersion,
@@ -616,7 +602,6 @@ module.exports = {
   parseLatestReleasePayload,
   shouldSkipAppUpdateCheck,
   downloadedAppUpdateMatchesLatest,
-  shouldDownloadAutomaticAppUpdate,
   installFailureErrorKind,
   deriveAppUpdateAvailability,
   extractReleaseNotes,

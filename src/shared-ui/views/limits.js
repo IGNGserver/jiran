@@ -12,16 +12,14 @@ import {
   clientLabel,
   limitCards,
   limitRemainingTone,
-  maskAccountEmail,
   statusRows
 } from '../core/data.js';
-import { tr, escapeHtml, appState, displayFlag, toolIconHtml, viewHelper } from '../core/viewContext.js';
+import { tr, escapeHtml, appState, toolIconHtml, viewHelper } from '../core/viewContext.js';
 
 const emptyHtml = (key) => viewHelper('emptyHtml')(key);
 const panel = (...args) => viewHelper('panel')(...args);
 const viewStats = (...args) => viewHelper('viewStats')(...args);
 const usageMetricCard = (...args) => viewHelper('usageMetricCard')(...args);
-const showUsedQuotaBars = () => displayFlag('showLimitUsed', false);
 
 export function localizeWindowLabel(window) {
   if (window?.kind === 'balanceUsd') return tr('limits.balanceUsd');
@@ -69,7 +67,7 @@ export function renderSingleLimitWindow(window) {
   const tone = showMeter ? limitRemainingTone(window.remaining) : 'unknown';
   // The bar can read either way round, but the tone keeps describing how much is
   // left, so "low quota" stays red whichever way the number is phrased.
-  const meterFill = showUsedQuotaBars() ? 100 - window.remaining : window.remaining;
+  const meterFill = window.remaining;
   const primary = (isBalanceKind || !showMeter)
     ? (window.value || (window.remaining != null ? `${Math.round(window.remaining)}%` : '—'))
     : `${Math.round(meterFill)}%`;
@@ -169,12 +167,12 @@ export function renderLimitCards(cards, { compact = false, hideProvider = false 
     <div class="limit-list${compact ? ' limit-list-compact' : ''}">
       ${cards.map((card) => {
         const account = card.accountEmail && card.name !== card.accountEmail
-          ? (displayFlag('maskLimitAccountEmails', false) ? maskAccountEmail(card.accountEmail) : card.accountEmail)
+          ? card.accountEmail
           : '';
         const sub = [
           hideProvider ? '' : clientLabel(card.provider),
           card.plan || '',
-          displayFlag('showLimitSource', true) && card.source ? String(card.source).toUpperCase() : '',
+          card.source ? String(card.source).toUpperCase() : '',
           account
         ].filter(Boolean).join(' · ');
         return `
