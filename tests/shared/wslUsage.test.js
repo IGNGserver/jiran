@@ -9,7 +9,8 @@ const {
   emptyWslBundle,
   wslUsageHomes,
   homeHasData,
-  collectWslUsage
+  collectWslUsage,
+  collectWslRangeUsage
 } = require('../../src/shared/wslUsage');
 
 test('homeHasData returns the client ids whose markers are present', () => {
@@ -427,4 +428,72 @@ test('collectWslUsage logs and skips a home that throws, keeps others', async ()
   assert.equal(bundle.today.totalTokens, 7); // Ubuntu counted, Debian skipped
   assert.equal(logs.length, 1);
   assert.match(logs[0], /Debian/);
+});
+
+// A distro whose only tracked tool is a self-synced client keeps its sessions in
+// the tokscale client cache. cursor/antigravity were missing from the marker list
+// while trae/warp were present, so a Cursor-only home was never scanned at all
+// and its usage simply did not exist on Windows.
+test('a Cursor-only WSL home is discovered and scanned', async () => {
+  const home = '\\\\wsl$\\Ubuntu\\home\\dev';
+  const deps = {
+    platform: 'win32',
+    exec: (cmd) => (cmd === 'reg' ? 'Lxss' : 'Ubuntu\n'),
+    readdirSync: () => ['dev'],
+    existsSync: (p) => p === `${home}\\.config\\tokscale\\cursor-cache`
+  };
+  assert.deepEqual(homeHasData(home, deps.existsSync), ['cursor']);
+  const calls = [];
+  await collectWslUsage(
+    {
+      clients: 'cursor,claude',
+      allTimeSince: '2025-01-01',
+      commandTimeoutMs: 1000,
+      runTokscale: async (opts) => { calls.push(opts.flags); return { entries: [] }; }
+    },
+    deps
+  );
+  assert.ok(calls.length > 0, 'the Cursor-only home produced no tokscale scan');
+  assert.ok(calls.every((flags) => flags.includes(home)));
+});
+
+test('collectWslRangeUsage answers one window per home and merges it', async () => {
+  const home = '\\\\wsl$\\Ubuntu\\home\\dev';
+  const deps = {
+    platform: 'win32',
+    exec: (cmd) => (cmd === 'reg' ? 'Lxss' : 'Ubuntu\n'),
+    readdirSync: () => ['dev'],
+    existsSync: (p) => p === `${home}\\.codex\\sessions`
+  };
+  const flags = [];
+  const clientsSeen = [];
+  const period = await collectWslRangeUsage({
+    clients: 'codex,reasonix,proma',
+    trackedClients: 'codex,reasonix,proma',
+    range: {
+      since: '2026-07-24', until: '2026-07-25', startMs: 1, endMs: 2
+    },
+    commandTimeoutMs: 1000,
+    runTokscale: async (opts) => {
+      flags.push(opts.flags);
+      clientsSeen.push(opts.clients);
+      return {
+        entries: [{
+          client: 'codex', model: 'gpt-5', input: 7, output: 3, cacheRead: 0, cacheWrite: 0, cost: 0.2
+        }]
+      };
+    }
+  }, deps);
+
+  // One ranged call per home, and Reasonix/Proma stay out of the tokscale filter.
+  assert.equal(flags.length, 1);
+  assert.deepEqual(flags[0].slice(0, 4), ['--since', '2026-07-24', '--until', '2026-07-25']);
+  assert.deepEqual(clientsSeen, ['codex']);
+  assert.equal(period.totalTokens, 10);
+  assert.equal(period.clients.codex, 10);
+});
+
+test('collectWslRangeUsage is inert without a window or a client list', async () => {
+  const period = await collectWslRangeUsage({ clients: '', range: { since: 'x', until: 'y' } }, { platform: 'win32', exec: () => '' });
+  assert.equal(period.totalTokens, 0);
 });
