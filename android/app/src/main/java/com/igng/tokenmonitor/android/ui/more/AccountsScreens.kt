@@ -134,18 +134,17 @@ fun AccountsScreen(
 ) {
   val colors = LocalFluentColors.current
   val haptics = rememberAppHaptics()
-  val scopes = state.authorization?.scopes.orEmpty()
-  val isAdmin = scopes.contains("admin")
+  val owner = state.authorization?.authenticated == true
   var editing by remember { mutableStateOf<HubAccountDto?>(null) }
   var creating by remember { mutableStateOf(false) }
 
   Column(Modifier.fillMaxSize()) {
     FluentPageHeader(
       title = "配额账号",
-      subtitle = if (isAdmin) {
+      subtitle = if (owner) {
         "Hub 托管的账号凭据与额度刷新"
       } else {
-        "只读：当前密钥没有 admin 权限，无法新增或修改账号"
+        "连接 Hub 后管理托管的账号凭据与额度刷新"
       }
     )
     Row(
@@ -162,7 +161,7 @@ fun AccountsScreen(
         },
         variant = FluentButtonVariant.Outline
       )
-      if (isAdmin) {
+      if (owner) {
         FluentButton(
           label = "添加账号",
           onClick = {
@@ -193,10 +192,10 @@ fun AccountsScreen(
       }
       accounts.isEmpty() -> EmptyState(
         title = "还没有配额账号",
-        text = if (isAdmin) {
+        text = if (owner) {
           "添加一个账号后，Hub 会按它自己的节奏抓取额度，这个页面和「服务状态」都会显示结果。"
         } else {
-          "请在网页端添加账号，或使用具备 admin 权限的密钥。"
+          "请先连接 Hub 并使用共享密钥。"
         }
       )
       else -> LazyColumn(
@@ -210,9 +209,9 @@ fun AccountsScreen(
       ) {
         accounts.forEachIndexed { index, account ->
           item(key = account.id) {
-            AccountCard(
+              AccountCard(
               account = account,
-              isAdmin = isAdmin,
+                isOwner = owner,
               onRefresh = {
                 haptics.perform(HapticEvent.Refresh)
                 viewModel.refreshAccountQuota(account.id)
@@ -276,7 +275,7 @@ fun AccountsScreen(
 @Composable
 private fun AccountCard(
   account: HubAccountDto,
-  isAdmin: Boolean,
+  isOwner: Boolean,
   onRefresh: () -> Unit,
   onToggleEnabled: (Boolean) -> Unit,
   onEdit: () -> Unit,
@@ -342,7 +341,7 @@ private fun AccountCard(
       contentPadding = 0.dp,
       dividerAbove = dividerAbove
     )
-    if (isAdmin) {
+    if (isOwner) {
       Spacer(Modifier.height(FluentSpacingDefaults.s))
       Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {

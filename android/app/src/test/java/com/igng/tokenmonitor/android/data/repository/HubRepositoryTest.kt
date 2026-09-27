@@ -59,14 +59,12 @@ class HubRepositoryTest {
   @Test fun testConnectionVerifiesHealthAndAuthenticatedStats() = runBlocking {
     server.enqueue(MockResponse().setResponseCode(200).setBody("""{"ok":true,"role":"hub","version":1}"""))
     server.enqueue(MockResponse().setResponseCode(200).setBody("""{"periods":{}}"""))
-    server.enqueue(MockResponse().setResponseCode(200).setBody("""{"apiVersion":2,"capabilities":{"stats":true,"usageRange":false,"pricing":false},"role":"device","scopes":["read","ingest"]}"""))
+    server.enqueue(MockResponse().setResponseCode(200).setBody("""{"apiVersion":3,"capabilities":{"stats":true,"usageRange":false,"pricing":false},"authenticated":true}"""))
 
     val result = repository.testConnection(store.read())
 
     assertTrue(result is HubResult.Success)
     assertEquals("hub", (result as HubResult.Success).value.role)
-    assertEquals("device", result.value.authenticatedRole)
-    assertEquals(listOf("read", "ingest"), result.value.grantedScopes)
     assertEquals("Bearer shared-secret", server.takeRequest().getHeader("Authorization"))
     assertEquals("Bearer shared-secret", server.takeRequest().getHeader("Authorization"))
     assertEquals("Bearer shared-secret", server.takeRequest().getHeader("Authorization"))

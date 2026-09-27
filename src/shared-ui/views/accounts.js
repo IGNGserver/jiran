@@ -37,7 +37,7 @@ export function renderAccounts() {
   const records = accountRecords();
   const editing = records.find((record) => record.id === appState().accountEditId) || null;
   const currentProvider = editing?.provider || appState().accountSelectedProvider || 'deepseek';
-  const canManage = appState().authorization?.scopes?.includes('admin');
+  const canManage = appState().authorization?.authenticated === true;
 
   const healthyCount = records.filter((r) => r.enabled !== false && r.status === 'ok').length;
   const errorCount = records.filter((r) => r.enabled !== false && r.status && r.status !== 'ok').length;

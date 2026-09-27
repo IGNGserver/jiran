@@ -1,6 +1,6 @@
 'use strict';
 
-const HUB_API_VERSION = 2;
+const HUB_API_VERSION = 3;
 
 function hubCapabilities(runtime, options = {}) {
   const hubAccounts = options.hubAccounts === true;

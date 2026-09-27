@@ -97,16 +97,15 @@ test('Hub account API stores credentials centrally and never returns them', asyn
     assert.equal(JSON.stringify(listed.body).includes('server-secret-api-key'), false);
     assert.deepEqual(listed.body.accounts[0].credentialMetadata, { site: 'global', region: 'cn' });
 
+    const owner = await requestJson(port, '/api/accounts', { token: 'admin-token' });
+    assert.equal(owner.response.status, 200);
+    assert.equal(owner.body.accounts.length, 1);
+    assert.equal(owner.body.accounts[0].provider, 'deepseek');
+    assert.equal(owner.body.accounts[0].name, 'work');
+    assert.deepEqual(owner.body.accounts[0].credentialMetadata, { site: 'global', region: 'cn' });
+    assert.equal(JSON.stringify(owner.body).includes('server-secret-api-key'), false);
     const viewer = await requestJson(port, '/api/accounts', { token: 'viewer-token' });
-    assert.equal(viewer.response.status, 200);
-    assert.equal(viewer.body.accounts.length, 1);
-    assert.equal(viewer.body.accounts[0].provider, 'deepseek');
-    assert.equal(viewer.body.accounts[0].name, undefined);
-    assert.equal(viewer.body.accounts[0].label, undefined);
-    assert.equal(viewer.body.accounts[0].accountEmail, undefined);
-    assert.equal(viewer.body.accounts[0].accountKey, undefined);
-    assert.equal(viewer.body.accounts[0].credentialMetadata, undefined);
-    assert.equal(JSON.stringify(viewer.body).includes('server-secret-api-key'), false);
+    assert.equal(viewer.response.status, 401);
 
     const edited = await requestJson(port, `/api/accounts/${encodeURIComponent(accountId)}`, {
       method: 'PATCH',
@@ -176,7 +175,7 @@ test('Hub drops device limits and serves centrally refreshed limits from stats',
 
     const ingested = await requestJson(port, '/api/ingest', {
       method: 'POST',
-      token: 'device-token',
+      token: 'admin-token',
       body: usagePayload()
     });
     assert.equal(ingested.response.status, 200);

@@ -1974,7 +1974,7 @@ function settingsForRenderer() {
     ...safeSettings,
     windowsSurface: windowsSurfaceFor().kind,
     ...redactedCredentials,
-    hubAdminConfigured: Boolean(settings?.secret),
+    hubSecretConfigured: Boolean(settings?.secret),
     limitsAuthority: 'hub',
     centralQuotaSync: true,
     currencyRatesEffective: effectiveRates || resolveEffectiveRates(rateCache?.rates || {}, settings?.currencyRates || {}),
@@ -2911,9 +2911,9 @@ function localCapabilitiesForRenderer() {
   const hubCaps = latestHubStats?.capabilities || {};
   const clientMode = settings?.hubMode === 'client';
   return {
+    authenticated: true,
     role: clientMode ? 'client' : 'local',
-    scopes: ['read', 'admin'],
-    capabilities: {
+      capabilities: {
       stats: true,
       history: true,
       statsStream: clientMode,

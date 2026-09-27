@@ -46,13 +46,13 @@ test('device transfer is not a navigation destination', () => {
 });
 
 test('transfer is admin-gated and lives in the web settings Advanced group', () => {
-  // The Hub rejects a non-admin transfer outright, so the group exists exactly
-  // when the action is possible: web host, admin scope. Both halves are asserted —
+  // The Hub exposes transfer only on the web host. The connected owner can use it;
+  // both the settings-page gate and the panel's own authentication gate are asserted —
   // the settings-page gate and the panel's own submit gate.
-  assert.match(SETTINGS_SOURCE, /!desktopHost && admin/);
+  assert.match(SETTINGS_SOURCE, /!desktopHost && owner/);
   assert.match(SETTINGS_SOURCE, /data-settings-section="advanced"/);
   assert.match(SETTINGS_SOURCE, /settings\.groupAdvanced/);
-  assert.match(TRANSFER_SOURCE, /scopes\?\.includes\('admin'\)/);
+  assert.match(TRANSFER_SOURCE, /authenticated === true/);
   assert.match(TRANSFER_SOURCE, /transfer\.needsAdmin/);
 });
 
@@ -62,7 +62,7 @@ test('the desktop host has no transfer code path', () => {
   // gated on the web host, so `capabilities.desktopSettings === true` can never
   // reach it.
   assert.doesNotMatch(DESKTOP_ROUTER_SOURCE, /transfer/, 'the desktop router must not proxy transfer');
-  assert.match(SETTINGS_SOURCE, /!desktopHost && admin/);
+  assert.match(SETTINGS_SOURCE, /!desktopHost && owner/);
 });
 
 test('the transfer panel is not a standalone page with desktop settings scaffolding', () => {

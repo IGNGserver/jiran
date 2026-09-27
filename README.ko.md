@@ -214,7 +214,7 @@ Qoder 토큰 사용량은 API가 아닌 앱 자신의 로컬 파일에서 읽습
 
 멀티 디바이스 동기화를 사용하려면 모든 기기(앱이 없는 headless agent 포함)를 같은 Docker Compose Hub에 연결합니다. 각 기기에서 앱을 열고 설정 → 허브 연결에서 **허브에 연결**을 선택하세요. 앱이 없는 기기에서만 `npm run agent`를 실행하면 됩니다. GUI가 없는 환경에서는 [Headless Agent 가이드](docs/headless-agent.md)와 `Token-Monitor-Headless-<version>.tar.gz`를 사용하세요.
 
-이 1인용 프로젝트에서는 `TOKEN_MONITOR_SECRET`가 모든 기기에서 사용하는 유일한 Hub 키입니다. 읽기, 업로드, 수동으로 추가한 quota 계정을 포함한 관리자 작업을 모두 허용합니다. 이전의 분리된 admin/viewer/device 자격 증명은 호환 모드로만 남아 있습니다. 원격 연결은 기본적으로 HTTPS가 필요합니다. 데스크톱/agent의 HTTP는 신뢰할 수 있는 LAN을 명시적으로 허용한 경우에만 사용할 수 있고, Android 릴리스 빌드는 항상 HTTPS를 요구합니다.
+이 1인용 프로젝트에서는 `TOKEN_MONITOR_SECRET`가 모든 기기에서 사용하는 유일한 Hub 키입니다. 읽기, 업로드, 수동으로 추가한 quota 계정을 포함한 관리자 작업을 모두 허용합니다. 기기는 별도 사용자가 아니라 데이터 출처를 식별합니다. 원격 연결은 기본적으로 HTTPS가 필요합니다. 데스크톱/agent의 HTTP는 신뢰할 수 있는 LAN을 명시적으로 허용한 경우에만 사용할 수 있고, Android 릴리스 빌드는 항상 HTTPS를 요구합니다.
 
 이전 설정이 로컬이 아닌 `http://` Hub를 가리켜도 업그레이드가 보안을 자동으로 약화하지 않습니다. 로컬 수집은 계속되지만 HTTPS로 바꾸거나 신뢰할 수 있는 LAN 옵션을 명시적으로 켤 때까지 Hub 읽기·업로드·라이브 스트림은 차단됩니다.
 

@@ -1,6 +1,6 @@
 # API
 
-The hub exposes a JSON HTTP API and serves a same-origin web dashboard (PWA) from the hub root (`/`). Static UI assets and `/api/health` are public; private API routes require a scoped credential. Remote connections use HTTPS by default. Docker Compose Hub/agent/desktop require `TOKEN_MONITOR_ALLOW_INSECURE_HTTP=1` for an intentional non-loopback HTTP deployment. The Android client supports the same intentional LAN/VPN plain-HTTP Hub behind an explicit opt-in: the platform permits cleartext (so the OS does not silently contradict the in-app switch), while `HubApiFactory` rejects a non-HTTPS URL unless that switch is on. User-installed CAs are trusted in debug builds only.
+The hub exposes a JSON HTTP API and serves a same-origin web dashboard (PWA) from the hub root (`/`). Static UI assets and `/api/health` are public; private API routes require the single owner's credential. Remote connections use HTTPS by default. Docker Compose Hub/agent/desktop require `TOKEN_MONITOR_ALLOW_INSECURE_HTTP=1` for an intentional non-loopback HTTP deployment. The Android client supports the same intentional LAN/VPN plain-HTTP Hub behind an explicit opt-in: the platform permits cleartext (so the OS does not silently contradict the in-app switch), while `HubApiFactory` rejects a non-HTTPS URL unless that switch is on. User-installed CAs are trusted in debug builds only.
 
 
 For pricing refreshes, the Hub invokes `tokscale pricing <model> --json` first. If tokscale cannot complete its upstream catalog request, the Hub retries against the configured `TOKSCALE_PRICING_CATALOG_URL` (default `https://models.dev/api.json`), which is a public catalog tokscale also uses. The catalog is cached in the Hub process for six hours; the resulting `model_pricing` row remains durable.
@@ -11,15 +11,8 @@ For the single-user deployment, configure one key:
 
 - `TOKEN_MONITOR_SECRET`: shared by the Hub and every desktop app / agent. It grants read, ingest, and every administrative mutation, including manually managed Hub accounts.
 
-The Hub still accepts the following optional split variables for older deployments:
-
-- `TOKEN_MONITOR_ADMIN_SECRET`: read, ingest, and every administrative mutation. When this is set, `TOKEN_MONITOR_SECRET` keeps its legacy scoped meaning.
-- `TOKEN_MONITOR_VIEWER_SECRET`: read-only dashboard/API access. This is the only credential accepted through `?secret=` for header-limited clients.
-- `TOKEN_MONITOR_INGEST_CREDENTIALS`: JSON object mapping the exact `deviceId` to a device token, for example `{"workstation":"...","laptop":"..."}`. A device token can read shared stats and ingest only its bound identity.
-- `TOKEN_MONITOR_ALLOW_LEGACY_INGEST` and `TOKEN_MONITOR_ALLOW_LEGACY_ADMIN`: temporary elevation flags for the legacy `TOKEN_MONITOR_SECRET` path.
-- `TOKEN_MONITOR_HUB_CREDENTIAL_KEY`: optional legacy override for encrypting manually added Hub account credentials at rest. When empty, the Hub derives this key from `TOKEN_MONITOR_SECRET`; changing the effective key makes existing account credentials unreadable and requires manual re-login.
-
-In split mode, every configured admin, viewer, legacy, and device credential must be distinct. In unified mode, `TOKEN_MONITOR_SECRET` intentionally resolves to the admin principal.
+Old split admin/viewer/device variables are not accepted as alternate users. Existing deployments must migrate to `TOKEN_MONITOR_SECRET`; a configured owner key always has every product capability.
+`TOKEN_MONITOR_HUB_CREDENTIAL_KEY` remains an optional override for encrypting manually added Hub account credentials at rest.
 
 An unconfigured Docker Compose Hub is restricted to loopback. A remote Hub refuses all private routes until at least one unified or split credential is configured.
 
@@ -35,7 +28,7 @@ or:
 X-Token-Monitor-Secret: <secret>
 ```
 
-Privileged credentials are rejected in query strings. Query credentials can appear in browser, proxy, CDN, or diagnostic logs, so use a rotatable viewer token only when the client cannot send a header.
+Credentials in query strings are rejected. Secrets can appear in browser, proxy, CDN, or diagnostic logs, so clients must send the owner key in a header.
 
 The Hub rate-limits repeated authentication failures per source and ingest bursts per authenticated principal. Successful administrative mutations emit structured `[hub-audit]` records containing the time, principal ID, action, and target; secret values are never logged.
 
@@ -50,7 +43,7 @@ Example response:
   "ok": true,
   "role": "hub",
   "version": 1,
-  "apiVersion": 2,
+  "apiVersion": 3,
   "capabilities": {
     "stats": true,
     "history": true,
@@ -75,14 +68,13 @@ Example response:
 
 ## `GET /api/capabilities`
 
-Requires read scope and returns the server feature set plus the authenticated credential's `role` and `scopes`. Clients use this endpoint to validate a saved token and gate administrative or runtime-specific UI.
+Requires the owner key and returns the server feature set plus `authenticated: true`. Clients use this endpoint to validate a saved token; feature availability is described by `capabilities`, not user roles.
 
 ```json
 {
-  "apiVersion": 2,
+  "apiVersion": 3,
   "capabilities": { "stats": true, "usageRange": true, "pricing": true },
-  "role": "device",
-  "scopes": ["read", "ingest"]
+  "authenticated": true
 }
 ```
 
@@ -90,7 +82,7 @@ Requires read scope and returns the server feature set plus the authenticated cr
 
 Posts one device usage summary.
 
-Requires ingest scope. A device credential is accepted only when the payload `deviceId` exactly matches its configured identity. Reposting an unchanged cumulative snapshot is idempotent: the Hub derives zero ledger delta and replaces the same current record.
+Requires the owner key. The `deviceId` identifies the data source, not a separate user. Reposting an unchanged cumulative snapshot is idempotent: the Hub derives zero ledger delta and replaces the same current record.
 
 First-party agents send `Prefer: return=minimal` and receive only
 `{"ok":true,"deviceId":"..."}`. This avoids aggregating and returning the full
@@ -283,7 +275,7 @@ rows because the device protocol does not accept them as authoritative.
 
 ## `GET /api/stats/stream`
 
-Requires read scope. Server-Sent Events: the Hub pushes a full aggregate after
+Requires the owner key. Server-Sent Events: the Hub pushes a full aggregate after
 every change, so a client never polls to stay live.
 
 - The first frame is `event: snapshot`, carrying the same `stats` payload as
@@ -305,7 +297,7 @@ in [hub-compose.md](hub-compose.md)).
 
 ## `GET /api/history`
 
-Requires read scope. Returns the cross-device history rollup used by the Trends
+Requires the owner key. Returns the cross-device history rollup used by the Trends
 view: `aggregateHistory()` over every stored device record, so it is the same
 shape the desktop app serves locally through its own transport. Only devices
 that report the optional `history` field contribute — collection is controlled by
@@ -317,12 +309,12 @@ device-specific data.
 
 ## `GET /api/subscriptions` / `PUT /api/subscriptions`
 
-`GET` requires read scope and returns `{ ok, version, subscriptions, updatedAt }`: the
+`GET` requires the owner key and returns `{ ok, version, subscriptions, updatedAt }`: the
 manually recorded plan ledger (plan name, amount, currency, billing cadence,
 dates, and the account each record is bound to). Values are typed by the user,
 never read from a provider, and stored once per Hub rather than per device.
 
-`PUT` requires the admin scope and replaces the whole ledger:
+`PUT` requires the owner key and replaces the whole ledger:
 
 ```json
 { "subscriptions": [ ... ], "baseUpdatedAt": "2026-05-18T00:00:00.000Z" }
@@ -343,7 +335,7 @@ the live provider or the built-in fallback.
 
 ## Hub account management
 
-These routes require the admin scope. `GET /api/accounts` requires read scope
+These routes require the owner key. `GET /api/accounts` also requires the owner key
 and returns account metadata plus the current normalized quota snapshot; it
 never returns the stored credential.
 
@@ -384,7 +376,7 @@ Deletes the account, its encrypted credential, and its stored quota snapshot.
 
 ### `POST /api/accounts/oauth/start`
 
-Requires the admin scope. Begins the Hub-side OAuth sign-in for a provider whose
+Requires the owner key. Begins the Hub-side OAuth sign-in for a provider whose
 flow can be completed without a device-local login (`codex`, `antigravity`).
 
 Body: `{"provider":"codex"}`.
@@ -396,7 +388,7 @@ verifier and `state` in memory only and expires after 10 minutes.
 
 ### `POST /api/accounts/oauth/exchange`
 
-Requires the admin scope. Exchanges the authorization result for a credential,
+Requires the owner key. Exchanges the authorization result for a credential,
 stores it encrypted, and adds the account in one step.
 
 Body: `{"sessionId","redirectUrl","name"?,"label"?}`.
@@ -444,17 +436,17 @@ When an ingest event has configured pricing, the hub copies those four values, s
 
 ## `DELETE /api/devices/:id`
 
-Requires admin scope. Removes the device from visible stats. The Node/MySQL Hub keeps its ingest baseline and immutable event ledger as a tombstone, so re-ingesting the same identity does not duplicate historical usage.
+Requires the owner key. Removes the device from visible stats. The Node/MySQL Hub keeps its ingest baseline and immutable event ledger as a tombstone, so re-ingesting the same identity does not duplicate historical usage.
 
 ## `POST /api/devices/:id/rename`
 
-Requires admin scope. Body: `{"deviceId":"new-id"}`. Atomically moves the current record and measurement identity to the new ID; the Node/MySQL Hub also moves its baseline, ledger, and session rows. Returns `409 target_exists` rather than merging two identities.
+Requires the owner key. Body: `{"deviceId":"new-id"}`. Atomically moves the current record and measurement identity to the new ID; the Node/MySQL Hub also moves its baseline, ledger, and session rows. Returns `409 target_exists` rather than merging two identities.
 
-For the Docker Compose Hub, credential bindings are deployment configuration rather than database rows. Use this order: stop the old client's uploads; provision a distinct token bound to the new ID and reload the Hub configuration; call the rename endpoint; change the client's Device ID and token together; resume it and verify one successful upload; then remove the old binding. Uploading the new ID before the rename creates a conflicting target, while resuming the old binding afterwards recreates the old identity.
+For the Docker Compose Hub, device identity is deployment configuration rather than a user credential. Change the client's Device ID, call the rename endpoint, and verify one successful upload before resuming normal collection.
 
 ## `POST /api/devices/:id/transfer`
 
-Requires admin scope. Body: `{"targetDeviceId":"existing-id"}`. Moves the source device's entire recorded history onto the target device, which must already exist (`404 target_not_found` otherwise). Inside one transaction the Node/MySQL Hub moves the source's `usage_events` rows wholesale, additively merges its `sessions` rows into the target's per (client, session) totals, and additively merges the target's period snapshots (today / month / allTime) and history document with the source's.
+Requires the owner key. Body: `{"targetDeviceId":"existing-id"}`. Moves the source device's entire recorded history onto the target device, which must already exist (`404 target_not_found` otherwise). Inside one transaction the Node/MySQL Hub moves the source's `usage_events` rows wholesale, additively merges its `sessions` rows into the target's per (client, session) totals, and additively merges the target's period snapshots (today / month / allTime) and history document with the source's.
 
 The source device keeps its identity and keeps recording normally. Its display snapshot is cleared and its ingest baseline is pinned to the pre-transfer cumulative counters with a `transferred` marker, so its next upload books only genuinely new usage — both in the event ledger and in the display aggregate. Repeated cumulative reports that contain no new usage change nothing.
 

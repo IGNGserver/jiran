@@ -1,9 +1,8 @@
 'use strict';
 
-const READ_SCOPE = 'read';
-const INGEST_SCOPE = 'ingest';
-const ADMIN_SCOPE = 'admin';
-const SCOPES = Object.freeze([READ_SCOPE, INGEST_SCOPE, ADMIN_SCOPE]);
+// Token Monitor has one operator. `AUTHENTICATED_SCOPE` is an internal route
+// guard, not a user role or a permission level.
+const AUTHENTICATED_SCOPE = 'authenticated';
 
 function normalizedSecret(value) {
   return String(value || '').trim();
@@ -22,47 +21,6 @@ function secretMatches(left, right) {
     mismatch |= (a[index % (a.length || 1)] || 0) ^ (b[index % (b.length || 1)] || 0);
   }
   return mismatch === 0 && a.length > 0;
-}
-
-function parseBoolean(value, fallback = false) {
-  if (value === undefined || value === null || value === '') return fallback;
-  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
-}
-
-function ingestCredentialEntries(value) {
-  if (!value) return [];
-  let parsed = value;
-  if (typeof value === 'string') {
-    try { parsed = JSON.parse(value); } catch (error) {
-      const wrapped = new Error(`TOKEN_MONITOR_INGEST_CREDENTIALS must be valid JSON: ${error.message}`);
-      wrapped.code = 'invalid_ingest_credentials';
-      throw wrapped;
-    }
-  }
-  const entries = Array.isArray(parsed)
-    ? parsed.map((item) => [item?.deviceId, item?.secret])
-    : Object.entries(parsed && typeof parsed === 'object' ? parsed : {});
-  const result = [];
-  const devices = new Set();
-  const secrets = [];
-  for (const [rawDeviceId, rawSecret] of entries) {
-    const deviceId = String(rawDeviceId || '').trim();
-    const secret = normalizedSecret(rawSecret);
-    if (!deviceId || !secret) {
-      const error = new Error('every ingest credential requires a non-empty deviceId and secret');
-      error.code = 'invalid_ingest_credentials';
-      throw error;
-    }
-    if (devices.has(deviceId) || secrets.some((candidate) => secretMatches(candidate, secret))) {
-      const error = new Error('ingest credential device IDs and secrets must be unique');
-      error.code = 'duplicate_ingest_credentials';
-      throw error;
-    }
-    devices.add(deviceId);
-    secrets.push(secret);
-    result.push(Object.freeze({ deviceId, secret }));
-  }
-  return Object.freeze(result);
 }
 
 function requestCredential(request) {
@@ -85,103 +43,66 @@ function requestCredential(request) {
   }
 }
 
+// Kept as a parser for migration diagnostics. These entries are never treated
+// as separate principals and never grant access by themselves.
+function ingestCredentialEntries(value) {
+  if (!value) return [];
+  let parsed = value;
+  if (typeof value === 'string') {
+    try { parsed = JSON.parse(value); } catch (error) {
+      const wrapped = new Error(`TOKEN_MONITOR_INGEST_CREDENTIALS must be valid JSON: ${error.message}`);
+      wrapped.code = 'invalid_ingest_credentials';
+      throw wrapped;
+    }
+  }
+  const entries = Array.isArray(parsed)
+    ? parsed.map((item) => [item?.deviceId, item?.secret])
+    : Object.entries(parsed && typeof parsed === 'object' ? parsed : {});
+  return Object.freeze(entries.map(([deviceId, secret]) => Object.freeze({
+    deviceId: String(deviceId || '').trim(),
+    secret: normalizedSecret(secret)
+  })));
+}
+
 function createHubAuthPolicy(options = {}) {
-  const unifiedSecret = normalizedSecret(options.unifiedSecret);
-  const adminSecret = normalizedSecret(options.adminSecret);
-  const viewerSecret = normalizedSecret(options.viewerSecret);
-  const legacySecret = unifiedSecret ? '' : normalizedSecret(options.legacySecret);
-  const ingestCredentials = ingestCredentialEntries(options.ingestCredentials);
-  const credentials = [
-    ['unified', unifiedSecret],
-    ['admin', adminSecret],
-    ['viewer', viewerSecret],
-    ['legacy', legacySecret],
-    ...ingestCredentials.map((credential) => [`device:${credential.deviceId}`, credential.secret])
-  ].filter(([, value]) => Boolean(value));
-  for (let left = 0; left < credentials.length; left += 1) {
-    for (let right = left + 1; right < credentials.length; right += 1) {
-      if (!secretMatches(credentials[left][1], credentials[right][1])) continue;
-      const error = new Error(`Hub credentials for ${credentials[left][0]} and ${credentials[right][0]} must be distinct`);
-      error.code = 'duplicate_hub_credentials';
-      throw error;
-    }
-  }
-  const allowLegacyAdmin = parseBoolean(options.allowLegacyAdmin, false);
-  const allowLegacyIngest = parseBoolean(options.allowLegacyIngest, false);
-  const configured = Boolean(unifiedSecret || adminSecret || viewerSecret || legacySecret || ingestCredentials.length);
-
-  function principalFor(secret) {
-    if (unifiedSecret && secretMatches(secret, unifiedSecret)) {
-      return { id: 'admin', role: 'admin', scopes: SCOPES };
-    }
-    if (adminSecret && secretMatches(secret, adminSecret)) {
-      return { id: 'admin', role: 'admin', scopes: SCOPES };
-    }
-    if (viewerSecret && secretMatches(secret, viewerSecret)) {
-      return { id: 'viewer', role: 'viewer', scopes: [READ_SCOPE] };
-    }
-    for (const credential of ingestCredentials) {
-      if (secretMatches(secret, credential.secret)) {
-        // A connected widget uses one credential for its read stream and its
-        // own uploads. It may observe the shared dashboard, but the identity
-        // binding below prevents it from impersonating another device and it
-        // never receives administrative mutation rights.
-        return { id: `device:${credential.deviceId}`, role: 'device', scopes: [READ_SCOPE, INGEST_SCOPE], deviceId: credential.deviceId };
-      }
-    }
-    if (legacySecret && secretMatches(secret, legacySecret)) {
-      const scopes = [READ_SCOPE];
-      if (allowLegacyIngest) scopes.push(INGEST_SCOPE);
-      if (allowLegacyAdmin) scopes.push(ADMIN_SCOPE);
-      return { id: 'legacy', role: 'legacy', scopes };
-    }
-    return null;
+  const ownerSecret = normalizedSecret(
+    options.ownerSecret || options.unifiedSecret || options.adminSecret || options.legacySecret
+  );
+  const deprecatedViewerSecret = normalizedSecret(options.viewerSecret);
+  const deprecatedIngestCredentials = ingestCredentialEntries(options.ingestCredentials);
+  const configured = Boolean(ownerSecret);
+  if (!ownerSecret && (deprecatedViewerSecret || deprecatedIngestCredentials.length)) {
+    const error = new Error('TOKEN_MONITOR_SECRET is required; viewer/device credentials are no longer supported');
+    error.code = 'owner_secret_required';
+    throw error;
   }
 
-  function authorize(request, scope, optionsForRequest = {}) {
-    if (!SCOPES.includes(scope)) throw new Error(`unknown Hub authorization scope: ${scope}`);
-    if (!configured) return { ok: true, principal: { id: 'local', role: 'local-admin', scopes: SCOPES } };
+  function authorize(request, scope) {
+    if (scope !== AUTHENTICATED_SCOPE) throw new Error(`unknown Hub authorization scope: ${scope}`);
+    if (!configured) return { ok: true, principal: { id: 'local-owner', authenticated: true } };
     const credential = requestCredential(request);
-    if (!credential.secret) return { ok: false, status: 401, error: 'unauthorized' };
-    const principal = principalFor(credential.secret);
-    if (!principal) return { ok: false, status: 401, error: 'unauthorized' };
-    // Query credentials are retained solely for read-only Widget consumers.
-    // An admin or ingest credential in a URL is rejected even if its value is
-    // otherwise valid, preventing privileged tokens from entering URL logs.
-    if (credential.source === 'query') {
-      const querySafePrincipal = principal.role === 'viewer'
-        || (principal.role === 'legacy' && principal.scopes.length === 1 && principal.scopes[0] === READ_SCOPE);
-      if (scope !== READ_SCOPE || !querySafePrincipal) {
-        return { ok: false, status: 403, error: 'query_credentials_are_read_only' };
-      }
+    // Secrets in URLs are removed from the single-owner protocol. They are
+    // routinely copied into browser/proxy logs and cannot be made safe by
+    // assigning them a weaker role.
+    if (credential.source === 'query' || !credential.secret) {
+      return { ok: false, status: 401, error: 'unauthorized' };
     }
-    if (!principal.scopes.includes(scope)) return { ok: false, status: 403, error: 'forbidden' };
-    const targetDeviceId = String(optionsForRequest.deviceId || '').trim();
-    if (scope === INGEST_SCOPE && principal.deviceId && targetDeviceId && principal.deviceId !== targetDeviceId) {
-      return { ok: false, status: 403, error: 'device_identity_mismatch' };
+    if (!secretMatches(credential.secret, ownerSecret)) {
+      return { ok: false, status: 401, error: 'unauthorized' };
     }
-    return { ok: true, principal };
+    return { ok: true, principal: { id: 'owner', authenticated: true } };
   }
 
   return Object.freeze({
     authorize,
     configured,
     secretRequired: configured,
-    summary: Object.freeze({
-      adminConfigured: Boolean(unifiedSecret || adminSecret),
-      unifiedSecretConfigured: Boolean(unifiedSecret),
-      viewerConfigured: Boolean(viewerSecret || legacySecret || adminSecret || unifiedSecret),
-      ingestCredentialCount: ingestCredentials.length,
-      legacyAdminEnabled: allowLegacyAdmin,
-      legacyIngestEnabled: allowLegacyIngest
-    })
+    summary: Object.freeze({ ownerConfigured: configured })
   });
 }
 
 module.exports = {
-  ADMIN_SCOPE,
-  INGEST_SCOPE,
-  READ_SCOPE,
+  AUTHENTICATED_SCOPE,
   createHubAuthPolicy,
   ingestCredentialEntries,
   requestCredential,

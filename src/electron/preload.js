@@ -59,7 +59,7 @@ contextBridge.exposeInMainWorld('tokenMonitor', {
   prompt: (message, defaultValue) => ipcRenderer.invoke('ui:prompt', message, defaultValue),
   hasSecret: async () => {
     const settings = await ipcRenderer.invoke('settings:get');
-    return Boolean(settings && settings.hubAdminConfigured);
+    return Boolean(settings && settings.hubSecretConfigured);
   },
   prefsFromSettings,
   prefsToSettingsPatch,
