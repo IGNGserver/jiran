@@ -16,6 +16,9 @@ const {
   writePrivateJsonAtomic
 } = require('../shared/credentialStore');
 const { installSafeStdout } = require('../shared/safeStdio');
+// Only the staging-dir cleanup is still wired: the manual npm check / download / reset
+// actions left with the settings surface that had no buttons for them.
+const { cleanupStaleStaging } = require('../shared/tokscaleUpdater');
 const { appVersion } = require('../shared/appVersion');
 const motionPreferenceApi = require('./motionPreference');
 
@@ -45,13 +48,7 @@ const { isAllowedVerificationUrl } = require('../shared/copilotDeviceFlow');
 const { SUPPORTED_LOCALES, resolveLocale, t: translate } = require('../shared-ui/core/i18n.js');
 // Same formatter the dashboard uses, so the tray tooltip never disagrees with it.
 const { formatCompact: formatCompactTokens } = require('../shared-ui/core/format.js');
-const {
-  checkNpmForNewer,
-  cleanupStaleStaging,
-  downloadFromNpm,
-  getTokscaleStatus,
-  resetToBundled
-} = require('../shared/tokscaleUpdater');
+
 const {
   appUpdateInstallSupport,
   checkLatestRelease,
@@ -66,10 +63,6 @@ const {
 const semver = require('semver');
 const { normalizeCurrency, resolveEffectiveRates, configureRates } = require('../shared/currency');
 const { fetchRates, isCacheStale } = require('../shared/exchangeRates');
-const {
-  clearSessionUsageArchive
-} = require('../shared/sessionUsageArchive');
-const { clearDailyHistoryArchive } = require('../shared/dailyHistoryArchive');
 const { aggregateDevices, aggregateHistory } = require('../shared/usage');
 const { fetchBufferedWithTimeout, fetchWithTimeout } = require('../shared/http');
 const { postSyncPayload } = require('../shared/syncPayload');
@@ -82,7 +75,6 @@ const { historyPreview, historyRevision } = require('../shared/history');
 const { readSessionDetail } = require('../shared/sessionDetail');
 const linuxAutostart = require('./linuxAutostart');
 const { classifyStreamFailure } = require('./syncConnection');
-const { buildDiagnosticsBundle, diagnosticsFileName } = require('./diagnostics');
 const { composeLocalSyncStats, reattachLocalNativeView } = require('./syncDisplayStats');
 const {
   cacheable: cacheableDesktopSnapshot,
@@ -1121,8 +1113,6 @@ let localStatsLive = false;
 let desktopSnapshotCache = null;
 let desktopSnapshotCacheLoaded = false;
 let desktopSnapshotCacheWriteTimer = null;
-let tokScaleNpmMetadata = null;
-let tokScaleUpdaterBusy = false;
 const AGENT_PID_PATH = pidFilePath();
 let modeQueue = Promise.resolve();
 let modeGeneration = 0;
@@ -2294,52 +2284,7 @@ function stopSyncNetworkMonitor() {
 
 
 
-function stripTokscaleMetadata(result) {
-  if (!result || typeof result !== 'object') return result;
-  const { metadata: _metadata, ...publicResult } = result;
-  return publicResult;
-}
 
-function sendTokscalePush(payload) {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  try { mainWindow.webContents.send('tokscale:push', payload); } catch (_) {}
-}
-
-async function checkTokscaleNpm({ silent = false } = {}) {
-  try {
-    const result = await checkNpmForNewer(app.getVersion());
-    if (result.metadata) tokScaleNpmMetadata = result.metadata;
-    const publicResult = stripTokscaleMetadata(result);
-    sendTokscalePush({ type: 'check', ...publicResult });
-    return publicResult;
-  } catch (error) {
-    if (silent) {
-      console.log(`[tokscale] npm check failed: ${error.message}`);
-      return { supported: true, error: null, silent: true };
-    }
-    return { supported: true, error: error.message };
-  }
-}
-
-async function downloadTokscaleFromNpm() {
-  if (tokScaleUpdaterBusy) return { supported: true, busy: true };
-  tokScaleUpdaterBusy = true;
-  try {
-    if (!tokScaleNpmMetadata) {
-      const checked = await checkNpmForNewer(app.getVersion());
-      if (!checked.supported) return { supported: false };
-      tokScaleNpmMetadata = checked.metadata;
-    }
-    const result = await downloadFromNpm(tokScaleNpmMetadata);
-    const publicResult = stripTokscaleMetadata(result);
-    sendTokscalePush({ type: 'download', ...publicResult });
-    return publicResult;
-  } catch (error) {
-    return { supported: true, error: error.message };
-  } finally {
-    tokScaleUpdaterBusy = false;
-  }
-}
 
 let appUpdateCheckInFlight = false;
 let appUpdateCheckPromise = null;
@@ -3311,18 +3256,6 @@ function appDiagnosticsInfo() {
   };
 }
 
-// Provider id and status only: account labels, e-mails and windows are the user's
-// data, not something a support bundle needs.
-function diagnosticsLimitsSummary() {
-  const providers = (latestStats || localStats)?.limits?.providers || [];
-  return providers.map((provider) => ({
-    provider: provider.provider,
-    status: provider.status,
-    stale: Boolean(provider.stale),
-    windowCount: Array.isArray(provider.windows) ? provider.windows.length : 0
-  }));
-}
-
 // The tooltip is the only always-visible tray surface, so it carries the two facts
 // that matter without a window: that collection is paused, and what today cost.
 function trayTooltipText() {
@@ -3407,22 +3340,7 @@ app.whenReady().then(() => {
   applyEffectiveRates();                 // use cache/defaults immediately, avoid first-paint gap
   refreshExchangeRates();                // non-blocking: only fetches when stale
   rateRefreshTimer = setInterval(() => { refreshExchangeRates(); }, 6 * 60 * 60 * 1000);
-  setTimeout(() => { checkTokscaleNpm({ silent: true }); }, 2000);
   ipcMain.handle('settings:get', () => settingsForRenderer());
-  ipcMain.handle('sessionUsageArchive:clear', () => {
-    if (isExternalAgentActive()) return { ok: false, error: 'agentActive' };
-    try {
-      clearSessionUsageArchive();
-      clearDailyHistoryArchive();
-      syncSummaryTransformer.resetSessionUsageArchive({});
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, error: error.message };
-    } finally {
-      startMode();
-      pushSettingsToRenderer();
-    }
-  });
   ipcMain.handle('pricing:lookup', async (_event, modelId) => {
     try {
       return { ok: true, result: await lookupModelPricing(modelId) };
@@ -3549,30 +3467,6 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('stats:getCustomRange', (_event, rangeInput) => fetchCustomRangeStats(rangeInput));
 
-  ipcMain.handle('diagnostics:export', async () => {
-    // Save dialog rather than a fixed folder: the point is that the user reads the
-    // file before attaching it anywhere.
-    const result = await dialog.showSaveDialog(mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined, {
-      title: 'Token Monitor diagnostics',
-      defaultPath: path.join(app.getPath('documents'), diagnosticsFileName(app.getVersion())),
-      filters: [{ name: 'JSON', extensions: ['json'] }]
-    });
-    if (result.canceled || !result.filePath) return { ok: false, canceled: true };
-    try {
-      fs.writeFileSync(result.filePath, `${JSON.stringify(buildDiagnosticsBundle({
-        appInfo: appDiagnosticsInfo,
-        settings: () => settings,
-        tokscaleStatus: () => getTokscaleStatus(),
-        syncHealth: () => syncHealthSnapshot(),
-        appUpdate: () => deriveAppUpdateState(),
-        snapshotMeta: () => desktopSnapshotMeta(),
-        limitsSummary: diagnosticsLimitsSummary
-      }), null, 2)}\n`, 'utf8');
-      return { ok: true, file: result.filePath };
-    } catch (error) {
-      return { ok: false, error: error.message || String(error) };
-    }
-  });
   ipcMain.handle('session:getDetail', (_event, args) => fetchSessionDetail(args));
   ipcMain.handle('sync:recover', () => recoverNow());
   ipcMain.handle('sync:health', () => syncHealthSnapshot());
@@ -3589,7 +3483,6 @@ app.whenReady().then(() => {
       .then(() => ({ ok: true }))
       .catch((error) => ({ ok: false, error: error.message }));
   });
-  ipcMain.handle('app:openUserData', () => shell.openPath(app.getPath('userData')));
 
   // --- Shared-UI transport surface -----------------------------------------
   // The shared UI never touches the Hub directly: this process owns the secret
@@ -3688,15 +3581,6 @@ app.whenReady().then(() => {
   ipcMain.handle('hubAccounts:refresh', (_event, id) => requestHubAccount(`/api/accounts/${encodeURIComponent(String(id || '').trim())}/refresh`, {
     method: 'POST'
   }));
-  ipcMain.handle('tokscale:getStatus', () => getTokscaleStatus());
-  ipcMain.handle('tokscale:checkNpm', () => checkTokscaleNpm());
-  ipcMain.handle('tokscale:downloadFromNpm', () => downloadTokscaleFromNpm());
-  ipcMain.handle('tokscale:resetToBundled', async () => {
-    tokScaleNpmMetadata = null;
-    const status = await resetToBundled();
-    sendTokscalePush({ type: 'reset', status });
-    return status;
-  });
   ipcMain.handle('appUpdate:getState', () => deriveAppUpdateState());
   ipcMain.handle('appUpdate:checkNow', () => runAppUpdateCheck({ force: true }));
   ipcMain.handle('appUpdate:download', () => downloadAndPrepareAppUpdate());

@@ -66,7 +66,6 @@ contextBridge.exposeInMainWorld('tokenMonitor', {
 
   getSettings: () => ipcRenderer.invoke('settings:get'),
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
-  clearSessionUsageArchive: () => ipcRenderer.invoke('sessionUsageArchive:clear'),
   lookupModelPricing: (modelId) => ipcRenderer.invoke('pricing:lookup', modelId),
   previewAppearance: (patch) => ipcRenderer.invoke('appearance:preview', patch),
   getCustomRangeStats: (range) => ipcRenderer.invoke('stats:getCustomRange', range),
@@ -105,15 +104,9 @@ contextBridge.exposeInMainWorld('tokenMonitor', {
     ipcRenderer.on('view:open', listener);
     return () => ipcRenderer.removeListener('view:open', listener);
   },
-  onTokscalePush: (callback) => {
-    const listener = (_event, payload) => { try { callback(payload); } catch (_) {} };
-    ipcRenderer.on('tokscale:push', listener);
-    return () => ipcRenderer.removeListener('tokscale:push', listener);
-  },
   getAppInfo: () => ipcRenderer.invoke('app:getInfo'),
   copyText: (text) => ipcRenderer.invoke('clipboard:write', text),
   openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
-  openUserData: () => ipcRenderer.invoke('app:openUserData'),
   hubAccounts: {
     list: () => ipcRenderer.invoke('hubAccounts:list'),
     add: (request = {}) => ipcRenderer.invoke('hubAccounts:add', request),
@@ -121,11 +114,6 @@ contextBridge.exposeInMainWorld('tokenMonitor', {
     remove: (id) => ipcRenderer.invoke('hubAccounts:remove', id),
     refresh: (id) => ipcRenderer.invoke('hubAccounts:refresh', id)
   },
-  exportDiagnostics: () => ipcRenderer.invoke('diagnostics:export'),
-  getTokscaleStatus: () => ipcRenderer.invoke('tokscale:getStatus'),
-  checkTokscaleNpm: () => ipcRenderer.invoke('tokscale:checkNpm'),
-  downloadTokscaleFromNpm: () => ipcRenderer.invoke('tokscale:downloadFromNpm'),
-  resetTokscaleToBundled: () => ipcRenderer.invoke('tokscale:resetToBundled'),
   getAppUpdateState: () => ipcRenderer.invoke('appUpdate:getState'),
   checkAppUpdateNow: () => ipcRenderer.invoke('appUpdate:checkNow'),
   downloadAppUpdate: () => ipcRenderer.invoke('appUpdate:download'),

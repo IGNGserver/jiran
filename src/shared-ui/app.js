@@ -392,8 +392,6 @@ const state = {
   desktopSettings: null,
   desktopInfo: null,
   desktopAppUpdate: null,
-  desktopTokscale: null,
-  desktopTokscaleCheck: null,
   desktopSyncHealth: null,
   desktopSnapshotMeta: null
 };
@@ -3349,18 +3347,16 @@ async function loadDesktopSettings() {
   const desktop = getTransport().desktop;
   if (!desktop) return;
   try {
-    const [settings, info, syncHealth, snapshotMeta, appUpdateState, tokscaleState] = await Promise.all([
+    const [settings, info, syncHealth, snapshotMeta, appUpdateState] = await Promise.all([
       desktop.getSettings(),
       desktop.getAppInfo ? desktop.getAppInfo() : Promise.resolve({}),
       desktop.getSyncHealth ? desktop.getSyncHealth() : Promise.resolve(null),
       desktop.getSnapshotMeta ? desktop.getSnapshotMeta() : Promise.resolve(null),
-      desktop.getAppUpdateState ? desktop.getAppUpdateState() : Promise.resolve(null),
-      desktop.getTokscaleStatus ? desktop.getTokscaleStatus() : Promise.resolve(null)
+      desktop.getAppUpdateState ? desktop.getAppUpdateState() : Promise.resolve(null)
     ]);
     state.desktopSettings = settings || {};
     state.desktopInfo = info || {};
     state.desktopAppUpdate = appUpdateState || null;
-    state.desktopTokscale = tokscaleState || null;
     state.desktopSyncHealth = syncHealth || null;
     state.desktopSnapshotMeta = snapshotMeta || syncHealth?.snapshot || null;
     renderDesktopSyncStatus();
@@ -3401,17 +3397,6 @@ async function runDesktopAction(action, element) {
   if (!desktop) return;
   try {
     switch (action) {
-      case 'export-diagnostics': {
-        // The save dialog is where the user reads the bundle, so a cancelled dialog
-        // is a normal outcome and says nothing.
-        const result = await desktop.exportDiagnostics?.();
-        if (result?.ok) showToast(tr('desktop.settings.diagnosticsWritten'));
-        else if (result && result.canceled !== true) showToast(result.error || tr('error.generic'));
-        break;
-      }
-      case 'open-user-data':
-        await desktop.openUserData();
-        break;
       case 'check-updates': {
         element?.setAttribute('disabled', 'disabled');
         const update = await desktop.checkAppUpdateNow();
@@ -3432,27 +3417,6 @@ async function runDesktopAction(action, element) {
         state.desktopAppUpdate = await desktop.getAppUpdateState();
         render();
         await desktop.installAppUpdate();
-        break;
-      }
-      case 'tokscale-check':
-        state.desktopTokscaleCheck = await desktop.checkTokscaleNpm();
-        render();
-        break;
-      case 'tokscale-download':
-        state.desktopTokscaleCheck = await desktop.downloadTokscaleFromNpm();
-        state.desktopTokscale = await desktop.getTokscaleStatus();
-        render();
-        break;
-      case 'tokscale-reset':
-        state.desktopTokscale = await desktop.resetTokscaleToBundled();
-        state.desktopTokscaleCheck = null;
-        render();
-        break;
-      case 'clear-session-archive': {
-        const confirmed = await confirmAction(tr('desktop.settings.sessionArchiveConfirm'), { danger: true });
-        if (!confirmed) return;
-        const result = await desktop.clearSessionUsageArchive();
-        showToast(result?.ok === false ? tr('error.generic') : tr('toast.saved'));
         break;
       }
       case 'save-hub-secret': {
@@ -3540,15 +3504,10 @@ async function init() {
     });
     desktop?.onOpenSettings?.(() => switchView('settings'));
     desktop?.onOpenView?.((view) => switchView(normalizeViewId(view)));
-    // Both panels below are driven by the main process, which owns the download
-    // and install lifecycles; without these they would only ever show boot state.
+    // The update panel is driven by the main process, which owns the download and
+    // install lifecycles; without this it would only ever show boot state.
     desktop?.onAppUpdatePush?.((next) => {
       state.desktopAppUpdate = next || null;
-      render();
-    });
-    desktop?.onTokscalePush?.((payload) => {
-      if (payload?.status) state.desktopTokscale = payload.status;
-      else if (payload?.npm || payload?.newer != null) state.desktopTokscaleCheck = payload;
       render();
     });
   }
