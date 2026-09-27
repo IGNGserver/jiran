@@ -149,12 +149,12 @@ export function renderDesktopSettings(settings = {}, info = {}) {
   connectionRows.push(hubOnly([
     textField('hubUrl', 'desktop.settings.hubUrl', settings.hubUrl || '', { placeholder: 'http://hub-host:17321' }),
     `<div class="desktop-setting-block desktop-hub-secret" data-hub-secret>
-      <fluent-text-input class="field" type="password" data-hub-secret-input autocomplete="new-password" spellcheck="false" placeholder="${escapeHtml(settings.hubAdminConfigured ? tr('desktop.settings.hubSecretConfigured') : tr('desktop.settings.hubSecretMissing'))}">${escapeHtml(tr('settings.secret'))}</fluent-text-input>
+      <fluent-text-input class="field" type="password" data-hub-secret-input autocomplete="new-password" spellcheck="false" placeholder="${escapeHtml(settings.hubSecretConfigured ? tr('desktop.settings.hubSecretConfigured') : tr('desktop.settings.hubSecretMissing'))}">${escapeHtml(tr('settings.secret'))}</fluent-text-input>
       <div class="desktop-setting-row">
         <span class="row-sub">${escapeHtml(tr('desktop.settings.hubSecretHint'))}</span>
         <span class="drawer-actions">
           <fluent-button appearance="transparent" type="button" class="ghost-btn" data-desktop-action="save-hub-secret">${escapeHtml(tr('desktop.settings.saveHubSecret'))}</fluent-button>
-          ${settings.hubAdminConfigured ? `<fluent-button appearance="transparent" type="button" class="ghost-btn" data-desktop-action="clear-hub-secret">${escapeHtml(tr('desktop.settings.clearHubSecret'))}</fluent-button>` : ''}
+          ${settings.hubSecretConfigured ? `<fluent-button appearance="transparent" type="button" class="ghost-btn" data-desktop-action="clear-hub-secret">${escapeHtml(tr('desktop.settings.clearHubSecret'))}</fluent-button>` : ''}
         </span>
       </div>
     </div>`,

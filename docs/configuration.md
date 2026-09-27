@@ -108,8 +108,8 @@ TOKEN_MONITOR_QODER_CN_MAIN_DB_PATH=    # optional direct override for the Qoder
 For a trusted LAN/VPN Hub that still uses `http://<lan-ip>:17321`, also set
 `TOKEN_MONITOR_ALLOW_INSECURE_HTTP=1` on the connecting agent. Remote HTTP is
 rejected by default; prefer HTTPS whenever possible. In the single-user mode,
-all devices intentionally use the same Hub key. Split admin/viewer/device
-credentials remain available only for legacy deployments.
+all devices intentionally use the same Hub owner key. Separate legacy
+credentials are not part of the supported configuration.
 
 The collection and upload controls above are shared by the desktop app's Hub
 client mode and the headless agent. The desktop app reads them from

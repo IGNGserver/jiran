@@ -68,9 +68,7 @@ class HubRepository @Inject constructor(
     val authorization = api.capabilities()
     health.copy(
       apiVersion = authorization.apiVersion ?: health.apiVersion,
-      capabilities = authorization.capabilities,
-      authenticatedRole = authorization.role,
-      grantedScopes = authorization.scopes
+      capabilities = authorization.capabilities
     )
   }
   suspend fun capabilities(): HubResult<HubAuthorizationDto> = withConnection { apiFactory.create(it).capabilities() }

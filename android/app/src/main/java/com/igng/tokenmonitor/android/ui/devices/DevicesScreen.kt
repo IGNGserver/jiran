@@ -456,7 +456,7 @@ fun DeviceDetailScreen(
 
 /**
  * Rename / delete, gated the same way the web gates them: the Hub advertises
- * `deviceRename` / `deviceDelete`, and the write itself needs the admin scope.
+ * `deviceRename` / `deviceDelete`; the connected owner performs the write.
  *
  * Deleting asks for confirmation *in place* — a second tap on the same control —
  * rather than a system dialog, because the destructive target is right there on

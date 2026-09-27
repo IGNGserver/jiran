@@ -28,7 +28,7 @@ function deviceOptions(rows, selectedId) {
 /** The transfer form as it appears in the web settings page's Advanced group. */
 export function renderTransferPanel() {
   const rows = deviceRows(viewStats(), 'allTime');
-  const admin = appState().authorization?.scopes?.includes('admin');
+  const owner = appState().authorization?.authenticated === true;
   if (!rows.length) return `<p class="muted tiny">${escapeHtml(tr('transfer.noDevices'))}</p>`;
   const selectedDeviceId = appState().prefs.selectedDeviceId;
   const sourceId = rows.some((row) => row.key === selectedDeviceId) ? selectedDeviceId : rows[0].key;
@@ -49,9 +49,9 @@ export function renderTransferPanel() {
       </div>
       <p class="muted tiny">${escapeHtml(tr('transfer.targetHint'))}</p>
       <div class="drawer-actions settings-actions">
-        <fluent-button appearance="primary" type="submit" class="primary-btn"${admin ? '' : ' disabled'}>${escapeHtml(tr('transfer.submit'))}</fluent-button>
+         <fluent-button appearance="primary" type="submit" class="primary-btn"${owner ? '' : ' disabled'}>${escapeHtml(tr('transfer.submit'))}</fluent-button>
       </div>
-      ${admin ? '' : `<p class="muted tiny">${escapeHtml(tr('transfer.needsAdmin'))}</p>`}
+       ${owner ? '' : `<p class="muted tiny">${escapeHtml(tr('transfer.needsAdmin'))}</p>`}
     </form>`;
 }
 

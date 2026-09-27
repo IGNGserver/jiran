@@ -84,7 +84,7 @@ test('hub web app wires status, heatmap, and active-days controls', () => {
   assert.match(app, /data-subscription-form/);
   assert.match(app, /data-topup-ledger/);
   assert.match(app, /subscriptionTopUpRowHtml/);
-  assert.match(app, /const canManage = state\.authorization\?\.scopes\?\.includes\('admin'\)/);
+  assert.match(app, /const canManage = state\.authorization\?\.authenticated === true/);
   assert.match(app, /data-pricing-form/);
   assert.match(app, /captureRenderState\(/);
   assert.match(app, /restoreRenderState\(/);

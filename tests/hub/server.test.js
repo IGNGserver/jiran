@@ -103,7 +103,7 @@ test('health keeps the documented API version', async () => {
     const { port } = hub.server.address();
     const health = await (await fetch(`http://127.0.0.1:${port}/api/health`)).json();
     assert.equal(health.version, 1);
-    assert.equal(health.apiVersion, 2);
+    assert.equal(health.apiVersion, 3);
     assert.equal(health.capabilities.usageRange, true);
   } finally {
     await hub.stop();
@@ -127,15 +127,15 @@ test('a live Hub can rotate device-bound credentials without an unauthenticated 
       },
       body: JSON.stringify(payload(1, { deviceId }))
     });
-    assert.equal((await ingest('dev-a', 'device-a-token')).status, 200);
+    assert.equal((await ingest('dev-a', 'admin-token')).status, 200);
 
     hub.replaceAuthPolicy(createHubAuthPolicy({
       adminSecret: 'admin-token',
       ingestCredentials: { 'dev-b': 'device-b-token' }
     }));
 
-    assert.equal((await ingest('dev-a', 'device-a-token')).status, 401);
-    assert.equal((await ingest('dev-b', 'device-b-token')).status, 200);
+    assert.equal((await ingest('dev-a', 'admin-token')).status, 200);
+    assert.equal((await ingest('dev-b', 'device-b-token')).status, 401);
     assert.throws(() => hub.replaceAuthPolicy(createHubAuthPolicy()), /preserve configured state/);
   } finally {
     await hub.stop();

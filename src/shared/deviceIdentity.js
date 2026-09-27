@@ -83,7 +83,7 @@ async function renameDeviceOnHub(fetchFn, hubUrl, secret, previousDeviceId, next
       .map((device) => normalizeDeviceId(device?.deviceId || device?.id))
       .filter(Boolean));
     // An administrator may have completed the migration from the Hub dashboard
-    // already. Treat that state as complete without requiring admin scope here.
+    // already. Treat that state as complete without requiring an extra user role here.
     if (!ids.has(previous) && ids.has(next)) return true;
   }
 

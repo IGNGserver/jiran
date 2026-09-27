@@ -222,7 +222,7 @@ fun MoreHubScreen(
         // recomposition, so the hairlines depended on evaluation order rather than on
         // the list they separate.
         val showPricing = state.authorization?.capabilities?.pricing == true &&
-          state.authorization.scopes.contains("admin")
+          state.authorization.authenticated
         if (showPricing) {
           MoreNavRow(
             title = "定价",

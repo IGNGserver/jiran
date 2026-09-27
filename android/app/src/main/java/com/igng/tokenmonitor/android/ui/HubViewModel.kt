@@ -91,8 +91,7 @@ data class HubUiState(
    */
   val activePresetWindow: com.igng.tokenmonitor.android.ui.core.PresetRangeWindow? = null,
   /** Hub-owned quota accounts.  Read scope is enough to list them; admin is needed to
-   * change them, and the UI gates on [HubAuthorizationDto.scopes] rather than guessing
-   * from whether the list came back. */
+    * change them, and the UI gates on the authenticated owner connection. */
   val accounts: List<HubAccountDto> = emptyList(),
   val accountsLoading: Boolean = false,
   val accountsError: String? = null,
@@ -261,7 +260,7 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
   }
 
   fun savePricing(model: String, request: PricingRequestDto) = launchRequest { generation ->
-    if (_state.value.authorization?.scopes?.contains("admin") != true) return@launchRequest
+    if (_state.value.authorization?.authenticated != true) return@launchRequest
     when (val result = repository.putPricing(model, request)) {
       is HubResult.Success -> if (isCurrent(generation)) refreshPricing()
       is HubResult.Failure -> if (isCurrent(generation)) _state.value = _state.value.copy(error = result.error.message)
@@ -269,7 +268,7 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
   }
 
   fun fetchUpstream(model: String) = launchRequest { generation ->
-    if (_state.value.authorization?.scopes?.contains("admin") != true) return@launchRequest
+    if (_state.value.authorization?.authenticated != true) return@launchRequest
     when (val result = repository.fetchUpstream(model)) {
       is HubResult.Success -> if (isCurrent(generation)) refreshPricing()
       is HubResult.Failure -> if (isCurrent(generation)) _state.value = _state.value.copy(error = result.error.message)
@@ -277,7 +276,7 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
   }
 
   fun fetchAllUpstream() = launchRequest { generation ->
-    if (_state.value.authorization?.scopes?.contains("admin") != true) return@launchRequest
+    if (_state.value.authorization?.authenticated != true) return@launchRequest
     when (val result = repository.fetchAllUpstream()) {
       is HubResult.Success -> if (isCurrent(generation)) {
         _state.value = _state.value.copy(batchResult = result.value)

@@ -90,7 +90,7 @@ export function renderDevices() {
           ${rows.map((row) => {
             const lastSeen = formatRelative(row.updatedAt, appState().locale);
             const platform = row.platformDisplay || devicePlatformLabel(row.platform, row.osName, row.osVersion);
-            const actions = appState().authorization?.scopes?.includes('admin')
+    const actions = appState().authorization?.authenticated === true
               ? `<details class="row-action-menu"><summary aria-label="${escapeHtml(tr('actions.more'))}">•••</summary><div class="row-action-popover"><fluent-button appearance="transparent" type="button" data-rename-device="${escapeHtml(row.key)}">${tr('devices.rename')}</fluent-button><fluent-button appearance="transparent" type="button" class="danger-btn" data-delete-device="${escapeHtml(row.key)}">${tr('devices.delete')}</fluent-button></div></details>`
               : '';
             return `<article class="device-list-row${row.key === selected.key ? ' selected' : ''}" role="listitem">

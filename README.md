@@ -214,7 +214,7 @@ Local mode is the default: launch the app and it starts tracking this device. No
 
 When you want multi-device sync, connect all devices (and any headless agents) to the same Docker Compose Hub. On each device, open the app and choose **Connect to a hub** under Settings → Hub connection. The app contributes this device's usage automatically; run `npm run agent` only on machines without the app. For a no-GUI install, use the [headless agent guide](docs/headless-agent.md) and the `Token-Monitor-Headless-<version>.tar.gz` release asset.
 
-For this single-user project, `TOKEN_MONITOR_SECRET` is the one Hub key used by every device and it covers read, ingest, and administrative operations, including manually managed quota accounts. Older split admin/viewer/device credentials remain available only as a compatibility mode. Remote connections require HTTPS by default; desktop/agent HTTP needs an explicit trusted-LAN opt-in, while Android release builds always require HTTPS.
+For this single-user project, `TOKEN_MONITOR_SECRET` is the one Hub owner key used by every client and it covers read, ingest, and administrative operations, including manually managed quota accounts. Devices identify data sources, not separate users. Remote connections require HTTPS by default; desktop/agent HTTP needs an explicit trusted-LAN opt-in, while Android release builds always require HTTPS.
 
 An older profile that points to a non-loopback `http://` Hub is not silently weakened during upgrade: local collection continues, while Hub read/upload/stream remain blocked until HTTPS is configured or the user explicitly enables the trusted-LAN option. The sync settings panel reports those channels separately and can recover them in the same process after the setting changes.
 

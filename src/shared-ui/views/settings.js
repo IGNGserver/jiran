@@ -14,7 +14,7 @@ import { renderTransferPanel } from './transfer.js';
 
 export function renderSettingsPage() {
   const desktopHost = isCapable('desktopSettings');
-  const admin = appState().authorization?.scopes?.includes('admin');
+  const owner = appState().authorization?.authenticated === true;
   const settingsLabel = tr('settings.appTitle');
   const settingsDescription = tr('settings.pageDescription');
   return `<section class="page-intro settings-page-intro"><div><div class="eyebrow">${escapeHtml(settingsLabel)}</div><h2>${escapeHtml(tr('settings.pageTitle'))}</h2><p>${escapeHtml(settingsDescription)}</p></div></section>
@@ -35,7 +35,7 @@ export function renderSettingsPage() {
       ${desktopHost
         ? `<div class="settings-desktop-stack" data-desktop-settings>${renderDesktopSettings(appState().desktopSettings || {}, appState().desktopInfo || {})}</div>`
         : ''}
-      ${!desktopHost && admin
+       ${!desktopHost && owner
         ? `<section class="panel settings-advanced-group" data-settings-section="advanced">
         <div class="panel-head"><h2 class="panel-title">${escapeHtml(tr('settings.groupAdvanced'))}</h2></div>
         <div class="settings-advanced-body">${renderTransferPanel()}</div>

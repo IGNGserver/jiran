@@ -776,11 +776,11 @@ function viewDescription(view = state.prefs.view) {
 
 function renderChrome() {
   const capabilities = state.authorization?.capabilities || state.health?.capabilities || {};
-  const admin = state.authorization?.scopes?.includes('admin');
+  const owner = state.authorization?.authenticated === true;
   normalizePeriodSelection();
   const visibleViews = VIEWS.filter((view) => {
     if (view.id === 'accounts') return capabilities.hubAccounts !== false;
-    if (view.id === 'management') return capabilities.subscriptions !== false || (capabilities.pricing !== false && admin);
+    if (view.id === 'management') return capabilities.subscriptions !== false || (capabilities.pricing !== false && owner);
     return true;
   });
   if (!visibleViews.some((view) => view.id === state.prefs.view)) state.prefs.view = 'overview';
@@ -1385,7 +1385,7 @@ function renderSubscriptions() {
   const records = subscriptionRecords();
   const totals = subscriptionMonthlyTotals(records);
   const editing = records.find((record) => record.id === state.subscriptionEditId) || null;
-  const canManage = state.authorization?.scopes?.includes('admin');
+  const canManage = state.authorization?.authenticated === true;
   const subscriptionDraftKey = `subscription:${state.subscriptionEditId || 'new'}`;
   const subscriptionDraft = state.formDrafts.get(subscriptionDraftKey);
   const draftKind = subscriptionDraft?.dirty ? String(subscriptionDraft.fields?.kind?.value || '') : '';
@@ -1514,8 +1514,8 @@ function renderManagementSubnav() {
   const current = ['subscriptions', 'pricing'].includes(state.prefs.managementTab)
     ? state.prefs.managementTab
     : 'subscriptions';
-  const admin = state.authorization?.scopes?.includes('admin');
-  const pricingVisible = state.authorization?.capabilities?.pricing !== false && admin;
+  const owner = state.authorization?.authenticated === true;
+  const pricingVisible = state.authorization?.capabilities?.pricing !== false && owner;
   return `<tm-tablist class="page-tabs" aria-label="${escapeHtml(tr('nav.management'))}" role="tablist">
     <fluent-tab id="management-tab-subscriptions" role="tab" aria-controls="management-tabpanel" aria-selected="${current === 'subscriptions' ? 'true' : 'false'}" class="page-tab${current === 'subscriptions' ? ' active' : ''}" data-management-tab="subscriptions">${escapeHtml(tr('management.tabs.subscriptions'))}</fluent-tab>
     ${pricingVisible ? `<fluent-tab id="management-tab-pricing" role="tab" aria-controls="management-tabpanel" aria-selected="${current === 'pricing' ? 'true' : 'false'}" class="page-tab${current === 'pricing' ? ' active' : ''}" data-management-tab="pricing">${escapeHtml(tr('management.tabs.pricing'))}</fluent-tab>` : ''}
@@ -1523,8 +1523,8 @@ function renderManagementSubnav() {
 }
 
 function renderManagement() {
-  const admin = state.authorization?.scopes?.includes('admin');
-  const pricingVisible = state.authorization?.capabilities?.pricing !== false && admin;
+  const owner = state.authorization?.authenticated === true;
+  const pricingVisible = state.authorization?.capabilities?.pricing !== false && owner;
   const tab = state.prefs.managementTab === 'pricing' && pricingVisible ? 'pricing' : 'subscriptions';
   if (state.prefs.managementTab !== tab) state.prefs.managementTab = tab;
   const body = tab === 'pricing' ? renderPricing() : renderSubscriptions();

@@ -407,13 +407,13 @@ private fun AppNavHost(
         onBack = { navController.popBackStack() },
         onHome = navigateHome,
         hubState = hubState,
-        canManage = hubState.authorization?.scopes?.contains("admin") == true,
+         canManage = hubState.authorization?.authenticated == true,
         onRenameDevice = hubViewModel::renameDevice,
         onDeleteDevice = hubViewModel::deleteDevice
       )
       // Ask for the device's own history once, when the page opens.
       LaunchedEffect(id) {
-        if (hubState.authorization?.scopes?.contains("admin") != null) {
+        if (hubState.authorization?.authenticated == true) {
           hubViewModel.refreshDeviceHistory(id)
         }
       }

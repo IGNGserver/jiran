@@ -9,8 +9,6 @@ data class HealthDto(
   val version: Int? = null,
   val apiVersion: Int? = null,
   val capabilities: HubCapabilitiesDto = HubCapabilitiesDto(),
-  val authenticatedRole: String? = null,
-  val grantedScopes: List<String> = emptyList(),
   val deviceCount: Int? = null,
   val secretRequired: Boolean? = null,
   val now: String? = null
@@ -39,8 +37,7 @@ data class HubCapabilitiesDto(
 data class HubAuthorizationDto(
   val apiVersion: Int? = null,
   val capabilities: HubCapabilitiesDto = HubCapabilitiesDto(),
-  val role: String? = null,
-  val scopes: List<String> = emptyList()
+  val authenticated: Boolean = false
 )
 
 @Serializable

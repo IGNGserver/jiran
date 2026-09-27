@@ -241,7 +241,7 @@ test('hub web management APIs expose subscription concurrency and pricing contra
   }
 });
 
-test('Hub routes enforce viewer, device-bound ingest, and admin scopes', async () => {
+test('Hub routes use one owner credential for reads, writes, and ingest', async () => {
   const hub = createHub({
     port: 0,
     host: '127.0.0.1',
@@ -255,21 +255,19 @@ test('Hub routes enforce viewer, device-bound ingest, and admin scopes', async (
   try {
     const base = `http://127.0.0.1:${hub.server.address().port}`;
     const auth = (token) => ({ authorization: `Bearer ${token}` });
-    const capabilities = await (await fetch(`${base}/api/capabilities`, { headers: auth('device-token') })).json();
-    assert.equal(capabilities.role, 'device');
-    assert.deepEqual(capabilities.scopes, ['read', 'ingest']);
-    assert.equal((await fetch(`${base}/api/stats`, { headers: auth('viewer-token') })).status, 200);
-    assert.equal((await fetch(`${base}/api/devices/device-a`, { method: 'DELETE', headers: auth('viewer-token') })).status, 403);
+    const capabilities = await (await fetch(`${base}/api/capabilities`, { headers: auth('admin-token') })).json();
+    assert.equal(capabilities.authenticated, true);
+    assert.equal((await fetch(`${base}/api/stats`, { headers: auth('admin-token') })).status, 200);
     assert.equal((await fetch(`${base}/api/ingest`, {
       method: 'POST',
-      headers: { ...auth('device-token'), 'content-type': 'application/json' },
+      headers: { ...auth('admin-token'), 'content-type': 'application/json' },
       body: JSON.stringify({ deviceId: 'device-a', today: { totalTokens: 1 }, month: { totalTokens: 1 }, allTime: { totalTokens: 1 } })
     })).status, 200);
     assert.equal((await fetch(`${base}/api/ingest`, {
       method: 'POST',
-      headers: { ...auth('device-token'), 'content-type': 'application/json' },
+      headers: { ...auth('admin-token'), 'content-type': 'application/json' },
       body: JSON.stringify({ deviceId: 'device-b' })
-    })).status, 403);
+    })).status, 200);
     assert.equal((await fetch(`${base}/api/devices/device-a`, { method: 'DELETE', headers: auth('admin-token') })).status, 200);
   } finally {
     await hub.stop();
@@ -280,8 +278,7 @@ test('Hub rate-limits repeated auth failures and ingest bursts by principal', as
   const hub = createHub({
     port: 0,
     host: '127.0.0.1',
-    viewerSecret: 'viewer-token',
-    ingestCredentials: { 'device-a': 'device-token' },
+    adminSecret: 'owner-token',
     authFailureLimit: 1,
     ingestRateLimit: 1,
     repository: new MemoryRepository(),
@@ -298,7 +295,7 @@ test('Hub rate-limits repeated auth failures and ingest bursts by principal', as
 
     const options = {
       method: 'POST',
-      headers: { authorization: 'Bearer device-token', 'content-type': 'application/json' },
+      headers: { authorization: 'Bearer owner-token', 'content-type': 'application/json' },
       body: JSON.stringify({ deviceId: 'device-a', today: { totalTokens: 1 }, month: { totalTokens: 1 }, allTime: { totalTokens: 1 } })
     };
     assert.equal((await fetch(`${base}/api/ingest`, options)).status, 200);

@@ -24,9 +24,7 @@ const { CURRENCY_CODES, normalizeCurrency } = require('../shared/currency');
 const { currentHubBuild } = require('../shared/hubBuildIdentity');
 const { readJsonBody, sendJson, sendText } = require('../shared/http');
 const {
-  ADMIN_SCOPE,
-  INGEST_SCOPE,
-  READ_SCOPE,
+  AUTHENTICATED_SCOPE,
   createHubAuthPolicy
 } = require('../shared/hubAuth');
 const { HUB_API_VERSION, hubCapabilities } = require('../shared/hubCapabilities');
@@ -77,37 +75,6 @@ function errorMessageForApi(error) {
   return String(error?.message || 'request failed')
     .slice(0, 512)
     .replace(/cookie|token|secret|api[_ -]?key|authorization/gi, '[redacted]');
-}
-
-function redactViewerAccount(account) {
-  const limits = account?.limits;
-  const safeLimits = limits && typeof limits === 'object'
-    ? (({
-      accountId,
-      accountKey,
-      webAccountKey,
-      accountKeyAliases,
-      accountEmail,
-      accountName,
-      accountLabel,
-      planLabel,
-      ...safe
-    }) => safe)(limits)
-    : limits;
-  return {
-    id: account?.id || '',
-    provider: account?.provider || '',
-    enabled: account?.enabled !== false,
-    status: account?.status || 'notConfigured',
-    lastErrorCode: account?.lastErrorCode || '',
-    lastErrorMessage: account?.lastErrorMessage || '',
-    lastAttemptAt: account?.lastAttemptAt || null,
-    lastSuccessAt: account?.lastSuccessAt || null,
-    nextRefreshAt: account?.nextRefreshAt || null,
-    createdAt: account?.createdAt || null,
-    updatedAt: account?.updatedAt || null,
-    limits: safeLimits
-  };
 }
 
 // Without a secret the hub cannot tell its own widget from any other caller, so it
@@ -315,11 +282,12 @@ function createHub({
   port = 17321,
   host = '0.0.0.0',
   secret = '',
+  // Internal migration input only. The CLI and documented deployment surface
+  // no longer expose split credentials; if present, the old admin key is the
+  // only safe candidate for the single owner.
   adminSecret = '',
   viewerSecret = '',
   ingestCredentials = null,
-  allowLegacyAdmin = false,
-  allowLegacyIngest = false,
   authPolicy = null,
   staleAfterMs = 10 * 60 * 1000,
   sseHeartbeatMs = 30000,
@@ -345,15 +313,11 @@ function createHub({
   const ownedPool = !repository && !pool;
   const activePool = pool || (repository ? null : createMySqlPool());
   const store = repository || createRepository(activePool);
-  const unifiedSecret = !String(adminSecret || '').trim() ? secret : '';
+  const ownerSecret = String(secret || adminSecret || '').trim();
   let auth = authPolicy || createHubAuthPolicy({
-    unifiedSecret,
-    adminSecret,
+    ownerSecret,
     viewerSecret,
-    legacySecret: secret,
-    ingestCredentials,
-    allowLegacyAdmin,
-    allowLegacyIngest
+    ingestCredentials
   });
   const resolvedAccountCredentialKey = String(
     accountCredentialKey
@@ -1285,11 +1249,10 @@ function createHub({
         version: 1,
         apiVersion: HUB_API_VERSION,
         capabilities,
-        hubBuild: currentHubBuild('node-hub'),
-        deviceCount: await store.countDevices(),
-        secretRequired: auth.secretRequired,
-        auth: auth.summary,
-        now: new Date().toISOString()
+         hubBuild: currentHubBuild('node-hub'),
+         deviceCount: await store.countDevices(),
+         secretRequired: auth.secretRequired,
+         now: new Date().toISOString()
       });
     }
 
@@ -1300,7 +1263,7 @@ function createHub({
     const authorize = (scope, options = {}) => {
       const result = auth.authorize(req, scope, options);
       if (result.ok) {
-        if (scope === INGEST_SCOPE && options.consumeRateLimit !== false) {
+        if (options.ingest && options.consumeRateLimit !== false) {
           const limited = ingestRequests.take(result.principal.id);
           if (!limited.ok) {
             sendJson(res, 429, { error: 'rate_limited' }, { 'retry-after': String(Math.max(1, Math.ceil(limited.retryAfterMs / 1000))) });
@@ -1343,32 +1306,30 @@ function createHub({
       })}`);
     };
     if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/api/capabilities') {
-      const result = authorize(READ_SCOPE);
+      const result = authorize(AUTHENTICATED_SCOPE);
       if (!result) return;
       return sendJson(res, 200, {
-        apiVersion: HUB_API_VERSION,
-        capabilities,
-        role: result.principal.role,
-        scopes: result.principal.scopes
+         apiVersion: HUB_API_VERSION,
+         capabilities,
+         authenticated: true
       });
     }
     if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/api/accounts') {
-      const result = authorize(READ_SCOPE);
+      const result = authorize(AUTHENTICATED_SCOPE);
       if (!result) return;
       if (!accountService) return accountUnavailable(res);
-      const isAdmin = result.principal.scopes.includes(ADMIN_SCOPE);
-      const accounts = await accountService.listAccounts({ includeCredentialMetadata: isAdmin });
+      const accounts = await accountService.listAccounts({ includeCredentialMetadata: true });
       return sendJson(res, 200, {
         ok: true,
         authority: 'hub',
         providers: accountService.supportedProviders(),
-        accounts: isAdmin ? accounts : accounts.map(redactViewerAccount)
+        accounts
       });
     }
     const readRoute = (req.method === 'GET' || req.method === 'HEAD') && (
       ['/api/stats', '/api/devices', '/api/history', '/api/subscriptions', '/api/usage/range', '/api/pricing', '/api/stats/stream'].includes(url.pathname)
     );
-    if (readRoute && !authorize(READ_SCOPE)) return;
+    if (readRoute && !authorize(AUTHENTICATED_SCOPE)) return;
 
     if (req.method === 'GET' && url.pathname === '/api/stats') return sendJson(res, 200, await getStats());
     if (req.method === 'GET' && url.pathname === '/api/devices') {
@@ -1386,12 +1347,12 @@ function createHub({
       return sendJson(res, 200, { ok: true, ...(await getSubscriptions()) });
     }
     if (req.method === 'PUT' && url.pathname === '/api/subscriptions') {
-      const admin = authorize(ADMIN_SCOPE);
-      if (!admin) return;
+      const owner = authorize(AUTHENTICATED_SCOPE);
+      if (!owner) return;
       try {
         const payload = await readJsonBody(req);
         const stored = await setSubscriptions(payload?.subscriptions, payload?.baseUpdatedAt);
-        audit(admin.principal, 'subscriptions.replace');
+        audit(owner.principal, 'subscriptions.replace');
         return sendJson(res, 200, { ok: true, ...stored });
       } catch (error) {
         if (error.code === 'stale_write') return sendJson(res, 409, { error: 'stale_write', ...error.current });
@@ -1431,8 +1392,8 @@ function createHub({
     if (req.method === 'GET' && url.pathname === '/api/pricing') return sendJson(res, 200, { pricing: await store.listPricing() });
 
     if (req.method === 'POST' && url.pathname === '/api/accounts') {
-      const admin = authorize(ADMIN_SCOPE);
-      if (!admin) return;
+      const owner = authorize(AUTHENTICATED_SCOPE);
+      if (!owner) return;
       if (!accountService) return accountUnavailable(res);
       try {
         const body = await readJsonBody(req);
@@ -1442,7 +1403,7 @@ function createHub({
           label: body?.label,
           credential: body?.credential
         });
-        await recordAccountAudit(admin.principal, 'account.add', account.id, { provider: account.provider });
+        await recordAccountAudit(owner.principal, 'account.add', account.id, { provider: account.provider });
         return sendJson(res, 201, { ok: true, account });
       } catch (error) {
         return sendJson(res, accountErrorStatus(error), {
@@ -1453,8 +1414,8 @@ function createHub({
     }
 
     if (req.method === 'POST' && url.pathname === '/api/accounts/oauth/start') {
-      const admin = authorize(ADMIN_SCOPE);
-      if (!admin) return;
+      const owner = authorize(AUTHENTICATED_SCOPE);
+      if (!owner) return;
       if (!accountService) return accountUnavailable(res);
       try {
         const body = await readJsonBody(req);
@@ -1467,8 +1428,8 @@ function createHub({
     }
 
     if (req.method === 'POST' && url.pathname === '/api/accounts/oauth/exchange') {
-      const admin = authorize(ADMIN_SCOPE);
-      if (!admin) return;
+      const owner = authorize(AUTHENTICATED_SCOPE);
+      if (!owner) return;
       if (!accountService) return accountUnavailable(res);
       try {
         const body = await readJsonBody(req);
@@ -1488,7 +1449,7 @@ function createHub({
           label,
           credential: exchanged.credential
         });
-        await recordAccountAudit(admin.principal, 'account.add_oauth', account.id, { provider: account.provider });
+        await recordAccountAudit(owner.principal, 'account.add_oauth', account.id, { provider: account.provider });
         return sendJson(res, 201, { ok: true, account });
       } catch (error) {
         return sendJson(res, accountErrorStatus(error), {
@@ -1505,13 +1466,13 @@ function createHub({
       const accountId = decodeURIComponent(isRefresh ? suffix.slice(0, -refreshSuffix.length) : suffix);
       if (!accountId) return sendJson(res, 400, { error: 'account_id_required' });
       if (req.method === 'POST' && isRefresh) {
-        const admin = authorize(ADMIN_SCOPE);
-        if (!admin) return;
+        const owner = authorize(AUTHENTICATED_SCOPE);
+        if (!owner) return;
         if (!accountService) return accountUnavailable(res);
         try {
           const account = await accountService.refreshAccount(accountId);
           if (!account) return sendJson(res, 404, { error: 'account_not_found' });
-          await recordAccountAudit(admin.principal, 'account.refresh', accountId);
+          await recordAccountAudit(owner.principal, 'account.refresh', accountId);
           return sendJson(res, 200, { ok: true, account: (await accountService.listAccounts()).find((item) => item.id === accountId) || null });
         } catch (error) {
           return sendJson(res, accountErrorStatus(error), {
@@ -1521,8 +1482,8 @@ function createHub({
         }
       }
       if (req.method === 'PATCH') {
-        const admin = authorize(ADMIN_SCOPE);
-        if (!admin) return;
+        const owner = authorize(AUTHENTICATED_SCOPE);
+        if (!owner) return;
         if (!accountService) return accountUnavailable(res);
         try {
           const body = await readJsonBody(req);
@@ -1534,7 +1495,7 @@ function createHub({
             ...(Object.prototype.hasOwnProperty.call(body || {}, 'credential') ? { credential: body.credential } : {})
           });
           if (!account) return sendJson(res, 404, { error: 'account_not_found' });
-          await recordAccountAudit(admin.principal, 'account.update', accountId, {
+          await recordAccountAudit(owner.principal, 'account.update', accountId, {
             provider: account.provider,
             credentialReplaced: Object.prototype.hasOwnProperty.call(body || {}, 'credential')
           });
@@ -1547,13 +1508,13 @@ function createHub({
         }
       }
       if (req.method === 'DELETE') {
-        const admin = authorize(ADMIN_SCOPE);
-        if (!admin) return;
+        const owner = authorize(AUTHENTICATED_SCOPE);
+        if (!owner) return;
         if (!accountService) return accountUnavailable(res);
         try {
           const deleted = await accountService.deleteAccount(accountId);
           if (!deleted) return sendJson(res, 404, { error: 'account_not_found' });
-          await recordAccountAudit(admin.principal, 'account.delete', accountId);
+          await recordAccountAudit(owner.principal, 'account.delete', accountId);
           return sendJson(res, 200, { ok: true, accountId });
         } catch (error) {
           return sendJson(res, accountErrorStatus(error), {
@@ -1623,11 +1584,11 @@ function createHub({
     }
 
     if (req.method === 'POST' && url.pathname === '/api/ingest') {
-      if (!authorize(INGEST_SCOPE)) return;
+      if (!authorize(AUTHENTICATED_SCOPE, { ingest: true })) return;
       try {
         const payload = await readJsonBody(req);
         const deviceId = String(payload?.deviceId || payload?.id || '').trim();
-        if (!authorize(INGEST_SCOPE, { deviceId, consumeRateLimit: false })) return;
+        if (!authorize(AUTHENTICATED_SCOPE, { ingest: true, deviceId, consumeRateLimit: false })) return;
         const minimalResponse = /(?:^|,)\s*return=minimal\s*(?:,|$)/i.test(String(req.headers.prefer || ''));
         const result = await ingest(payload, { includeStats: !minimalResponse });
         if (minimalResponse) return sendJson(res, 200, { ok: true, deviceId: result.deviceId });
@@ -1652,13 +1613,13 @@ function createHub({
     }
 
     if (req.method === 'PUT' && url.pathname.startsWith('/api/pricing/')) {
-      const admin = authorize(ADMIN_SCOPE);
-      if (!admin) return;
+      const owner = authorize(AUTHENTICATED_SCOPE);
+      if (!owner) return;
       try {
         const model = decodeURIComponent(url.pathname.slice('/api/pricing/'.length));
         if (!model) return sendJson(res, 400, { error: 'model_required' });
         const pricing = await setPricing(model, normalizePrices(await readJsonBody(req)));
-        audit(admin.principal, 'pricing.replace', model);
+        audit(owner.principal, 'pricing.replace', model);
         return sendJson(res, 200, { ok: true, pricing });
       } catch (error) {
         return sendJson(res, 400, { error: error.code || 'bad_request', message: error.message });
@@ -1666,20 +1627,20 @@ function createHub({
     }
 
     if (req.method === 'POST' && url.pathname === '/api/pricing/fetch-upstream-all') {
-      const admin = authorize(ADMIN_SCOPE);
-      if (!admin) return;
+      const owner = authorize(AUTHENTICATED_SCOPE);
+      if (!owner) return;
       const results = await fetchAllUpstreamPricing();
-      audit(admin.principal, 'pricing.refresh_all');
+      audit(owner.principal, 'pricing.refresh_all');
       return sendJson(res, 200, { results });
     }
 
     if (req.method === 'POST' && url.pathname.startsWith('/api/pricing/') && url.pathname.endsWith('/fetch-upstream')) {
-      const admin = authorize(ADMIN_SCOPE);
-      if (!admin) return;
+      const owner = authorize(AUTHENTICATED_SCOPE);
+      if (!owner) return;
       const model = decodeURIComponent(url.pathname.slice('/api/pricing/'.length, -'/fetch-upstream'.length));
       try {
         const pricing = await fetchUpstreamPricing(model);
-        audit(admin.principal, 'pricing.refresh', model);
+        audit(owner.principal, 'pricing.refresh', model);
         return sendJson(res, 200, { ok: true, pricing });
       } catch (error) {
         const status = error.code === 'pricing_not_found' || error.code === 'model_required' ? 422 : 502;
@@ -1688,8 +1649,8 @@ function createHub({
     }
 
     if (req.method === 'POST' && url.pathname.startsWith('/api/devices/') && url.pathname.endsWith('/rename')) {
-      const admin = authorize(ADMIN_SCOPE);
-      if (!admin) return;
+      const owner = authorize(AUTHENTICATED_SCOPE);
+      if (!owner) return;
       const previousDeviceId = decodeURIComponent(url.pathname.slice('/api/devices/'.length, -'/rename'.length));
       try {
         const body = await readJsonBody(req);
@@ -1703,7 +1664,7 @@ function createHub({
         }
         if (result?.reason === 'target_exists') return sendJson(res, 409, { error: 'target_exists' });
         if (!result?.renamed) return sendJson(res, 400, { error: result?.reason || 'rename_failed' });
-        audit(admin.principal, 'device.rename', `${previousDeviceId}->${nextDeviceId}`);
+        audit(owner.principal, 'device.rename', `${previousDeviceId}->${nextDeviceId}`);
         return sendJson(res, 200, { ok: true, ...result });
       } catch (error) {
         if (error.code === 'field_too_long') {
@@ -1715,14 +1676,14 @@ function createHub({
     }
 
     if (req.method === 'POST' && url.pathname.startsWith('/api/devices/') && url.pathname.endsWith('/transfer')) {
-      const admin = authorize(ADMIN_SCOPE);
-      if (!admin) return;
+      const owner = authorize(AUTHENTICATED_SCOPE);
+      if (!owner) return;
       const sourceDeviceId = decodeURIComponent(url.pathname.slice('/api/devices/'.length, -'/transfer'.length));
       try {
         const body = await readJsonBody(req);
         const targetDeviceId = String(body?.targetDeviceId || '').trim();
         await transferDeviceData(sourceDeviceId, targetDeviceId);
-        audit(admin.principal, 'device.transfer', `${sourceDeviceId}->${targetDeviceId}`);
+        audit(owner.principal, 'device.transfer', `${sourceDeviceId}->${targetDeviceId}`);
         invalidateStatsCache();
         try {
           const stats = await getStats();
@@ -1745,11 +1706,11 @@ function createHub({
     }
 
     if (req.method === 'DELETE' && url.pathname.startsWith('/api/devices/')) {
-      const admin = authorize(ADMIN_SCOPE);
-      if (!admin) return;
+      const owner = authorize(AUTHENTICATED_SCOPE);
+      if (!owner) return;
       const deviceId = decodeURIComponent(url.pathname.slice('/api/devices/'.length));
       await deleteDevice(deviceId);
-      audit(admin.principal, 'device.delete', deviceId);
+      audit(owner.principal, 'device.delete', deviceId);
       return sendJson(res, 200, { ok: true, deviceId });
     }
 
@@ -1854,19 +1815,11 @@ if (require.main === module) {
   const port = Number(args.port || process.env.TOKEN_MONITOR_PORT || 17321);
   const host = String(args.host || process.env.TOKEN_MONITOR_HOST || '0.0.0.0');
   const secret = String(args.secret || process.env.TOKEN_MONITOR_SECRET || '').trim();
-  const adminSecret = String(args.adminSecret || process.env.TOKEN_MONITOR_ADMIN_SECRET || '').trim();
-  const viewerSecret = String(args.viewerSecret || process.env.TOKEN_MONITOR_VIEWER_SECRET || '').trim();
-  const ingestCredentials = args.ingestCredentials || process.env.TOKEN_MONITOR_INGEST_CREDENTIALS || '';
   const staleAfterMs = Number(args.staleAfterMs || process.env.TOKEN_MONITOR_STALE_AFTER_MS || 10 * 60 * 1000);
   const hub = createHub({
     port,
     host,
     secret,
-    adminSecret,
-    viewerSecret,
-    ingestCredentials,
-    allowLegacyAdmin: args.allowLegacyAdmin || process.env.TOKEN_MONITOR_ALLOW_LEGACY_ADMIN,
-    allowLegacyIngest: args.allowLegacyIngest || process.env.TOKEN_MONITOR_ALLOW_LEGACY_INGEST,
     accountCredentialKey: args.accountCredentialKey
       || args['account-credential-key']
       || process.env.TOKEN_MONITOR_HUB_CREDENTIAL_KEY

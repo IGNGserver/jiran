@@ -190,7 +190,7 @@ export function renderLimitCards(cards, { compact = false, hideProvider = false 
           <div class="limit-card-windows">${renderLimitCardWindows(card)}</div>
           ${(() => {
             const hint = formatLimitHint(card);
-            const canOpenAccounts = appState().authorization?.capabilities?.hubAccounts !== false && appState().authorization?.scopes?.includes('admin');
+            const canOpenAccounts = appState().authorization?.capabilities?.hubAccounts !== false && appState().authorization?.authenticated === true;
             const action = canOpenAccounts && card.status !== 'ok'
               ? `<fluent-button appearance="transparent" type="button" class="limit-account-action" data-jump-view="accounts">${tr('nav.accounts')}</fluent-button>`
               : '';
