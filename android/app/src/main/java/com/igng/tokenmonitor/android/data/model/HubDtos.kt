@@ -224,6 +224,8 @@ data class PeriodDto(
   val clientCredits: Map<String, Double> = emptyMap(),
   /** Client×model grain of [clientCredits]; forwarded for the same reason. */
   val clientModelCredits: Map<String, Map<String, Double>> = emptyMap(),
+  /** Unified per-client token/cost provenance and native provider meters. */
+  val clientMeasurements: Map<String, ClientMeasurementDto> = emptyMap(),
   /** Period-level "at least one row here was estimated". */
   val estimated: Boolean = false
 )
@@ -256,6 +258,19 @@ data class SessionDto(
   /** Credits for this session; see [PeriodDto.clientCredits]. */
   val credits: Double? = null,
   val modelCredits: Map<String, Double> = emptyMap()
+)
+
+@Serializable
+data class NativeMeterDto(
+  val value: Double = 0.0,
+  val provenance: String = "unknown"
+)
+
+@Serializable
+data class ClientMeasurementDto(
+  val tokens: String? = null,
+  val costUsd: String? = null,
+  val meters: Map<String, NativeMeterDto> = emptyMap()
 )
 
 @Serializable
@@ -372,6 +387,7 @@ data class UsageRangeDto(
   val clientCredits: Map<String, Double> = emptyMap(),
   /** Client×model grain of [clientCredits]; forwarded for the same reason. */
   val clientModelCredits: Map<String, Map<String, Double>> = emptyMap(),
+  val clientMeasurements: Map<String, ClientMeasurementDto> = emptyMap(),
   /** Period-level "at least one row here was estimated". */
   val estimated: Boolean = false
 )

@@ -139,6 +139,7 @@ fun OverviewScreen(
       activePeriod?.clientCosts.orEmpty(),
       activePeriod?.clientEstimated.orEmpty(),
       activePeriod?.clientCredits.orEmpty(),
+      activePeriod?.clientMeasurements.orEmpty(),
       limit = 6
     )
   val modelShares = topShareEntries(activePeriod?.models.orEmpty(), activePeriod?.modelCosts.orEmpty(), limit = 5)

@@ -155,11 +155,36 @@ function emptyUsageRangePayload() {
     clients: {},
     clientCosts: {},
     clientCredits: {},
+    clientEstimated: {},
+    clientMeasurements: {},
+    estimated: false,
     models: {},
     modelCosts: {},
     clientModels: {},
     clientModelCosts: {}
   };
+}
+
+function rangeMeasurements(period = {}) {
+  const result = { ...(period.clientMeasurements || {}) };
+  const clients = new Set([
+    ...Object.keys(period.clients || {}),
+    ...Object.keys(period.clientCredits || {})
+  ]);
+  for (const client of clients) {
+    const current = result[client] || {};
+    if (!current.tokens) current.tokens = period.clientEstimated?.[client] === true ? 'estimated' : 'unknown';
+    if (!current.costUsd) current.costUsd = period.clientEstimated?.[client] === true ? 'estimated' : 'unknown';
+    const credits = number(period.clientCredits?.[client]);
+    if (credits > 0) {
+      current.meters = {
+        ...(current.meters || {}),
+        credits: { value: credits, provenance: 'exact' }
+      };
+    }
+    result[client] = current;
+  }
+  return result;
 }
 
 function addRangeTokenCost(mapTokens, mapCosts, key, tokens, cost) {
@@ -585,6 +610,9 @@ function createHub({
       // partial total. Dropping a field the period actually carries would be a
       // silent data loss one level lower down.
       clientCredits: { ...(period?.clientCredits || {}) },
+      clientEstimated: { ...(period?.clientEstimated || {}) },
+      clientMeasurements: rangeMeasurements(period),
+      estimated: period?.estimated === true,
       models: { ...(period?.models || {}) },
       modelCosts: { ...(period?.modelCosts || {}) },
       clientModels: period?.clientModels && typeof period.clientModels === 'object' ? period.clientModels : {},
@@ -745,6 +773,10 @@ function createHub({
         clients: eventsAgg.clients || {},
         clientCosts: eventsAgg.clientCosts || {},
         clientCredits: eventsAgg.clientCredits || {},
+        clientMeasurements: rangeMeasurements({
+          clients: eventsAgg.clients,
+          clientCredits: eventsAgg.clientCredits
+        }),
         models: eventsAgg.models || {},
         modelCosts: eventsAgg.modelCosts || {},
         clientModels: eventsAgg.clientModels || {},
@@ -771,6 +803,7 @@ function createHub({
         clients: live.clients,
         clientCosts: live.clientCosts,
         clientCredits: live.clientCredits,
+        clientMeasurements: live.clientMeasurements || rangeMeasurements(live),
         models: live.models,
         modelCosts: live.modelCosts,
         clientModels: live.clientModels,

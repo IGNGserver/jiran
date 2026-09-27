@@ -523,9 +523,11 @@ export function periodActivityCounts(period = {}) {
 // or project row can mix an exact client's tokens with an estimated one, so it
 // inherits no label rather than claiming one it cannot support.
 export function clientMeasurementFields(period, client) {
+  const measurement = period?.clientMeasurements?.[client] || {};
+  const credits = Number(period?.clientCredits?.[client] || measurement.meters?.credits?.value || 0) || 0;
   return {
-    estimated: period?.clientEstimated?.[client] === true,
-    credits: Number(period?.clientCredits?.[client] || 0) || 0
+    estimated: measurement.tokens === 'estimated' || period?.clientEstimated?.[client] === true,
+    credits
   };
 }
 
@@ -581,10 +583,14 @@ export function mapRows(mapTokens = {}, mapCosts = {}, { labelFor, colorFor } = 
 }
 
 export function toolRows(period) {
-  return mapRows(period?.clients, period?.clientCosts, {
+  const tokenRows = mapRows(period?.clients, period?.clientCosts, {
     labelFor: clientLabel,
     colorFor: clientColor
-  }).map((row) => ({
+  });
+  const creditOnly = Object.keys(period?.clientCredits || {})
+    .filter((key) => !tokenRows.some((row) => row.key === key))
+    .map((key) => ({ key, name: clientLabel(key), value: 0, cost: 0, color: clientColor(key) }));
+  return [...tokenRows, ...creditOnly].map((row) => ({
     ...row,
     ...clientMeasurementFields(period, row.key),
     metrics: tokenMetricsForRow(period, 'client', row.key, row.value)

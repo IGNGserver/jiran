@@ -59,12 +59,12 @@ export function renderTools() {
           ${toolIconHtml(row.key)}
           <div class="row-copy">
             <div class="row-name">${escapeHtml(row.name)}</div>
-            <div class="row-sub">${Math.round((row.value / Math.max(1, period.totalTokens || 0)) * 100)}%${credits ? ` · ${escapeHtml(`${credits} ${tr('stats.credits')}`)}` : ''}</div>
+        <div class="row-sub">${row.value > 0 ? Math.round((row.value / Math.max(1, period.totalTokens || 0)) * 100) : 0}%${credits ? ` · ${escapeHtml(`${credits} ${tr('stats.credits')}`)}` : ''}</div>
           </div>
         </div>
         <div class="row-side">
-          <div class="row-value">${escapeHtml(estimatedValue(formatNumber(row.value), row.estimated))}</div>
-          <div class="row-cost">${escapeHtml(estimatedValue(formatCost(row.cost, appState().prefs.currency), row.estimated))}</div>
+          <div class="row-value">${row.value > 0 ? escapeHtml(estimatedValue(formatNumber(row.value), row.estimated)) : escapeHtml(`${credits} ${tr('stats.credits')}`)}</div>
+          <div class="row-cost">${row.value > 0 ? escapeHtml(estimatedValue(formatCost(row.cost, appState().prefs.currency), row.estimated)) : ''}</div>
         </div>
       </button>`;
   }).join('');

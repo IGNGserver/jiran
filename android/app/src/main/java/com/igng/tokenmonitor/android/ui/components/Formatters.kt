@@ -1,5 +1,6 @@
 package com.igng.tokenmonitor.android.ui.components
 
+import com.igng.tokenmonitor.android.data.model.ClientMeasurementDto
 import com.igng.tokenmonitor.android.data.model.HistoryDayDto
 import java.text.NumberFormat
 import java.time.Duration
@@ -179,6 +180,7 @@ fun topShareEntries(
   costs: Map<String, Double> = emptyMap(),
   estimated: Map<String, Boolean> = emptyMap(),
   credits: Map<String, Double> = emptyMap(),
+  measurements: Map<String, ClientMeasurementDto> = emptyMap(),
   limit: Int = 6
 ): List<ShareEntry> {
   // Qoder is in `credits` and not in `tokens`, so a tokens-only map is not empty
@@ -195,8 +197,8 @@ fun topShareEntries(
     key = key,
     tokens = tokens[key] ?: 0L,
     costUsd = costs[key] ?: 0.0,
-    estimated = estimated[key] == true,
-    credits = credits[key]
+    estimated = measurements[key]?.tokens == "estimated" || estimated[key] == true,
+    credits = credits[key] ?: measurements[key]?.meters?.get("credits")?.value
   )
   if (sorted.size <= limit) return sorted.map(::entryFor)
   val head = sorted.take(limit - 1)
