@@ -200,3 +200,79 @@ test('an unreadable archive does not void the host answer', async () => {
   assert.equal(result.period.totalTokens, 10);
   assert.match(logs.join('\n'), /session archive range restore failed/);
 });
+
+// Both Qoder editions are read by this project's own adapter, so a range answer
+// that skipped the adapter showed Qoder in 今日 / 本月 / 全部 and nothing in
+// 昨日 / 本周 — the same tool measured two ways.
+test('collectCustomRangeOnce folds both Qoder editions into the window', async () => {
+  const inWindow = new Date(2026, 6, 24, 12, 0, 0).getTime();
+  const outside = new Date(2026, 6, 22, 12, 0, 0).getTime();
+  const asked = [];
+  const result = await collectCustomRangeOnce({
+    clients: 'claude,qoder,qodercn',
+    range: { startDate: '2026-07-23', endDate: '2026-07-24', startHour: 0, endHour: 23 },
+    projectsEnabled: false,
+    homeDir: process.cwd(),
+    sessionUsageArchive: { version: 1, sessions: {} },
+    sessionMetadataDeps: { findSessionFiles: () => [], sessionTimestampMap: () => new Map() },
+    runTokscale: async () => ({
+      entries: [{
+        client: 'claude', sessionId: 'c1', model: 'sonnet', input: 10, output: 0,
+        cacheRead: 0, cacheWrite: 0, cost: 0.1,
+        startedAt: '2026-07-24T03:00:00.000Z', lastUsedAt: '2026-07-24T04:00:00.000Z'
+      }]
+    }),
+    collectQoderClientUsage: async (clientId) => {
+      asked.push(clientId);
+      return {
+        rows: [
+          {
+            sessionId: 's-in', model: 'qoder-large', input: 20, output: 5, cacheRead: 0,
+            cacheWrite: 0, messages: 2, credits: 1.5, createdAt: inWindow, estimated: true
+          },
+          {
+            sessionId: 's-out', model: 'qoder-large', input: 999, output: 0, cacheRead: 0,
+            cacheWrite: 0, messages: 1, createdAt: outside
+          }
+        ],
+        pricing: {}
+      };
+    }
+  });
+
+  assert.deepEqual(asked.sort(), ['qoder', 'qodercn']);
+  assert.equal(result.period.clients.claude, 10);
+  // The in-window row only: 20 + 5 per edition, and the out-of-window 999 stayed out.
+  assert.equal(result.period.clients.qoder, 25);
+  assert.equal(result.period.clients.qodercn, 25);
+  // Qoder token totals are an estimate and its credits are the exact provider
+  // unit; a range that dropped either would present an estimate as a measurement.
+  assert.equal(result.period.clientEstimated.qoder, true);
+  assert.equal(result.period.clientEstimated.qodercn, true);
+  assert.equal(result.period.clientCredits.qodercn, 1.5);
+});
+
+test('a failing Qoder adapter leaves the rest of the range answer intact', async () => {
+  const logs = [];
+  const result = await collectCustomRangeOnce({
+    clients: 'claude,qodercn',
+    range: { startDate: '2026-07-23', endDate: '2026-07-24', startHour: 0, endHour: 23 },
+    projectsEnabled: false,
+    homeDir: process.cwd(),
+    sessionUsageArchive: { version: 1, sessions: {} },
+    sessionMetadataDeps: { findSessionFiles: () => [], sessionTimestampMap: () => new Map() },
+    logger: (message) => logs.push(message),
+    runTokscale: async () => ({
+      entries: [{
+        client: 'claude', sessionId: 'c1', model: 'sonnet', input: 10, output: 0,
+        cacheRead: 0, cacheWrite: 0, cost: 0.1,
+        startedAt: '2026-07-24T03:00:00.000Z', lastUsedAt: '2026-07-24T04:00:00.000Z'
+      }]
+    }),
+    collectQoderClientUsage: async () => { throw new Error('local.db locked'); }
+  });
+
+  assert.equal(result.period.clients.claude, 10);
+  assert.equal(result.period.clients.qodercn, undefined);
+  assert.match(logs.join('\n'), /qodercn custom-range parse failed/);
+});

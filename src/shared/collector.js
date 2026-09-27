@@ -48,6 +48,7 @@ const {
   QODER_SITE_BY_CLIENT_ID,
   buildQoderCnHistoryGraph,
   buildQoderCnPeriods,
+  buildQoderCnRangeJson,
   collectQoderCnMainRows,
   collectQoderCnRows,
   collectQoderCnTranscriptRows,
@@ -4164,6 +4165,19 @@ function startCollector(options) {
 }
 
 
+/**
+ * The Qoder adapter timestamps its reads against "now", so a past window needs the
+ * clock at the end of that window rather than the wall clock — otherwise a range
+ * that ends today and a range that ended last month read the same sources with the
+ * same freshness rule and only the row window differs.
+ */
+function rangeEndAsNow(options, range) {
+  if (typeof options.now === 'function') return options.now();
+  if (options.now) return new Date(options.now);
+  const endMs = Number(range?.endMs);
+  return Number.isFinite(endMs) && endMs > 0 ? new Date(endMs) : new Date();
+}
+
 async function collectCustomRangeOnce(options = {}) {
   const range = normalizeCustomRange(options.range || options);
   if (!range.ok) {
@@ -4227,7 +4241,39 @@ async function collectCustomRangeOnce(options = {}) {
     }
   }
 
-  if (!tokscaleClients && !includesProma && !includesClaudeDesktop) {
+  // Both Qoder sites are read by this project's own adapter rather than by
+  // tokscale, so a custom range has to call the adapter too — otherwise Qoder
+  // shows up in 今日 / 本月 / 全部 and nowhere in 昨日 / 本周, which is the same
+  // tool measured two ways. The row set is already dated, so the window is exact
+  // and the estimate provenance survives into the answer.
+  const qoderClients = enabledQoderClientIds(normalizedClients);
+  const collectQoderUsage = options.collectQoderClientUsage || collectQoderClientUsage;
+  for (const qoderClientId of qoderClients) {
+    try {
+      const state = await collectQoderUsage(qoderClientId, {
+        options,
+        // `collectUsageOnce` computes this once per tick; the range path has no
+        // tick, so it derives the same value from its own options.
+        platformValue: options.platform || process.platform,
+        collectedAt: rangeEndAsNow(options, range),
+        allTimeSince: range.since,
+        anchorUsed: false,
+        readState: null,
+        fallbackPeriods: null
+      });
+      if (!state?.rows?.length) continue;
+      const qoderJson = buildQoderCnRangeJson(range, {
+        rows: state.rows,
+        pricingByModel: state.pricing,
+        clientId: qoderClientId
+      });
+      period = mergePeriods(period, extractUsageFromTokscale(qoderJson));
+    } catch (err) {
+      if (typeof options.logger === 'function') options.logger(`${qoderClientId} custom-range parse failed: ${err.message}`);
+    }
+  }
+
+  if (!tokscaleClients && !includesProma && !includesClaudeDesktop && !qoderClients.length) {
     return { range, period: emptyPeriod(), updatedAt: new Date().toISOString() };
   }
 
