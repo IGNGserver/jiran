@@ -65,6 +65,18 @@ test('WSL marker discovery deliberately excludes Reasonix', () => {
   assert.deepEqual(homeHasData(home, (p) => p === reasonixStats), []);
 });
 
+test('WSL marker discovery includes both Qoder local adapters', () => {
+  const home = '\\\\wsl$\\Ubuntu\\home\\user';
+  assert.deepEqual(
+    homeHasData(home, (p) => p === `${home}\\.qoder\\projects`),
+    ['qoder']
+  );
+  assert.deepEqual(
+    homeHasData(home, (p) => p === `${home}\\.qoder-cn\\projects`),
+    ['qodercn']
+  );
+});
+
 test('isWslInstalled is false on non-win32 without calling exec', () => {
   let called = false;
   const ok = isWslInstalled({ platform: 'darwin', exec: () => { called = true; return ''; } });

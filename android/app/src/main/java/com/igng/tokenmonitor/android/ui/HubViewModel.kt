@@ -794,6 +794,7 @@ internal fun UsageRangeDto.toPeriodDto(): PeriodDto = PeriodDto(
   clientEstimated = clientEstimated,
   clientCredits = clientCredits,
   clientModelCredits = clientModelCredits,
+  clientMeasurements = clientMeasurements,
   estimated = estimated
 )
 

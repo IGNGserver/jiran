@@ -39,6 +39,7 @@ const CLIENT_MAPS = [
   'clients', 'clientCosts', 'clientCredits', 'clientEstimated', 'clientCacheReads', 'clientCacheWrites', 'clientOutputs',
   'clientUnclassifiedTokens', 'clientModels', 'clientModelCosts', 'clientModelCredits'
 ];
+const MEASUREMENT_PROVENANCE = new Set(['exact', 'estimated', 'unknown']);
 const MODEL_MAPS = [
   'models', 'modelCosts', 'modelCacheReads', 'modelCacheWrites', 'modelOutputs',
   'modelUnclassifiedTokens'
@@ -167,6 +168,27 @@ function ensureBoundedMap(map, max, field) {
   for (const [key, value] of Object.entries(map)) ensureBoundedNumber(value, max, `${field}.${key}`);
 }
 
+function ensureClientMeasurements(value, field) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+  for (const [client, measurement] of Object.entries(value)) {
+    ensureLength(client, MAX_CLIENT_ID_LENGTH, `${field} key`);
+    if (!measurement || typeof measurement !== 'object' || Array.isArray(measurement)) continue;
+    for (const name of ['tokens', 'costUsd']) {
+      if (measurement[name] !== undefined && !MEASUREMENT_PROVENANCE.has(measurement[name])) {
+        throw validationError('invalid_payload', `${field}.${client}.${name} has an invalid provenance`, { field });
+      }
+    }
+    if (!measurement.meters || typeof measurement.meters !== 'object' || Array.isArray(measurement.meters)) continue;
+    for (const [meter, entry] of Object.entries(measurement.meters)) {
+      ensureLength(meter, 32, `${field}.${client}.meters key`);
+      ensureBoundedNumber(entry?.value, MAX_COST_VALUE, `${field}.${client}.meters.${meter}.value`);
+      if (entry?.provenance !== undefined && !MEASUREMENT_PROVENANCE.has(entry.provenance)) {
+        throw validationError('invalid_payload', `${field}.${client}.meters.${meter}.provenance has an invalid value`, { field });
+      }
+    }
+  }
+}
+
 function ensurePeriod(period, field) {
   if (!ensureObject(period, field)) return;
   for (const name of TOKEN_VALUE_FIELDS) ensureBoundedNumber(period[name], MAX_TOKEN_VALUE, `${field}.${name}`);
@@ -180,6 +202,7 @@ function ensurePeriod(period, field) {
       ensureMapKeys(period[mapName], MAX_CLIENT_ID_LENGTH, `${field}.${mapName}`);
     }
   }
+  ensureClientMeasurements(period.clientMeasurements, `${field}.clientMeasurements`);
   for (const mapName of MODEL_MAPS) ensureMapKeys(period[mapName], MAX_MODEL_ID_LENGTH, `${field}.${mapName}`);
   ensureSessionMap(period.sessions, `${field}.sessions`);
   ensureProjects(period.projects, `${field}.projects`);

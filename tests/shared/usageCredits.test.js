@@ -61,6 +61,11 @@ test('an entry credits its client without touching the USD cost totals', () => {
   assert.equal(result.costUsd, 0.02);
   assert.deepEqual(result.clientCosts, { qoder: 0.02 });
   assert.equal(result.totalTokens, 1200);
+  assert.deepEqual(result.clientMeasurements.qoder, {
+    tokens: 'estimated',
+    costUsd: 'estimated',
+    meters: { credits: { value: 0.323132128, provenance: 'exact' } }
+  });
 });
 
 test('credit entries for the same client and session accumulate', () => {
