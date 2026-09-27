@@ -80,3 +80,105 @@ test('normalizeClientsCsv trims, lowercases, and drops empty entries', () => {
   assert.equal(normalizeClientsCsv(undefined), '');
   assert.equal(normalizeClientsCsv(''), '');
 });
+
+// ---------------------------------------------------------------------------
+// The Android read client renders the same 55 harnesses, and it keeps its own
+// copy of the brand table (there is no shared code between the surfaces). With
+// every harness collected on every surface, an id missing there is not a hidden
+// row any more — it is a row with a hashed colour and a fallback name.
+// ---------------------------------------------------------------------------
+test('Android branding covers every tracked client with the shared-UI values', async () => {
+  const { pathToFileURL } = require('node:url');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const dataPath = path.join(__dirname, '..', '..', 'src', 'shared-ui', 'core', 'data.js');
+  const data = await import(pathToFileURL(dataPath).href);
+  const brandPath = path.join(__dirname, '..', '..', 'android', 'app', 'src', 'main', 'java',
+    'com', 'igng', 'tokenmonitor', 'android', 'ui', 'components', 'ClientBranding.kt');
+  const brand = fs.readFileSync(brandPath, 'utf8');
+
+  function mapEntries(name) {
+    const start = brand.indexOf(name);
+    assert.ok(start > 0, `${name} must exist in ClientBranding.kt`);
+    const open = brand.indexOf('mapOf(', start);
+    let depth = 0;
+    let end = -1;
+    for (let i = brand.indexOf('(', open); i < brand.length; i += 1) {
+      if (brand[i] === '(') depth += 1;
+      else if (brand[i] === ')') { depth -= 1; if (!depth) { end = i; break; } }
+    }
+    const body = brand.slice(open, end);
+    const out = new Map();
+    for (const match of body.matchAll(/"([a-z0-9_-]+)"\s+to\s+(?:"([^"]*)"|Color\((0x[0-9A-Fa-f]+)\))/g)) {
+      out.set(match[1], match[2] ?? match[3]);
+    }
+    return out;
+  }
+
+  const labels = mapEntries('val labels');
+  const colors = mapEntries('val colors');
+  for (const client of TRACKED_CLIENTS.split(',')) {
+    // Labels are the same string on every surface.
+    assert.equal(labels.get(client), data.CLIENT_LABELS[client],
+      `Android label for "${client}" is missing or differs from the shared UI`);
+    // Colours are presence-checked only: the pitch-dark theme replaces a brand's
+    // pure black with a visible near-black, and
+    // `npm run verify:android-fluent-contrast` owns that rule. A missing entry
+    // here would silently fall back to the hashed colour instead.
+    assert.ok(
+      colors.has(client),
+      `Android has no colour for "${client}", so it renders with the hashed fallback instead of the brand mark`
+    );
+  }
+});
+
+// A brand mark shared by two ids is an alias, not duplicate artwork, and an id
+// with no mark at all has to be a written decision rather than drift.
+test('Android client marks resolve through aliases with documented gaps', async () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const iconsPath = path.join(__dirname, '..', '..', 'android', 'app', 'src', 'main', 'java',
+    'com', 'igng', 'tokenmonitor', 'android', 'ui', 'components', 'ClientIcons.kt');
+  const kt = fs.readFileSync(iconsPath, 'utf8');
+
+  function mapBody(marker) {
+    const start = kt.indexOf(marker);
+    assert.ok(start > 0, `${marker} must exist in ClientIcons.kt`);
+    const open = kt.indexOf('mapOf(', start);
+    let depth = 0;
+    for (let i = kt.indexOf('(', open); i < kt.length; i += 1) {
+      if (kt[i] === '(') depth += 1;
+      else if (kt[i] === ')') { depth -= 1; if (!depth) return kt.slice(open, i); }
+    }
+    throw new Error(`${marker} is unbalanced`);
+  }
+
+  const drawables = mapBody('val drawables');
+  const aliasBody = mapBody('val aliases');
+  const drawableIds = new Set(Array.from(drawables.matchAll(/"([a-z0-9_-]+)"\s+to\s+R\.drawable\./g), (m) => m[1]));
+  const aliases = new Map(Array.from(aliasBody.matchAll(/"([a-z0-9_-]+)"\s+to\s+"([a-z0-9_-]+)"/g), (m) => [m[1], m[2]]));
+
+  for (const [id, target] of aliases) {
+    assert.ok(drawableIds.has(target), `alias "${id}" points at "${target}", which has no drawable`);
+    assert.ok(!drawableIds.has(id), `"${id}" has its own drawable, so the alias entry is dead weight`);
+  }
+
+  // openclaw / antigravity are the documented filter-and-gradient skips; proma is
+  // simply not vendored yet. Anything else that appears here is a regression.
+  const NO_MARK = {
+    openclaw: 'its SVG needs a filter/transform, so the vector is skipped by design',
+    antigravity: 'its SVG needs a filter/transform, so the vector is skipped by design',
+    proma: 'not vendored as a vector yet; the monogram is the fallback'
+  };
+  for (const client of TRACKED_CLIENTS.split(',')) {
+    const resolved = drawableIds.has(client) || (aliases.has(client) && drawableIds.has(aliases.get(client)));
+    if (!resolved) {
+      assert.ok(NO_MARK[client], `Android has no mark for "${client}" and no written reason`);
+    } else {
+      assert.ok(
+        !NO_MARK[client] || client === 'proma',
+        `"${client}" now has a mark — drop it from the documented-gap list`
+      );
+    }
+  }
+});

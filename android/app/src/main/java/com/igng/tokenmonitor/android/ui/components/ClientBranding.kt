@@ -69,7 +69,38 @@ object ClientBranding {
     "cohere" to "Cohere",
     "volcengine" to "Volcengine",
     "qoder" to "Qoder",
-    "openrouter" to "OpenRouter"
+    "openrouter" to "OpenRouter",
+
+    // Every remaining wired harness. These mirror CLIENT_LABELS /
+    // CLIENT_COLORS in src/shared-ui/core/data.js one-for-one; a new tracked id
+    // has to be added to both, which tests/shared/clientTracking.test.js asserts.
+    "roocode" to "Roo Code",
+    "amp" to "Amp",
+    "droid" to "Droid",
+    "mux" to "Mux",
+    "kilo" to "Kilo CLI",
+    "crush" to "Crush",
+    "goose" to "Goose",
+    "codebuff" to "Codebuff",
+    "freebuff" to "Freebuff",
+    "trae" to "Trae",
+    "warp" to "Warp",
+    "gjc" to "Gajae-Code",
+    "jcode" to "Jcode",
+    "junie" to "Junie",
+    "opencodereview" to "OpenCodeReview",
+    "devin-cli" to "Devin CLI",
+    "devin-desktop" to "Devin Desktop",
+    "senpi" to "Senpi",
+    "augment" to "Augment Code",
+    "kimchi" to "Kimchi",
+    "prime-agent" to "Prime Agent",
+    "cherrystudio" to "Cherry Studio",
+    "mcode" to "MiniMax Code",
+    "fx" to "Fx",
+    "lmstudio" to "LM Studio",
+    "unsloth" to "Unsloth",
+    "hindsight" to "Hindsight"
   )
 
   private val colors: Map<String, Color> = mapOf(
@@ -116,7 +147,38 @@ object ClientBranding {
     "volcengine" to Color(0xFF006EFF),
     "qoder" to Color(0xFF2ADB5C),
     "openrouter" to Color(0xFF6B57FF),
-    "default" to Color(0xFF6AB4F0)
+    "default" to Color(0xFF6AB4F0),
+
+    // Every remaining wired harness. These mirror CLIENT_LABELS /
+    // CLIENT_COLORS in src/shared-ui/core/data.js one-for-one; a new tracked id
+    // has to be added to both, which tests/shared/clientTracking.test.js asserts.
+    "roocode" to Color(0xFF7C3AED),
+    "amp" to Color(0xFFF34E3F),
+    "droid" to Color(0xFF000000),
+    "mux" to Color(0xFF5B21B6),
+    "kilo" to Color(0xFFF8F676),
+    "crush" to Color(0xFF7D5CFF),
+    "goose" to Color(0xFF000000),
+    "codebuff" to Color(0xFF4D8CFF),
+    "freebuff" to Color(0xFF22C55E),
+    "trae" to Color(0xFF0EA5E9),
+    "warp" to Color(0xFF01A4FF),
+    "gjc" to Color(0xFFF59E0B),
+    "jcode" to Color(0xFF6366F1),
+    "junie" to Color(0xFFFE2857),
+    "opencodereview" to Color(0xFF0EA5E9),
+    "devin-cli" to Color(0xFF111827),
+    "devin-desktop" to Color(0xFF111827),
+    "senpi" to Color(0xFF8B5CF6),
+    "augment" to Color(0xFFFF5C35),
+    "kimchi" to Color(0xFFE11D48),
+    "prime-agent" to Color(0xFF0F766E),
+    "cherrystudio" to Color(0xFFFF5A5F),
+    "mcode" to Color(0xFFF23F5D),
+    "fx" to Color(0xFF3B82F6),
+    "lmstudio" to Color(0xFF5A67D8),
+    "unsloth" to Color(0xFF22D3EE),
+    "hindsight" to Color(0xFFA855F7)
   )
 
   private val fallbacks = listOf(
