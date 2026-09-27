@@ -92,6 +92,18 @@ test('an unknown route reports not_supported rather than returning undefined', a
   );
 });
 
+test('device data transfer is not a desktop capability', async () => {
+  // `POST /api/devices/:id/transfer` is a Hub-web admin mutation. The desktop
+  // client must not proxy it: with no local handler and no Hub-owned match the
+  // router reports not_supported, so a stray call cannot move history from the app.
+  const { instance, calls } = router();
+  await assert.rejects(
+    () => instance.route('/api/devices/dev-1/transfer', { method: 'POST', body: { targetDeviceId: 'dev-2' } }),
+    (error) => error.code === 'not_supported'
+  );
+  assert.deepEqual(calls, [], 'a transfer request must not reach the Hub proxy');
+});
+
 test('a missing Hub surfaces the configured-code error, not an empty object', async () => {
   const { instance } = router({
     hubRequest: async () => {

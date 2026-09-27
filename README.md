@@ -181,7 +181,8 @@ Most usage monitors are useful on the machine they run on. Token Monitor is buil
 - **Breakdown views** — grouped by tool, device, model, session, project, or account limits
 - **One interface, two hosts** — the desktop app and the Hub's web dashboard render the same UI, so a machine without the app can still open the full dashboard in a browser
 - **Appearance controls** — interface theme switching (incl. a light mode), per-tool vendor colours, and native window backdrop
-- **Desktop settings** — language, window surface and motion, startup/tray behaviour, updates, the Hub connection, and device data transfer
+- **Desktop settings** — language, window surface and motion, startup/tray behaviour, updates, and the Hub connection
+- **Device data transfer** — an admin-only Hub-web operation under Settings → Advanced that re-attributes one device's history to another
 
 ## Installation
 

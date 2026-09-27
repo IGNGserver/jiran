@@ -124,7 +124,6 @@ function createRequestRouter(deps) {
     if (path === '/subscriptions') return true;
     if (path === '/pricing' || path.startsWith('/pricing/')) return true;
     if (/^\/devices\/[^/]+(\/rename)?$/.test(path)) return true;
-    if (/^\/devices\/[^/]+\/transfer$/.test(path)) return true;
     return false;
   }
 

@@ -6,35 +6,46 @@
 // UI shows is the contract the endpoint implements. Every mutation happens
 // inside one Hub transaction.
 //
-// The panel renders inside the settings page (group `transfer`) and as a
-// standalone view; both call sites share renderTransferPanel().
+// Hub-web only. The transfer endpoint (`POST /api/devices/:id/transfer`) is a
+// Hub admin mutation and the desktop client has no code path that requests it,
+// so this panel renders only inside the web settings page's Advanced group.
+// There is no standalone view, no `/transfer` route and no navigation entry.
 
 import { request, confirmAction } from '../transport/index.js';
 import { tr, escapeHtml, appState, viewHelper, showToast, rerender } from '../core/viewContext.js';
 import { deviceRows } from '../core/data.js';
 
-const emptyHtml = (key) => viewHelper('emptyHtml')(key);
 const viewStats = (...args) => viewHelper('viewStats')(...args);
 
+// Fluent Dropdown binds its listbox through the default slot's slotchange
+// handler. Without a `fluent-listbox` wrapper `dropdown.listbox` stays
+// undefined, so the trigger neither opens nor shows a value — every option
+// must be inside a listbox, not placed on the dropdown directly.
 function deviceOptions(rows, selectedId) {
-  return rows.map((row) => `<fluent-option value="${escapeHtml(row.key)}"${row.key === selectedId ? ' selected' : ''}>${escapeHtml(row.name)}</fluent-option>`).join('');
+  return `<fluent-listbox>${rows.map((row) => `<fluent-option value="${escapeHtml(row.key)}"${row.key === selectedId ? ' selected' : ''}>${escapeHtml(row.name)}</fluent-option>`).join('')}</fluent-listbox>`;
 }
 
-/** The transfer form as it appears inside the settings page. */
+/** The transfer form as it appears in the web settings page's Advanced group. */
 export function renderTransferPanel() {
   const rows = deviceRows(viewStats(), 'allTime');
   const admin = appState().authorization?.scopes?.includes('admin');
   if (!rows.length) return `<p class="muted tiny">${escapeHtml(tr('transfer.noDevices'))}</p>`;
-  const selectedId = appState().prefs.selectedDeviceId || rows[0].key;
+  const selectedDeviceId = appState().prefs.selectedDeviceId;
+  const sourceId = rows.some((row) => row.key === selectedDeviceId) ? selectedDeviceId : rows[0].key;
+  // Default the target to a different device; the form still validates on
+  // submit, and the change handler below keeps the pair apart as the source moves.
+  const targetId = rows.find((row) => row.key !== sourceId)?.key || sourceId;
   return `
     <p class="muted tiny">${escapeHtml(tr('transfer.description'))}</p>
     <div class="notice warn" role="status">${escapeHtml(tr('transfer.notice'))}</div>
     <form class="transfer-form" data-transfer-form>
       <div class="form-grid">
         <label class="field"><span>${tr('transfer.source')}</span>
-          <fluent-dropdown name="sourceDevice">${deviceOptions(rows, selectedId)}</fluent-dropdown>
+          <fluent-dropdown name="sourceDevice">${deviceOptions(rows, sourceId)}</fluent-dropdown>
         </label>
-        <fluent-text-input class="field" type="text" name="targetDevice" spellcheck="false" placeholder="${escapeHtml(tr('transfer.targetPlaceholder'))}">${escapeHtml(tr('transfer.target'))}</fluent-text-input>
+        <label class="field"><span>${tr('transfer.target')}</span>
+          <fluent-dropdown name="targetDevice">${deviceOptions(rows, targetId)}</fluent-dropdown>
+        </label>
       </div>
       <p class="muted tiny">${escapeHtml(tr('transfer.targetHint'))}</p>
       <div class="drawer-actions settings-actions">
@@ -42,24 +53,6 @@ export function renderTransferPanel() {
       </div>
       ${admin ? '' : `<p class="muted tiny">${escapeHtml(tr('transfer.needsAdmin'))}</p>`}
     </form>`;
-}
-
-/**
- * The standalone transfer view.
- *
- * Same panel, page-level chrome: the dashboard's content area takes view fragments
- * directly, and the desktop-settings scaffolding this used to borrow
- * (`settings-layout`, `settings-transfer-layout`, `desktop-settings-group`/`-body`) is
- * styled only by the Electron renderer's own stylesheet or by nothing at all — on the
- * web dashboard it left the panel inside an empty two-column settings grid.
- */
-export function renderTransfer() {
-  const rows = deviceRows(viewStats(), 'allTime');
-  if (!rows.length) return emptyHtml('empty.usage');
-  return `<section class="panel" data-desktop-group="transfer">
-      <div class="panel-head"><h2 class="panel-title">${escapeHtml(tr('transfer.title'))}</h2></div>
-      ${renderTransferPanel()}
-    </section>`;
 }
 
 /** Submit the transfer. Returns an error message or ''. */

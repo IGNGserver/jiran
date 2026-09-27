@@ -1,9 +1,10 @@
 // Settings view: web preferences plus, on the desktop host, the device groups.
 //
 // The page carries no "desktop settings" headline of its own — the groups
-// speak for themselves. The web side configures the browser only; the desktop
-// side additionally renders the device-owned groups from settingsDesktop.js
-// and the device data transfer panel.
+// speak for themselves. The web side configures the browser and, for an admin,
+// the Advanced group (device data transfer). The desktop side renders its own
+// device-owned groups from settingsDesktop.js and has no transfer surface:
+// `POST /api/devices/:id/transfer` is a Hub admin mutation.
 
 import { isCapable } from '../transport/index.js';
 import { tr, escapeHtml, appState, settingsOptionList } from '../core/viewContext.js';
@@ -13,6 +14,7 @@ import { renderTransferPanel } from './transfer.js';
 
 export function renderSettingsPage() {
   const desktopHost = isCapable('desktopSettings');
+  const admin = appState().authorization?.scopes?.includes('admin');
   const settingsLabel = tr('settings.appTitle');
   const settingsDescription = tr('settings.pageDescription');
   return `<section class="page-intro settings-page-intro"><div><div class="eyebrow">${escapeHtml(settingsLabel)}</div><h2>${escapeHtml(tr('settings.pageTitle'))}</h2><p>${escapeHtml(settingsDescription)}</p></div></section>
@@ -31,10 +33,12 @@ export function renderSettingsPage() {
         <div class="drawer-actions settings-actions"><fluent-button appearance="primary" type="submit" class="primary-btn" data-settings-submit disabled>${escapeHtml(tr('settings.savePage'))}</fluent-button>${desktopHost ? '' : `<fluent-button appearance="transparent" type="button" class="ghost-btn" data-web-signout>${escapeHtml(tr('settings.signOut'))}</fluent-button>`}</div>
       </form>
       ${desktopHost
-        ? `<div class="settings-desktop-stack" data-desktop-settings>${renderDesktopSettings(appState().desktopSettings || {}, appState().desktopInfo || {})}</div>
-      <section class="panel desktop-settings-group" data-desktop-group="transfer">
-        <div class="panel-head"><h2 class="panel-title">${escapeHtml(tr('transfer.title'))}</h2></div>
-        <div class="desktop-settings-body">${renderTransferPanel()}</div>
+        ? `<div class="settings-desktop-stack" data-desktop-settings>${renderDesktopSettings(appState().desktopSettings || {}, appState().desktopInfo || {})}</div>`
+        : ''}
+      ${!desktopHost && admin
+        ? `<section class="panel settings-advanced-group" data-settings-section="advanced">
+        <div class="panel-head"><h2 class="panel-title">${escapeHtml(tr('settings.groupAdvanced'))}</h2></div>
+        <div class="settings-advanced-body">${renderTransferPanel()}</div>
       </section>`
         : ''}
     </div>`;
