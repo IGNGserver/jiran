@@ -9,6 +9,7 @@ import com.igng.tokenmonitor.android.data.model.UsageRangeDto
 import com.igng.tokenmonitor.android.ui.components.heatmapWeekdayLabels
 import com.igng.tokenmonitor.android.ui.components.topShareEntries
 import com.igng.tokenmonitor.android.ui.core.DateRanges
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -334,5 +335,23 @@ class ScopeAndProvenanceTest {
     assertEquals(7.0, filled.last().tokens, 0.0001)
     assertEquals(0.0, filled[1].tokens, 0.0001)
     assertEquals(0.0, filled[2].tokens, 0.0001)
+  }
+}
+
+/**
+ * The grouped device list distributes its container corners itself (a lazy list cannot put
+ * every row inside one `FluentCardList`), which means the radius it uses is a dp literal.
+ * This pins that literal to the shape token it stands for, so a change to `cardCorner`
+ * fails here instead of silently leaving the two rounded edges on a stale radius.
+ */
+class DeviceGroupShapeTest {
+  @Test
+  fun theGrouplessCornerLiteralMatchesTheCardCornerToken() {
+    assertEquals(
+      com.igng.tokenmonitor.android.ui.theme.FluentShapeDefaults.cardCorner.topStart,
+      androidx.compose.foundation.shape.RoundedCornerShape(
+        com.igng.tokenmonitor.android.ui.devices.CARD_CORNER_DP.dp
+      ).topStart
+    )
   }
 }

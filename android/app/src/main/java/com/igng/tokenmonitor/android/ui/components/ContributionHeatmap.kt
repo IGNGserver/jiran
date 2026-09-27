@@ -32,7 +32,6 @@ import com.igng.tokenmonitor.android.ui.theme.FluentTypeRamp
 import com.igng.tokenmonitor.android.ui.theme.LocalFluentColors
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.ZoneOffset
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -49,7 +48,7 @@ fun historyDailyForHeatmap(daily: List<HistoryDayDto>, days: Int = 90): List<His
   val byDate = daily.associateBy { it.date }
   val end = daily.mapNotNull {
     runCatching { LocalDate.parse(it.date) }.getOrNull()
-  }.maxOrNull() ?: LocalDate.now(ZoneOffset.UTC)
+  }.maxOrNull() ?: LocalDate.now()
   val start = end.minusDays((days - 1).toLong())
   return generateSequence(start) { current ->
     val next = current.plusDays(1)
@@ -182,7 +181,9 @@ fun ContributionHeatmap(
     }
   }
 
-  val todayKey = remember { LocalDate.now(ZoneOffset.UTC).toString() }
+  // The device's local day, so the ring lands on the cell the user calls "today"; the
+  // window above is built from the same zone.
+  val todayKey = remember { LocalDate.now().toString() }
   val metricName = if (metric == HeatmapMetric.Cost) "按费用" else "按 Token"
   val peakIndex = values.indexOf(values.maxOrNull() ?: 0.0)
   val peakLabel = if (peakIndex >= 0) {

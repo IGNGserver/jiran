@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import com.igng.tokenmonitor.android.ui.theme.FluentShapeDefaults
 import com.igng.tokenmonitor.android.ui.theme.FluentTypeRamp
+import com.igng.tokenmonitor.android.ui.theme.LocalFluentDark
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Icon
 import androidx.compose.ui.res.painterResource
@@ -214,8 +215,10 @@ object ClientBranding {
   @Composable
   fun liftDarkTinted(clientId: String): Color {
     val base = color(clientId)
-    val dark = androidx.compose.foundation.isSystemInDarkTheme()
-    return if (dark) liftDark(base) else base
+    // The *resolved* theme, not `isSystemInDarkTheme()`: the client lets a user pin dark
+    // while the platform stays light, and asking the system here made the lifted colour
+    // and the tile alpha disagree with the surface they were painted on.
+    return if (LocalFluentDark.current) liftDark(base) else base
   }
 
   /** Slightly lighten near-black brand colors so they stay visible on dark surfaces. */
@@ -243,7 +246,7 @@ fun ClientMonogram(
   size: Dp = 28.dp
 ) {
   val bg = ClientBranding.color(clientId)
-  val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+  val isDark = LocalFluentDark.current
   val fg = if (0.2126f * bg.red + 0.7152f * bg.green + 0.0722f * bg.blue > 0.55f) {
     Color(0xFF1A1A1A)
   } else {

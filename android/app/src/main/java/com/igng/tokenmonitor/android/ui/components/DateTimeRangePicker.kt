@@ -69,7 +69,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle as DateTextStyle
 import java.util.Locale
 import kotlin.math.abs
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -556,8 +555,11 @@ private fun HourRail(
     val target = listIndexForHour(value)
     if (listState.firstVisibleItemIndex != target || listState.firstVisibleItemScrollOffset != 0) {
       suppress = true
-      listState.scrollToItem(target)
-      suppress = false
+      try {
+        listState.scrollToItem(target)
+      } finally {
+        suppress = false
+      }
     }
   }
 
@@ -566,22 +568,30 @@ private fun HourRail(
       val info = listState.layoutInfo
       if (info.visibleItemsInfo.isEmpty()) return@snapshotFlow null
       val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2
-      info.visibleItemsInfo
+      val index = info.visibleItemsInfo
         .minByOrNull { item ->
           val itemCenter = item.offset + item.size / 2
           abs(itemCenter - viewportCenter)
         }
         ?.index
+        ?: return@snapshotFlow null
+      // index 0 = top spacer, 1..24 = hours 0..23, 25 = bottom spacer
+      (index - 1).coerceIn(0, 23)
     }
+      // No `distinctUntilChanged()` here.  The rail is a value picker settled by a fling,
+      // so a mid-scroll pass over an hour and the final settle on that same hour are two
+      // separate facts; deduplicating the *scrolled past* one against the settled one
+      // swallowed the settle and left the highlighted hour disagreeing with the rail.
+      // The oscillation that dedupe was protecting against is handled by the
+      // `isScrollInProgress` guard below, which drops it at the source.
       .filter { it != null }
-      .map { index ->
-        // index 0 = top spacer, 1..24 = hours 0..23, 25 = bottom spacer
-        (index!! - 1).coerceIn(0, 23)
-      }
-      .distinctUntilChanged()
       .collect { hour ->
-        if (suppress) return@collect
-        if (hour != value) onValueChange(hour)
+        // `suppress` covers the programmatic jump, and `isScrollInProgress` covers the
+        // user's drag/fling: without the second check, a tap or fling walked the
+        // selection through every hour the list passed and wrote each one back through
+        // `onValueChange` (label churn plus a burst of haptics).
+        if (suppress || listState.isScrollInProgress) return@collect
+        if (hour != null && hour != value) onValueChange(hour)
       }
   }
 
