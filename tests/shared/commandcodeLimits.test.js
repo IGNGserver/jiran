@@ -700,7 +700,7 @@ test('an exhausted credits probe reports unavailable rather than hanging', async
 // API-key channel (`/alpha/*`): the `cmd` CLI's own route, Bearer-authenticated.
 // ---------------------------------------------------------------------------
 
-const API_KEY = 'cmd_hubkey1234567890';
+const API_KEY = 'user_hubkey1234567890';
 const WHOAMI_URL = `${COMMANDCODE_ALPHA_WHOAMI_URL}?limits=1`;
 
 // A v1 Pro account: the id minted when Pro was repriced from $30 to $80.
@@ -746,22 +746,39 @@ function stubAlpha(overrides = {}, calls = []) {
   };
 }
 
-test('normalizeCommandcodeApiKey accepts only cmd_-prefixed keys', () => {
+test('normalizeCommandcodeApiKey accepts real user_ keys and opaque tokens', () => {
+  // Real keys are `user_<id>`; org keys are not `user_`-prefixed at all, so an
+  // allow-list on the prefix would reject a legitimate credential.
+  assert.equal(normalizeCommandcodeApiKey('user_abcdefgh1234'), 'user_abcdefgh1234');
+  assert.equal(normalizeCommandcodeApiKey('  "user_abcdefgh1234"  '), 'user_abcdefgh1234');
+  assert.equal(normalizeCommandcodeApiKey('opaqueOrgKey123456'), 'opaqueOrgKey123456');
+  // A raw `cmd_` key is NOT the real format but is still submitted: guessing a
+  // format must never be what stops a valid credential from being tried.
   assert.equal(normalizeCommandcodeApiKey('cmd_abcdefgh1234'), 'cmd_abcdefgh1234');
-  assert.equal(normalizeCommandcodeApiKey('  "cmd_abcdefgh1234"  '), 'cmd_abcdefgh1234');
-  // Anything else is far more likely another provider's credential, and sending
-  // it as a Bearer would leak it to api.commandcode.ai.
+});
+
+test('normalizeCommandcodeApiKey refuses cross-channel and foreign credentials', () => {
+  // A cookie header belongs to the other channel and must not travel as a Bearer.
+  assert.equal(normalizeCommandcodeApiKey('commandcode_prod_.session_token=abc'), '');
+  assert.equal(normalizeCommandcodeApiKey('Cookie: a=b'), '');
+  assert.equal(normalizeCommandcodeApiKey('a=1; b=2'), '');
+  // Whitespace and control characters cannot appear in a header value.
+  assert.equal(normalizeCommandcodeApiKey('user_has newline'), '');
+  assert.equal(normalizeCommandcodeApiKey('user_has\nnewline'), '');
+  // Credentials that unmistakably belong to another provider.
   assert.equal(normalizeCommandcodeApiKey('sk-whatever'), '');
-  assert.equal(normalizeCommandcodeApiKey('cmd_short'), '');
+  assert.equal(normalizeCommandcodeApiKey('ghp_abcdefghijklmnop'), '');
+  assert.equal(normalizeCommandcodeApiKey('xai-abcdefghijklmnop'), '');
+  assert.equal(normalizeCommandcodeApiKey('AIzaSyabcdefghijklmnop'), '');
+  assert.equal(normalizeCommandcodeApiKey('eyJhbGciOiJIUzI1NiJ9.payload.sig'), '');
   assert.equal(normalizeCommandcodeApiKey(''), '');
-  assert.equal(normalizeCommandcodeApiKey('cmd_has\nnewline'), '');
 });
 
 test('commandcodeApiKey prefers settings over env', () => {
   assert.equal(commandcodeApiKey({}, { commandcodeApiKey: API_KEY }), API_KEY);
   assert.equal(commandcodeApiKey({ COMMAND_CODE_API_KEY: API_KEY }), API_KEY);
   assert.equal(commandcodeApiKey({ COMMANDCODE_API_KEY: API_KEY }), API_KEY);
-  assert.equal(commandcodeApiKey({ COMMAND_CODE_API_KEY: 'nope' }), '');
+  assert.equal(commandcodeApiKey({ COMMAND_CODE_API_KEY: 'sk-another-provider' }), '');
   assert.equal(commandcodeApiKey({}), '');
 });
 
@@ -989,6 +1006,29 @@ test('probeLimitProvider reaches the API key channel through the Hub gate', asyn
   assert.equal(rows.length, 1);
   assert.equal(rows[0].status, 'ok');
   assert.equal(rows[0].source, 'api');
+});
+
+test('a real user_ key with a blank cookie reaches the provider instead of notConfigured', async () => {
+  // Regression: the account form posts `{apiKey, cookie: ''}` whenever the cookie
+  // field is left blank. The old `/^cmd_/` gate cleared the key, the empty cookie
+  // then decided the channel, and the account came back `notConfigured` without a
+  // single request leaving the Hub — indistinguishable from "no credential given".
+  const calls = [];
+  const rows = await probeLimitProvider('commandcode', {
+    limitProviderAuthority: 'hub',
+    commandcodeApiKey: 'user_2abcDEF1234567890xyz',
+    commandcodeCookie: ''
+  }, {}, { fetch: stubAlpha({}, calls) });
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, 'ok', 'a valid key must be tried, not discarded locally');
+  assert.equal(rows[0].source, 'api');
+  assert.ok(calls.length > 0, 'the Hub must actually contact Command Code');
+  assert.ok(calls.every((call) => call.url.includes('/alpha/')), 'and on the Bearer channel');
+  assert.ok(
+    calls.every((call) => call.headers.Authorization === 'Bearer user_2abcDEF1234567890xyz'),
+    'the key must travel as-is'
+  );
 });
 
 test('probeLimitProvider returns no rows for commandcode without a credential', async () => {

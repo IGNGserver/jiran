@@ -49,7 +49,11 @@ x-command-code-version: <cliVersion>
 1. 环境变量 `COMMAND_CODE_API_KEY`（源码常量 `Io="COMMAND_CODE_API_KEY"`）
 2. `~/.commandcode/auth.json` 的 `apiKey` 字段（`resolveCommandAuthDir` = `home/.commandcode`，prod 文件名 `auth.json`；另有 `auth.local.json` / `auth.staging.json`）
 
-**Key 形态**：源码里有 `/^cmd/` 校验，前缀应为 `cmd_`。
+**Key 形态**：真实 Key 以 `user_` 开头（CLI 打包代码用 `apiKey.startsWith("user_")` 决定个人账单 URL；官方文档环境变量示例为 `COMMAND_CODE_API_KEY="user_..."`）。
+
+> ⚠️ **勘误（2026-09-28 修复）**：本文档最初写作「源码里有 `/^cmd/` 校验，前缀应为 `cmd_`」——**这是误读**。CLI 包里所有 `/^cmd/` 都出现在帮助文本格式化中（`key.replace(/^cmd/, t)`），不是校验；`cmd_` 也从未作为 Key 前缀出现。真正的前缀常量只有 `user_`。
+>
+> 该误读导致 `normalizeCommandcodeApiKey` 写成 `/^cmd_[A-Za-z0-9_-]{8,}$/` 的白名单，**把每一个真实 Key 都判为非法并清空**；随后回落到（同样是空的）Cookie 通道，账号以 `notConfigured` 收场，且**从未向 provider 发出任何请求**——用户无法区分「Key 填错」和「没填凭据」。修复：改为「不在客户端做格式白名单」，只拒绝跨通道（Cookie）与他家凭据（`sk-`/`ghp_`/`xai-`/`AIza`/`ya29.`/JWT），其余一律交给 API 判定，Key 无效时如实返回 `unauthorized`。
 
 **用户如何获得 Key**：`cmd login` 走本地回调 OAuth（PKCE，`127.0.0.1:8085`），成功后**为该终端创建一个 API Key**（拒绝授权时的文案是 "No API key was created for this terminal"）。`cmd logout` / `cmd auth status` 配套。CLI 内另有 `/usage`、`/status` 斜杠命令。
 
@@ -167,6 +171,7 @@ options.commandcodeCookie  →  Cookie /internal/*    source: 'web'
 | 两条 401 文案不同（区分 Cookie/Bearer） | 我方 curl 实测 | **已核实** |
 | 两条路线响应结构一致 | CLI 源码读取字段 + 我方现有解析器比对 | **已核实** |
 | `~/.commandcode/auth.json`、`COMMAND_CODE_API_KEY` | CLI 源码常量 | **已核实** |
+| 真实 Key 前缀为 `user_` | CLI 打包代码 `startsWith("user_")` + 官方/第三方文档示例；`cmd_` 仅出现在帮助文本格式化中 | **已核实**（2026-09-28 勘误，见 §1.2） |
 | CLI 官方计划表（8 条） | CLI 源码 `rr`/`or` 常量 | **已核实** |
 | 我方计划表 3 处错漏 | 与上条逐条比对 | **已核实** |
 | `/alpha/*` 的 `success` 信封细节 | 无法在无真实 Key 时确认 | **未验证** |

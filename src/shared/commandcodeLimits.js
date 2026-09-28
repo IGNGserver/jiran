@@ -241,16 +241,48 @@ function commandcodeCookie(env = process.env, options = {}) {
 // The CLI's API key. `cmd login` mints one per terminal into
 // `~/.commandcode/auth.json`; the CLI also reads COMMAND_CODE_API_KEY first.
 const COMMANDCODE_API_KEY_ENV_NAMES = ['COMMAND_CODE_API_KEY', 'COMMANDCODE_API_KEY'];
-// Keys are `cmd_`-prefixed (the CLI validates /^cmd/). Anything else is far more
-// likely to be a mis-pasted cookie or token from another provider, and sending it
-// as a Bearer to api.commandcode.ai is exactly the kind of leak the cookie
-// normalizer above exists to prevent.
-const COMMANDCODE_API_KEY_PATTERN = /^cmd_[A-Za-z0-9_-]{8,}$/;
+// Command Code mints `user_<id>` keys, which the CLI itself relies on
+// (`apiKey.startsWith("user_")` selects the personal billing URL) and which the
+// published examples agree with (`COMMAND_CODE_API_KEY="user_..."`). Org keys are
+// NOT `user_`-prefixed — the same check sends them to the org billing URL — so the
+// prefix can never be the gate.
+//
+// The old `/^cmd_.../` allow-list was read out of the CLI bundle by mistake: every
+// `/^cmd/` there is help-text formatting (`key.replace(/^cmd/, t)`), not
+// validation. It rejected every real key, which then fell through to the (empty)
+// cookie channel and surfaced as a bare `notConfigured` — with no request ever
+// leaving the Hub, so the user could not tell a bad key from a missing one.
+//
+// For an opaque token the provider is the only real validator, so this normalizes
+// rather than vets: blank out what cannot be a key at all, and refuse the two
+// mistakes that would actually matter — a cookie header on the Bearer channel, and
+// a credential that demonstrably belongs to a different provider. Everything else
+// is submitted and judged by the API (a wrong key then reports `unauthorized`,
+// which is the honest answer, instead of a fabricated `notConfigured`).
+const COMMANDCODE_FOREIGN_CREDENTIAL_PATTERNS = [
+  /^sk-/,                 // OpenAI / Anthropic style
+  /^gh[pousr]_/,          // GitHub
+  /^xai-/,                // xAI
+  /^AIza/,                // Google API key
+  /^ya29\./,              // Google OAuth access token
+  /^eyJ[A-Za-z0-9_-]*\./  // a bare JWT
+];
 
 function normalizeCommandcodeApiKey(rawKey) {
   const raw = cleanSecret(rawKey);
   if (!raw) return '';
-  return COMMANDCODE_API_KEY_PATTERN.test(raw) ? raw : '';
+  // A cookie header belongs to the other channel; as a Bearer it would fail and
+  // hand session material to the wrong auth scheme. Cookie headers are
+  // `name=value[; name=value]` pairs, which an opaque key does not look like —
+  // with one escape hatch: anything carrying the known `user_` prefix is a key
+  // even if it contains `=`, so the shape test can never override the format we
+  // know. (Same rule as `warpLimits`' `wk-` exception.)
+  const looksLikeCookieHeader = (raw.includes(';') || raw.includes('=')) && !raw.startsWith('user_');
+  if (looksLikeCookieHeader || /^\s*cookie\s*:/i.test(raw)) return '';
+  // A header value cannot carry whitespace or control characters.
+  if (/\s/.test(raw) || hasControlCharacters(raw)) return '';
+  if (COMMANDCODE_FOREIGN_CREDENTIAL_PATTERNS.some((pattern) => pattern.test(raw))) return '';
+  return raw;
 }
 
 function commandcodeApiKey(env = process.env, options = {}) {
@@ -836,7 +868,8 @@ module.exports = {
   COMMANDCODE_ALPHA_SUBSCRIPTIONS_URL,
   COMMANDCODE_ALPHA_SUMMARY_URL,
   COMMANDCODE_ALPHA_WHOAMI_URL,
-  COMMANDCODE_API_KEY_PATTERN,
+  COMMANDCODE_API_KEY_ENV_NAMES,
+  COMMANDCODE_FOREIGN_CREDENTIAL_PATTERNS,
   COMMANDCODE_CLI_ENVIRONMENT,
   COMMANDCODE_CLI_VERSION,
   COMMANDCODE_CREDITS_URL,
