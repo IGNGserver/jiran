@@ -7,15 +7,18 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, () => {
   const WINDOWS_BACKDROP_ACRYLIC = 'acrylic';
   const WINDOWS_BACKDROP_MICA = 'mica';
+  const WINDOWS_BACKDROP_TRANSPARENT = 'transparent';
   const WINDOWS_SURFACE_NONE = 'none';
   const WINDOWS_SURFACE_MICA = 'mica';
   const WINDOWS_SURFACE_ACRYLIC = 'acrylic';
+  const WINDOWS_SURFACE_TRANSPARENT = 'transparent';
   const WINDOWS_SURFACE_WIN10_FALLBACK = 'win10-fallback';
   const WINDOWS_NATIVE_MIN_BUILD = 22621;
 
 
   function normalizeWindowsBackdropMode(value) {
     if (value === WINDOWS_BACKDROP_MICA) return WINDOWS_BACKDROP_MICA;
+    if (value === WINDOWS_BACKDROP_TRANSPARENT) return WINDOWS_BACKDROP_TRANSPARENT;
     return WINDOWS_BACKDROP_ACRYLIC;
   }
 
@@ -27,12 +30,16 @@
       // Mica material used by long-lived Windows surfaces such as Settings.
       return 'mica';
     }
+    if (normalized === WINDOWS_BACKDROP_TRANSPARENT) {
+      return 'none';
+    }
     return WINDOWS_BACKDROP_ACRYLIC;
   }
 
   function normalizeWindowsSurface(value) {
     if (value === WINDOWS_SURFACE_MICA) return WINDOWS_SURFACE_MICA;
     if (value === WINDOWS_SURFACE_ACRYLIC) return WINDOWS_SURFACE_ACRYLIC;
+    if (value === WINDOWS_SURFACE_TRANSPARENT) return WINDOWS_SURFACE_TRANSPARENT;
     if (value === WINDOWS_SURFACE_WIN10_FALLBACK) return WINDOWS_SURFACE_WIN10_FALLBACK;
     return WINDOWS_SURFACE_NONE;
   }
@@ -58,6 +65,14 @@
       };
     }
     const normalizedMode = normalizeWindowsBackdropMode(backdropMode);
+    if (normalizedMode === WINDOWS_BACKDROP_TRANSPARENT) {
+      return {
+        kind: WINDOWS_SURFACE_TRANSPARENT,
+        nativeBackdrop: false,
+        nativeMaterial: 'none',
+        useLegacyAccent: false
+      };
+    }
     if (windowsNativeBackdropSupported({ platform, osRelease })) {
       return {
         kind: normalizedMode === WINDOWS_BACKDROP_MICA ? WINDOWS_SURFACE_MICA : WINDOWS_SURFACE_ACRYLIC,
@@ -77,9 +92,11 @@
   return {
     WINDOWS_BACKDROP_ACRYLIC,
     WINDOWS_BACKDROP_MICA,
+    WINDOWS_BACKDROP_TRANSPARENT,
     WINDOWS_SURFACE_NONE,
     WINDOWS_SURFACE_MICA,
     WINDOWS_SURFACE_ACRYLIC,
+    WINDOWS_SURFACE_TRANSPARENT,
     WINDOWS_SURFACE_WIN10_FALLBACK,
     WINDOWS_NATIVE_MIN_BUILD,
     normalizeWindowsBackdropMode,
