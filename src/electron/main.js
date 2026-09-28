@@ -1976,6 +1976,9 @@ function effectiveWindowSurface(source = settings) {
   if (source?.systemGlass === false) return 'regular';
   if (process.platform === 'win32') {
     const profile = windowsSurfaceFor({ systemGlass: true, source });
+    if (profile.kind === 'transparent') {
+      return 'transparent';
+    }
     if (profile.nativeBackdrop) {
       return profile.kind === 'mica' ? 'mica' : 'acrylic';
     }

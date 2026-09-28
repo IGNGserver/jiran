@@ -44,6 +44,7 @@ export function surfaceValueFromSettings(settings = {}, info = {}) {
   if (settings.systemGlass === false) return 'regular';
   if (isWindows && settings.windowsBackdrop === 'acrylic') return 'acrylic';
   if (isWindows && settings.windowsBackdrop === 'mica') return 'mica';
+  if (isWindows && settings.windowsBackdrop === 'transparent') return 'transparent';
   return 'transparent';
 }
 
@@ -53,7 +54,7 @@ export function surfaceValueFromSettings(settings = {}, info = {}) {
 export function settingsPatchForSurface(surface) {
   const value = String(surface || 'transparent');
   if (value === 'regular') return { systemGlass: false };
-  return { systemGlass: true, ...(value === 'acrylic' || value === 'mica' ? { windowsBackdrop: value } : {}) };
+  return { systemGlass: true, ...(value === 'acrylic' || value === 'mica' || value === 'transparent' ? { windowsBackdrop: value } : {}) };
 }
 
 function checkbox(name, labelKey, checked, { description = '', id = '' } = {}) {
