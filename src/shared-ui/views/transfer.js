@@ -30,11 +30,18 @@ export function renderTransferPanel() {
   const rows = deviceRows(viewStats(), 'allTime');
   const owner = appState().authorization?.authenticated === true;
   if (!rows.length) return `<p class="muted tiny">${escapeHtml(tr('transfer.noDevices'))}</p>`;
+  // A stats tick re-renders this form; the chosen pair survives in app state so
+  // an update cannot snap both pickers back to the defaults while the user is
+  // halfway through a transfer. Selections for vanished devices fall through.
+  const saved = appState().transferSelection || {};
+  const isLive = (deviceId) => rows.some((row) => row.key === deviceId);
   const selectedDeviceId = appState().prefs.selectedDeviceId;
-  const sourceId = rows.some((row) => row.key === selectedDeviceId) ? selectedDeviceId : rows[0].key;
+  const sourceId = isLive(saved.source) ? saved.source
+    : (isLive(selectedDeviceId) ? selectedDeviceId : rows[0].key);
   // Default the target to a different device; the form still validates on
   // submit, and the change handler below keeps the pair apart as the source moves.
-  const targetId = rows.find((row) => row.key !== sourceId)?.key || sourceId;
+  const targetId = (isLive(saved.target) && saved.target !== sourceId) ? saved.target
+    : (rows.find((row) => row.key !== sourceId)?.key || sourceId);
   return `
     <p class="muted tiny">${escapeHtml(tr('transfer.description'))}</p>
     <div class="notice warn" role="status">${escapeHtml(tr('transfer.notice'))}</div>
@@ -67,6 +74,11 @@ export async function submitTransfer(form) {
   if (!confirmed) return '';
   try {
     await request(`/api/devices/${encodeURIComponent(source)}/transfer`, {
+      // The Hub-web host authenticates per request: without the live session
+      // secret this POST goes out anonymous and the owner's own key reads back
+      // as "needs an admin credential". Desktop ignores the value (the main
+      // process owns the secret) and never renders this panel anyway.
+      secret: appState().secret,
       method: 'POST',
       body: { targetDeviceId: target }
     });
