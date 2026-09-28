@@ -662,15 +662,25 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
    * Complete the sign-in with whatever the provider handed back.  The field is
    * permissive by contract (callback URL, query string, or bare code), so this forwards
    * the paste verbatim instead of parsing it and getting the third shape wrong.
+   *
+   * [accountId] re-authorizes that account in place; without it the Hub adds a new
+   * account.  Editing an existing OAuth account must pass it, or "finish login"
+   * would try to create a duplicate and come back as `account_duplicate`.
    */
-  fun exchangeOAuth(sessionId: String, pasted: String, name: String?, label: String?) =
-    launchRequest { generation ->
+  fun exchangeOAuth(
+    sessionId: String,
+    pasted: String,
+    name: String?,
+    label: String?,
+    accountId: String? = null
+  ) = launchRequest { generation ->
       val result = repository.exchangeOAuth(
         OAuthExchangeRequestDto(
           sessionId = sessionId,
           redirectUrl = pasted.trim(),
           name = name?.trim()?.ifEmpty { null },
-          label = label?.trim()?.ifEmpty { null }
+          label = label?.trim()?.ifEmpty { null },
+          accountId = accountId?.trim()?.ifEmpty { null }
         )
       )
       when (result) {
@@ -684,6 +694,20 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
         )
       }
     }
+
+  /** Clear an account's stored credential; the account itself is kept. */
+  fun clearAccountCredential(accountId: String) = launchRequest { generation ->
+    when (val result = repository.clearAccountCredential(accountId)) {
+      is HubResult.Success -> if (isCurrent(generation)) _state.value = _state.value.copy(
+        accounts = result.value.accounts,
+        oauthSession = null,
+        accountsError = null
+      )
+      is HubResult.Failure -> if (isCurrent(generation)) _state.value = _state.value.copy(
+        accountsError = result.error.message
+      )
+    }
+  }
 
   // ─── Subscription ledger ────────────────────────────────────────────────────
 

@@ -97,6 +97,37 @@ const SAFE_CREDENTIAL_METADATA_FIELDS = [
   'accessKeyId'
 ];
 
+// Keys that describe provenance or scheduling rather than a usable secret. A
+// credential holding only these is "cleared": there is nothing left to probe.
+const CREDENTIAL_BOOKKEEPING_FIELDS = new Set(['source', 'expiresAt', 'expires_at']);
+
+function hasUsableCredentialValue(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (typeof value === 'boolean') return true;
+  if (Array.isArray(value)) return value.some(hasUsableCredentialValue);
+  if (typeof value === 'object') {
+    return Object.entries(value).some(([key, nested]) => (
+      !CREDENTIAL_BOOKKEEPING_FIELDS.has(key) && hasUsableCredentialValue(nested)
+    ));
+  }
+  return false;
+}
+
+/**
+ * Whether a stored credential still carries something usable.
+ *
+ * The Hub never returns credential material, so a client cannot tell "has a
+ * token" from "was cleared" on its own. This boolean is the minimum the UI needs
+ * to show "filled in" vs "authorize again"; it is derived from the decrypted
+ * credential and never exposes a value.
+ */
+function credentialIsConfigured(credential) {
+  if (!credential || typeof credential !== 'object' || Array.isArray(credential)) return false;
+  return hasUsableCredentialValue(credential);
+}
+
 function credentialMetadata(credential) {
   const profile = credential?.profile && typeof credential.profile === 'object'
     ? credential.profile
@@ -461,16 +492,23 @@ function createHubAccountService({
     for (const account of accounts) {
       const snapshot = snapshots.get(account.id) || null;
       let metadata = null;
+      let credentialConfigured = null;
       if (includeCredentialMetadata) {
         try {
           const envelope = await store.getHubAccountCredential(account.id);
-          metadata = credentialMetadata(decryptCredential(envelope, credentialKey));
+          const decrypted = decryptCredential(envelope, credentialKey);
+          metadata = credentialMetadata(decrypted);
+          credentialConfigured = credentialIsConfigured(decrypted);
         } catch (error) {
           logger.warn?.(`[hub-accounts] metadata unavailable for ${account.id}: ${error.message}`);
         }
       }
       const visible = publicAccount(account, snapshot);
-      result.push(metadata ? { ...visible, credentialMetadata: metadata } : visible);
+      result.push({
+        ...visible,
+        ...(credentialConfigured === null ? {} : { credentialConfigured }),
+        ...(metadata ? { credentialMetadata: metadata } : {})
+      });
     }
     return result;
   }
@@ -792,7 +830,7 @@ function createHubAccountService({
       executor
     ));
     await onUpdate?.({ type: 'account-added', accountId: id });
-    return publicAccount(account, { provider: row });
+    return { ...publicAccount(account, { provider: row }), credentialConfigured: true };
   }
 
   async function updateAccount(id, patch = {}) {
@@ -889,6 +927,108 @@ function createHubAccountService({
     return publicAccount(refreshed.account, refreshed.snapshot);
   }
 
+  async function clearAccountCredential(id) {
+    const entry = await accountWithSnapshot(id);
+    if (!entry) return null;
+    const updatedAt = new Date(now()).toISOString();
+    // Clearing keeps the account itself (name/label/enabled/limits identity) but
+    // removes every usable secret, so the next refresh reports "not configured"
+    // until the owner authorizes again. No probe runs: probing an empty credential
+    // would throw and turn a deliberate clear into a 4xx.
+    const cleared = normalizeLimitProvider({
+      ...(entry.snapshot?.provider || {}),
+      provider: entry.account.provider,
+      accountKey: '',
+      accountEmail: '',
+      accountLabel: '',
+      status: 'notConfigured',
+      stale: false,
+      windows: []
+    });
+    const envelope = encryptCredential({}, credentialKey);
+    await runTransaction(async (executor) => {
+      await store.replaceHubAccountCredential(id, envelope, executor);
+      await store.updateHubAccount(id, {
+        accountKey: '',
+        accountEmail: '',
+        accountLabel: '',
+        status: 'notConfigured',
+        lastErrorCode: '',
+        lastErrorMessage: '',
+        nextRefreshAt: new Date(now() + intervalMs).toISOString(),
+        updatedAt
+      }, executor);
+      await store.saveHubAccountSnapshot(id, {
+        provider: cleared,
+        lastGood: null,
+        updatedAt
+      }, executor);
+    });
+    await onUpdate?.({ type: 'account-credential-cleared', accountId: id });
+    return true;
+  }
+
+  // Re-authorize an existing account in place.
+  //
+  // The browser sign-in flow completes at the Hub (oauthManager.exchangeSession),
+  // then must attach its credential to the account the user is editing rather than
+  // create a second one. addAccount's duplicate guard is deliberately skipped for
+  // the account's own identity, or re-authorizing would fail with
+  // `account_duplicate` against itself.
+  async function authorizeAccount(id, { credential, name, label } = {}) {
+    const entry = await accountWithSnapshot(id);
+    if (!entry) return null;
+    const incomingCredential = credentialObject(credential);
+    const next = {
+      name: name !== undefined && cleanText(name, MAX_ACCOUNT_NAME_LENGTH)
+        ? cleanText(name, MAX_ACCOUNT_NAME_LENGTH)
+        : entry.account.name,
+      label: label !== undefined ? cleanText(label, MAX_ACCOUNT_LABEL_LENGTH) : entry.account.label
+    };
+    const account = { ...entry.account, ...next, enabled: true };
+    const probed = await probeAccount(account, incomingCredential);
+    const row = probed.row;
+    const storedCredential = probed.credential;
+    const duplicate = typeof store.findHubAccount === 'function'
+      ? await store.findHubAccount(account.provider, row.accountKey || '', row.accountEmail || '')
+      : null;
+    if (duplicate && duplicate.id !== id) {
+      const error = new Error('This provider account is already registered');
+      error.code = 'account_duplicate';
+      throw error;
+    }
+    const updatedAt = new Date(now()).toISOString();
+    const envelope = encryptCredential(storedCredential, credentialKey);
+    await runTransaction(async (executor) => {
+      await store.replaceHubAccountCredential(id, envelope, executor);
+      await store.updateHubAccount(id, {
+        ...next,
+        enabled: true,
+        accountKey: row.accountKey || '',
+        accountEmail: row.accountEmail || '',
+        accountLabel: row.accountLabel || '',
+        status: 'ok',
+        lastAttemptAt: updatedAt,
+        lastSuccessAt: updatedAt,
+        lastErrorCode: '',
+        lastErrorMessage: '',
+        nextRefreshAt: new Date(now() + intervalMs).toISOString(),
+        updatedAt
+      }, executor);
+      await store.saveHubAccountSnapshot(id, {
+        provider: row,
+        lastGood: row,
+        updatedAt
+      }, executor);
+    });
+    const refreshed = await accountWithSnapshot(id);
+    await onUpdate?.({ type: 'account-authorized', accountId: id });
+    return {
+      ...publicAccount(refreshed.account, refreshed.snapshot),
+      credentialConfigured: credentialIsConfigured(storedCredential)
+    };
+  }
+
   async function deleteAccount(id) {
     const existing = await store.getHubAccount(id);
     if (!existing) return false;
@@ -913,6 +1053,8 @@ function createHubAccountService({
 
   return {
     addAccount,
+    authorizeAccount,
+    clearAccountCredential,
     deleteAccount,
     getLimitsSummary,
     listAccounts,

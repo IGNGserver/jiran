@@ -60,6 +60,7 @@ import {
   ALL_PROVIDERS_OPTION_VALUE,
   deviceIdFromOptionValue,
   deviceOptionValue,
+  isBrowserLoginProvider,
   toolRows
 } from './core/data.js';
 
@@ -1926,10 +1927,13 @@ async function saveAccountFromForm(form) {
   if (!name) throw new Error(tr('accounts.nameRequired'));
   if (!provider) throw new Error(tr('accounts.providerRequired'));
 
-  const oauthMode = !editing && mode === 'oauth' && (provider === 'codex' || provider === 'antigravity');
+  const oauthMode = mode === 'oauth' && isBrowserLoginProvider(provider);
+  const oauthAccountId = editing ? editing.id : '';
   if (oauthMode) {
     const agree = values.get('disclaimerAgree');
-    if (agree !== 'on') throw new Error(tr('accounts.disclaimerRequired'));
+    // The disclaimer is a one-time acknowledgement on creation; re-authorizing an
+    // account the owner already accepted must not require it again.
+    if (!editing && agree !== 'on') throw new Error(tr('accounts.disclaimerRequired'));
     const sessionId = String(values.get('oauthSessionId') || '').trim();
     const redirectUrl = String(values.get('redirectUrl') || '').trim();
     if (!sessionId || !redirectUrl) throw new Error(tr('accounts.oauthInputRequired'));
@@ -1938,15 +1942,19 @@ async function saveAccountFromForm(form) {
     state.accountFormError = '';
     render();
     try {
+      // With an accountId the Hub replaces this account's credential in place,
+      // so re-authorizing never creates a duplicate login.
       await fetchJson('/api/accounts/oauth/exchange', {
         secret: state.secret,
         method: 'POST',
-        body: { sessionId, redirectUrl, name, label }
+        body: { sessionId, redirectUrl, name, label, ...(oauthAccountId ? { accountId: oauthAccountId } : {}) }
       });
       state.oauthSession = null;
       state.accountFormMode = 'simple';
       state.accountSelectedProvider = 'deepseek';
       state.accountFormError = '';
+      state.accountDrawerOpen = false;
+      state.accountEditId = '';
       clearFormDraft(draftKey);
       showToast(tr('accounts.updated'));
       await loadAccounts({ force: true });
@@ -2036,7 +2044,7 @@ async function saveAccountFromForm(form) {
     throw new Error(tr('accounts.credentialRequired'));
   }
 
-  if (!editing && (provider === 'codex' || provider === 'antigravity')) {
+  if (!editing && isBrowserLoginProvider(provider)) {
     const agree = values.get('disclaimerAgree');
     if (agree !== 'on') {
       throw new Error(tr('accounts.disclaimerRequired'));
@@ -2093,6 +2101,29 @@ async function refreshAccount(accountId) {
       method: 'POST'
     });
     showToast(tr('toast.refreshed'));
+    await loadAccounts({ force: true });
+    await refreshStats();
+  } catch (error) {
+    showToast(error.message || tr('error.generic'));
+  } finally {
+    state.accountsSaving = false;
+    render();
+  }
+}
+
+async function clearAccountCredential(accountId) {
+  const account = state.accounts?.find((a) => a.id === accountId);
+  if (!account) return;
+  if (!(await confirmAction(tr('accounts.confirmClearCredential', { name: account.name || account.provider })))) return;
+  state.accountsSaving = true;
+  render();
+  try {
+    await fetchJson(`/api/accounts/${encodeURIComponent(accountId)}/credential`, {
+      secret: state.secret,
+      method: 'DELETE'
+    });
+    state.oauthSession = null;
+    showToast(tr('accounts.credentialCleared'));
     await loadAccounts({ force: true });
     await refreshStats();
   } catch (error) {
@@ -2864,6 +2895,9 @@ function bindEvents() {
       state.accountDrawerOpen = true;
       state.accountFormError = '';
       state.accountFormMode = 'simple';
+      // Editing starts a fresh sign-in; a session left over from another provider
+      // would otherwise be exchanged against the wrong account.
+      state.oauthSession = null;
       render();
       return;
     }
@@ -2875,6 +2909,11 @@ function bindEvents() {
       state.accountFormError = '';
       state.accountFormMode = 'simple';
       render();
+      return;
+    }
+    const accountClearCredential = event.target.closest('[data-account-clear-credential]');
+    if (accountClearCredential) {
+      void clearAccountCredential(accountClearCredential.dataset.accountClearCredential);
       return;
     }
     const accountDelete = event.target.closest('[data-account-delete]');
@@ -3137,7 +3176,7 @@ function bindEvents() {
       state.accountSelectedProvider = provider;
       state.oauthSession = null;
       state.accountFormError = '';
-      state.accountFormMode = provider === 'codex' || provider === 'antigravity' ? 'oauth' : 'simple';
+      state.accountFormMode = isBrowserLoginProvider(provider) ? 'oauth' : 'simple';
       animateDataUpdate();
       render();
       return;

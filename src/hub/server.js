@@ -1476,6 +1476,20 @@ function createHub({
         const exchanged = await oauthManager.exchangeSession(sessionId, redirectUrl, {
           fetch: oauthHttpFetch
         });
+        // `accountId` turns the exchange into an in-place re-authorization of an
+        // account the owner is editing; without it this stays the add-a-new-account
+        // path. The credential itself is identical either way.
+        const targetId = String(body?.accountId || '').trim();
+        if (targetId) {
+          const account = await accountService.authorizeAccount(targetId, {
+            credential: exchanged.credential,
+            name,
+            label
+          });
+          if (!account) return sendJson(res, 404, { error: 'account_not_found' });
+          await recordAccountAudit(owner.principal, 'account.reauthorize', targetId, { provider: account.provider });
+          return sendJson(res, 200, { ok: true, account });
+        }
         const account = await accountService.addAccount({
           provider: exchanged.provider,
           name: name || `${exchanged.provider}-${Date.now().toString(36)}`,
@@ -1495,9 +1509,35 @@ function createHub({
     if (url.pathname.startsWith('/api/accounts/')) {
       const suffix = url.pathname.slice('/api/accounts/'.length);
       const refreshSuffix = '/refresh';
+      const credentialSuffix = '/credential';
       const isRefresh = suffix.endsWith(refreshSuffix);
-      const accountId = decodeURIComponent(isRefresh ? suffix.slice(0, -refreshSuffix.length) : suffix);
+      const isCredential = !isRefresh && suffix.endsWith(credentialSuffix);
+      const accountId = decodeURIComponent(
+        isRefresh ? suffix.slice(0, -refreshSuffix.length)
+          : isCredential ? suffix.slice(0, -credentialSuffix.length)
+            : suffix
+      );
       if (!accountId) return sendJson(res, 400, { error: 'account_id_required' });
+      // Clear an account's stored credential while keeping the account itself, so
+      // the owner can re-authorize the same row instead of adding a duplicate.
+      if (req.method === 'DELETE' && isCredential) {
+        const owner = authorize(AUTHENTICATED_SCOPE);
+        if (!owner) return;
+        if (!accountService) return accountUnavailable(res);
+        try {
+          const cleared = await accountService.clearAccountCredential(accountId);
+          if (!cleared) return sendJson(res, 404, { error: 'account_not_found' });
+          await recordAccountAudit(owner.principal, 'account.credential_cleared', accountId);
+          const account = (await accountService.listAccounts({ includeCredentialMetadata: true }))
+            .find((item) => item.id === accountId) || null;
+          return sendJson(res, 200, { ok: true, account });
+        } catch (error) {
+          return sendJson(res, accountErrorStatus(error), {
+            error: error.code || 'account_credential_clear_failed',
+            message: errorMessageForApi(error)
+          });
+        }
+      }
       if (req.method === 'POST' && isRefresh) {
         const owner = authorize(AUTHENTICATED_SCOPE);
         if (!owner) return;
