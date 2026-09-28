@@ -327,6 +327,9 @@ const state = {
   locale: 'en',
   health: null,
   authorization: null,
+  // Transfer form pickers are rebuilt by every stats render; without this the
+  // user's source/target selection snaps back to the defaults mid-form.
+  transferSelection: null,
   stats: null,
   history: null,
   historyDeviceId: '',
@@ -3171,6 +3174,10 @@ function bindEvents() {
           .find((value) => value !== source.value);
         if (alternative) setFluentDropdownValue(target, alternative);
       }
+      state.transferSelection = {
+        source: String(source?.value || ''),
+        target: String(target?.value || '')
+      };
       return;
     }
     const control = event.target.closest('[data-desktop-settings] [name]');
