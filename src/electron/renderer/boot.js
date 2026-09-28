@@ -23,12 +23,34 @@ configureTransport(createIpcTransport(bridge));
 // The renderer shell owns a real client-area title bar on every desktop OS.
 // Mark the platform before the shared stylesheet and app module render so the
 // native chrome offsets are deterministic from first paint.
+function applyWindowSurfaceClass(surface) {
+  const target = document.documentElement;
+  const body = document.body;
+  const valid = ['regular', 'transparent', 'acrylic', 'mica'].includes(surface) ? surface : 'regular';
+  target.dataset.windowSurface = valid;
+  body.dataset.windowSurface = valid;
+}
+
 try {
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialSurface = urlParams.get('windowSurface');
+  if (initialSurface) {
+    applyWindowSurfaceClass(initialSurface);
+  }
   const info = await bridge.getAppInfo?.();
   if (info?.platform) document.body.classList.add(`is-${info.platform === 'darwin' ? 'mac' : info.platform}`);
+  if (info?.effectiveWindowSurface) {
+    applyWindowSurfaceClass(info.effectiveWindowSurface);
+  }
 } catch (_) {
   // Platform classes are cosmetic; the shared UI still boots if app info is
   // unavailable during an early packaged launch.
 }
+
+bridge.onSettingsPush?.((settings) => {
+  if (settings?.effectiveWindowSurface) {
+    applyWindowSurfaceClass(settings.effectiveWindowSurface);
+  }
+});
 
 await import('../../shared-ui/app.js');

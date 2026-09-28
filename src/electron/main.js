@@ -856,8 +856,12 @@ function windowsSurfaceFor({ systemGlass = nativeBlurEnabled(), source = setting
 
 function windowsTitleBarOverlayOptions(source = settings) {
   const surface = resolveNativeSurface(source);
+  const glass = nativeBlurEnabled(source);
+  const nativeBackdrop = windowsSurfaceFor({ systemGlass: glass, source }).nativeBackdrop;
   return {
-    color: surface.background,
+    // In native-backdrop (Mica/Acrylic) and glass mode, keeping the overlay
+    // background transparent lets the window material flow behind the caption controls.
+    color: (glass || nativeBackdrop) ? '#00000000' : surface.background,
     symbolColor: surface.glyph,
     height: 36
   };
@@ -873,9 +877,13 @@ function applyWindowsTitleBarOverlay(target = mainWindow, source = settings) {
 // solid background colour.
 function applyNativeTheme(target = mainWindow, source = settings) {
   const surface = resolveNativeSurface(source);
-  if (target && !target.isDestroyed?.() && typeof target.setBackgroundColor === 'function'
-    && !windowsSurfaceFor({ source }).nativeBackdrop) {
-    try { target.setBackgroundColor(surface.background); } catch (_) {}
+  const glass = nativeBlurEnabled(source);
+  if (target && !target.isDestroyed?.() && typeof target.setBackgroundColor === 'function') {
+    if (!glass && !windowsSurfaceFor({ source }).nativeBackdrop) {
+      try { target.setBackgroundColor(surface.background); } catch (_) {}
+    } else {
+      try { target.setBackgroundColor('#00000000'); } catch (_) {}
+    }
   }
   applyWindowsTitleBarOverlay(target, source);
 }
@@ -1964,6 +1972,17 @@ function focusExistingWindow() {
 }
 
 
+function effectiveWindowSurface(source = settings) {
+  if (source?.systemGlass === false) return 'regular';
+  if (process.platform === 'win32') {
+    const profile = windowsSurfaceFor({ systemGlass: true, source });
+    if (profile.nativeBackdrop) {
+      return profile.kind === 'mica' ? 'mica' : 'acrylic';
+    }
+  }
+  return 'transparent';
+}
+
 function settingsForRenderer() {
   const safeSettings = withoutInternalOnlyKeys(stripLegacyLocalLimitSettings(settings));
   const redactedCredentials = credentialSettingsForRenderer(settings, {
@@ -1975,6 +1994,7 @@ function settingsForRenderer() {
   return {
     ...safeSettings,
     windowsSurface: windowsSurfaceFor().kind,
+    effectiveWindowSurface: effectiveWindowSurface(settings),
     ...redactedCredentials,
     hubSecretConfigured: Boolean(settings?.secret),
     limitsAuthority: 'hub',
@@ -2739,7 +2759,7 @@ function createWindow(boundsOverride, options = {}) {
       ? { titleBarStyle: 'hidden', titleBarOverlay: windowsTitleBarOverlayOptions(settings) }
       : {}),
     show: false,
-    backgroundColor: nativeWindowsBackdrop ? undefined : nativeSurface.background,
+    backgroundColor: (glass || nativeWindowsBackdrop) ? '#00000000' : nativeSurface.background,
     icon: APP_ICON_PATH,
     autoHideMenuBar: process.platform !== 'darwin',
     ...(process.platform === 'darwin' && glass && macosGlassStyle === MACOS_GLASS_VIBRANCY
@@ -2800,6 +2820,7 @@ function createWindow(boundsOverride, options = {}) {
     query: {
       ...initialRendererViewStateQuery(rendererViewState),
       ...(settings?.systemGlass === false ? { systemGlassDisabled: '1' } : {}),
+      windowSurface: effectiveWindowSurface(settings),
       ...(process.platform === 'win32' ? { windowsSurface: windowsSurface.kind } : {})
     }
   });
@@ -3254,7 +3275,8 @@ function appDiagnosticsInfo() {
     userData: app.getPath('userData'),
     sharedDataDir: sharedDataDir(),
     loginItemSupported: loginItemEnabledHere(),
-    loginItemOpenAtLogin: currentLoginItemState()
+    loginItemOpenAtLogin: currentLoginItemState(),
+    effectiveWindowSurface: effectiveWindowSurface(settings)
   };
 }
 
@@ -3430,9 +3452,12 @@ app.whenReady().then(() => {
     applyNativeTheme(mainWindow, settings);
     const nextNativeMaterial = nativeBlurEnabled();
     const nextWindowsSurface = windowsSurfaceFor({ systemGlass: nextNativeMaterial }).kind;
+    const surfaceChanged = previousRuntimeSettings.systemGlass !== settings.systemGlass
+      || previousRuntimeSettings.windowsBackdrop !== settings.windowsBackdrop;
     if (process.platform === 'win32' && (
       previousNativeMaterial !== nextNativeMaterial
       || previousWindowsSurface !== nextWindowsSurface
+      || surfaceChanged
     )) {
       rebuildWindow();
     } else {
