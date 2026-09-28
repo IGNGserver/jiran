@@ -9,6 +9,7 @@
   const WINDOWS_BACKDROP_MICA = 'mica';
   const WINDOWS_SURFACE_NONE = 'none';
   const WINDOWS_SURFACE_MICA = 'mica';
+  const WINDOWS_SURFACE_ACRYLIC = 'acrylic';
   const WINDOWS_SURFACE_WIN10_FALLBACK = 'win10-fallback';
   const WINDOWS_NATIVE_MIN_BUILD = 22621;
 
@@ -31,6 +32,7 @@
 
   function normalizeWindowsSurface(value) {
     if (value === WINDOWS_SURFACE_MICA) return WINDOWS_SURFACE_MICA;
+    if (value === WINDOWS_SURFACE_ACRYLIC) return WINDOWS_SURFACE_ACRYLIC;
     if (value === WINDOWS_SURFACE_WIN10_FALLBACK) return WINDOWS_SURFACE_WIN10_FALLBACK;
     return WINDOWS_SURFACE_NONE;
   }
@@ -55,11 +57,12 @@
         useLegacyAccent: false
       };
     }
+    const normalizedMode = normalizeWindowsBackdropMode(backdropMode);
     if (windowsNativeBackdropSupported({ platform, osRelease })) {
       return {
-        kind: WINDOWS_SURFACE_MICA,
+        kind: normalizedMode === WINDOWS_BACKDROP_MICA ? WINDOWS_SURFACE_MICA : WINDOWS_SURFACE_ACRYLIC,
         nativeBackdrop: true,
-        nativeMaterial: windowsElectronBackgroundMaterial(backdropMode),
+        nativeMaterial: windowsElectronBackgroundMaterial(normalizedMode),
         useLegacyAccent: false
       };
     }
@@ -76,6 +79,7 @@
     WINDOWS_BACKDROP_MICA,
     WINDOWS_SURFACE_NONE,
     WINDOWS_SURFACE_MICA,
+    WINDOWS_SURFACE_ACRYLIC,
     WINDOWS_SURFACE_WIN10_FALLBACK,
     WINDOWS_NATIVE_MIN_BUILD,
     normalizeWindowsBackdropMode,

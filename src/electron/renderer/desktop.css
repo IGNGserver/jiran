@@ -230,3 +230,139 @@ body.is-mac .period-tabs {
    reachable without allowing the native window itself to scroll. */
 .main { height: 100%; overflow-y: auto; overscroll-behavior: contain; }
 body.is-mac fluent-button, body.is-mac fluent-text-input { -webkit-app-region: no-drag; }
+
+/* ==========================================================================
+   Window Surface & Material Systems (Fluent 2 Architecture)
+   ========================================================================== */
+
+/* 1. Base Reset & Pass-through for translucent/material window modes */
+html:is([data-window-surface="transparent"], [data-window-surface="acrylic"], [data-window-surface="mica"]),
+body:is([data-window-surface="transparent"], [data-window-surface="acrylic"], [data-window-surface="mica"]) {
+  background: transparent !important;
+}
+
+body:is([data-window-surface="transparent"], [data-window-surface="acrylic"], [data-window-surface="mica"]) .desktop-window-strip {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+/* 2. Mica Material (Windows 11) - Natural canvas texture with elevated content */
+body[data-window-surface="mica"] .sidebar {
+  background: color-mix(in srgb, var(--colorNeutralBackground2) 65%, transparent);
+  backdrop-filter: blur(20px);
+}
+
+body[data-window-surface="mica"] .main {
+  background: transparent;
+}
+
+body[data-window-surface="mica"] .scope-commandbar {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 75%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 70%, transparent);
+  box-shadow: var(--shadow4);
+}
+
+body[data-window-surface="mica"] .hero {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 75%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 70%, transparent);
+  box-shadow: var(--shadow4);
+}
+
+body[data-window-surface="mica"] .panel {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 80%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 75%, transparent);
+  box-shadow: var(--shadow4);
+}
+
+body[data-window-surface="mica"] .desktop-sync-status {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 75%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 70%, transparent);
+}
+
+/* 3. Acrylic Material (Windows 10/11) - Rich translucent blur with soft tint */
+body[data-window-surface="acrylic"] .sidebar {
+  background: color-mix(in srgb, var(--colorNeutralBackground3) 50%, transparent);
+  backdrop-filter: blur(30px);
+}
+
+body[data-window-surface="acrylic"] .main {
+  background: color-mix(in srgb, var(--colorNeutralBackground3) 30%, transparent);
+}
+
+body[data-window-surface="acrylic"] .scope-commandbar {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 82%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 75%, transparent);
+  box-shadow: var(--shadow8);
+}
+
+body[data-window-surface="acrylic"] .hero {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 82%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 75%, transparent);
+  box-shadow: var(--shadow8);
+}
+
+body[data-window-surface="acrylic"] .panel {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 86%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 80%, transparent);
+  box-shadow: var(--shadow8);
+}
+
+body[data-window-surface="acrylic"] .desktop-sync-status {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 82%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 75%, transparent);
+}
+
+/* 4. Cross-Platform Transparent Material - Finely tuned glass algorithm */
+body[data-window-surface="transparent"] {
+  background: transparent !important;
+}
+
+body[data-window-surface="transparent"] .app {
+  background: color-mix(in srgb, var(--colorNeutralBackground3) 78%, transparent);
+  backdrop-filter: blur(28px) saturate(125%);
+  -webkit-backdrop-filter: blur(28px) saturate(125%);
+}
+
+body[data-window-surface="transparent"] .sidebar {
+  background: color-mix(in srgb, var(--colorNeutralBackground2) 70%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-right: 1px solid color-mix(in srgb, var(--colorNeutralStroke1) 60%, transparent);
+}
+
+body[data-window-surface="transparent"] .main {
+  background: transparent;
+}
+
+body[data-window-surface="transparent"] .scope-commandbar {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 84%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 70%, transparent);
+  box-shadow: var(--shadow4);
+}
+
+body[data-window-surface="transparent"] .hero {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 84%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 70%, transparent);
+  box-shadow: var(--shadow4);
+}
+
+body[data-window-surface="transparent"] .panel {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 88%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 75%, transparent);
+  box-shadow: var(--shadow4);
+}
+
+body[data-window-surface="transparent"] .desktop-sync-status {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 84%, transparent);
+  border-color: color-mix(in srgb, var(--colorNeutralStroke1) 70%, transparent);
+}
+
+/* Transient popovers & drawers in translucent modes maintain higher contrast */
+body:is([data-window-surface="transparent"], [data-window-surface="acrylic"], [data-window-surface="mica"]) .drawer-panel,
+body:is([data-window-surface="transparent"], [data-window-surface="acrylic"], [data-window-surface="mica"]) .popover-card {
+  background: color-mix(in srgb, var(--colorNeutralBackground1) 94%, transparent);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid var(--colorNeutralStroke1);
+  box-shadow: var(--shadow64);
+}
