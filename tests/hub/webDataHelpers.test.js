@@ -142,6 +142,37 @@ test('hub account UI keeps the shared form system and reports OAuth failures', (
   assert.match(index, /id="rangePopover"[^>]*aria-modal="true"/);
 });
 
+test('codex and antigravity only ever show the browser sign-in', () => {
+  // Their manual shapes (`authJson`, `endpoint`/`csrfToken`) used to sit behind a
+  // mode toggle that also reappeared on edit, so an OAuth account could be edited
+  // into a token-paste form with empty fields. The wizard is now the only surface
+  // for these two, on add and edit alike.
+  const app = uiSource();
+  assert.match(app, /isBrowserLoginProvider/);
+  assert.match(app, /const browserLogin = isBrowserLoginProvider\(currentProvider\)/);
+  assert.match(app, /const effectiveMode = browserLogin\s*\n?\s*\? 'oauth'/);
+  // The toggle is only rendered for non-browser-login providers.
+  assert.match(app, /\$\{browserLogin \? '' : `<div class="account-form-head-actions">/);
+  assert.doesNotMatch(app, /isOAuthCandidate/);
+  // The manual codex / antigravity field sets are gone.
+  assert.doesNotMatch(app, /name="authJson"/);
+  assert.doesNotMatch(app, /name="csrfToken"/);
+  assert.doesNotMatch(app, /agyEndpoint/);
+  // Re-authorization must target the edited account, not create a new one.
+  assert.match(app, /oauthAccountId \? \{ accountId: oauthAccountId \} : \{\}/);
+});
+
+test('editing a browser-login account reports, clears, and replaces its credential', () => {
+  const app = uiSource();
+  assert.match(app, /data-account-clear-credential/);
+  assert.match(app, /async function clearAccountCredential\(/);
+  assert.match(app, /accounts\/\$\{encodeURIComponent\(accountId\)\}\/credential/);
+  assert.match(app, /credentialConfigured === false \? 'accounts\.credentialMissing' : 'accounts\.credentialPresent'/);
+  assert.match(app, /data-account-clear-credential="\$\{escapeHtml\(editing\?\.id \|\| ''\)\}"/);
+  const css = fs.readFileSync(path.join(__dirname, '../../src/shared-ui/styles/app.css'), 'utf8');
+  assert.match(css, /\.account-credential-status/);
+});
+
 test('devicePlatformLabel / countActiveDays / heatmapValue behavior', () => {
   const { devicePlatformLabel, countActiveDays, heatmapValue } = dataApi;
   assert.equal(devicePlatformLabel('win32', 'Windows', '11'), 'Windows 11');

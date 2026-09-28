@@ -43,6 +43,7 @@ test('a stored credential is reported as configured without echoing it', async (
     provider: 'codex',
     credential: { accessToken: 'chatgpt-secret', source: 'oauth' }
   });
+  assert.ok(account.id);
 
   const listed = await service.listAccounts({ includeCredentialMetadata: true });
   assert.equal(listed[0].credentialConfigured, true);

@@ -224,6 +224,18 @@ export const HUB_ACCOUNT_PROVIDERS = [
   { id: 'thirdparty', label: 'Third-party' }
 ];
 
+// Providers whose Hub credential is obtained by completing a browser sign-in,
+// never by typing a token (the Hub-side OAuth session in `src/hub/oauthService.js`
+// is the only supported shape). The accounts UI keeps these on the browser-login
+// wizard for both add and edit, so the manual `authJson` / `endpoint+csrfToken`
+// shapes are unreachable by design. This must match the provider set
+// `oauthService.startSession` accepts; a provider added there belongs here too.
+export const BROWSER_LOGIN_PROVIDERS = ['codex', 'antigravity'];
+
+export function isBrowserLoginProvider(provider) {
+  return BROWSER_LOGIN_PROVIDERS.includes(String(provider || '').trim().toLowerCase());
+}
+
 const FALLBACK_MODEL_COLORS = ['#6ab4f0', '#cc7c5e', '#a57df0', '#49a3b0', '#f0d66a', '#f06a7b'];
 
 const ICON_ALIASES = {

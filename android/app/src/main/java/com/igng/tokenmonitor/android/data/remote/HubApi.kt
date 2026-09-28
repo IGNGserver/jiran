@@ -55,6 +55,7 @@ interface HubApi {
     @Body request: AccountRequestDto
   ): AccountsResponseDto
   @DELETE("api/accounts/{id}") suspend fun deleteAccount(@Path("id") id: String): AccountsResponseDto
+  @DELETE("api/accounts/{id}/credential") suspend fun clearAccountCredential(@Path("id") id: String): AccountsResponseDto
   @POST("api/accounts/{id}/refresh") suspend fun refreshAccount(@Path("id") id: String): AccountsResponseDto
   @POST("api/accounts/oauth/start") suspend fun startOAuth(@Body body: Map<String, String>): OAuthStartDto
   @POST("api/accounts/oauth/exchange") suspend fun exchangeOAuth(
