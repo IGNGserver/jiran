@@ -3,6 +3,10 @@
 ## 本次更新
 
 <!-- app-update-notes:zh:start -->
+### 管理导航合并为单一「管理」页面
+- **三个入口收进一页：** 原先管理组下的「账号」「管理（订阅 / 定价）」「设置」三个页面合并为一个「管理」页面，左侧栏在 账号 / 消费 / 偏好 分区间切换，网页端管理员额外显示「高级」分区。
+- **旧链接不失效：** `accounts` / `management` 不再是独立视图，持久化路由、书签或旧 URL 会自动重定向到对应分区；当前分区同步到 URL（`?section=`），书签和分享都能直达目标分区。
+- **桌面菜单同步精简：** 原生应用菜单移除两个失效入口；视图 id `settings` 作为旧路由与原生菜单的兼容面保留，只有标签改成了「管理」。
 ### 统一本地采集测量与 Qoder WSL 支持
 - **统一测量语义：** 本地适配器现在通过统一的 `clientMeasurements` 传递 Token / 成本精度与 Provider 原生计量；旧的 `clientEstimated` / `clientCredits` 字段继续兼容。
 - **Qoder / Qoder CN 跨端一致：** Web、Android、Hub 范围查询和本地采集共享同一套 provenance 与 Credits 规则，估算 Token 仍明确显示 `~`，Credits 不再伪装成 USD 成本。
