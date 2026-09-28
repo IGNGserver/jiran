@@ -24,8 +24,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CornerSize
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -75,6 +73,7 @@ import com.igng.tokenmonitor.android.ui.components.formatUsd
 import com.igng.tokenmonitor.android.ui.components.rememberScrolledFlag
 import com.igng.tokenmonitor.android.ui.components.topShareEntries
 import com.igng.tokenmonitor.android.ui.components.wslStatusLabel
+import com.igng.tokenmonitor.android.ui.components.listGroupShape
 import com.igng.tokenmonitor.android.ui.haptics.HapticEvent
 import com.igng.tokenmonitor.android.ui.haptics.rememberAppHaptics
 import com.igng.tokenmonitor.android.ui.theme.FluentShapeDefaults
@@ -139,9 +138,9 @@ fun DevicesScreen(
 
         // One row per lazy item, so the fleet stays virtualized: a few hundred machines
         // used to compose inside a single `item`, which is why this page was the one that
-        // scrolled badly.  `deviceGroupShape` keeps the grouped Fluent look while the rows
+        // scrolled badly. `listGroupShape` keeps the grouped Fluent look while the rows
         // are virtualized — the first and last carry the rounded, outlined edges and the
-        // ones between them stay square.  `dividerAbove` asks whether a predecessor exists
+        // ones between them stay square. `dividerAbove` asks whether a predecessor exists
         // rather than trusting the loop index, which is not stable across a keyed list.
         itemsIndexed(
           items = sorted,
@@ -150,7 +149,7 @@ fun DevicesScreen(
           DeviceRow(
             device = device,
             dividerAbove = index > 0,
-            groupShape = deviceGroupShape(index = index, count = sorted.size),
+            groupShape = listGroupShape(index, sorted.size),
             onClick = {
               haptics.perform(HapticEvent.Tap)
               navController.navigate("device/${Uri.encode(device.deviceId.orEmpty())}")
@@ -160,28 +159,6 @@ fun DevicesScreen(
       }
     }
   }
-}
-
-/**
- * The shape one row of the grouped device list wears.
- *
- * A lazy list cannot hand every row to one `FluentCardList` (composing the whole fleet is
- * what made this page heavy), so the grouping is distributed instead: the first row rounds
- * its top, the last rounds its bottom, and everything between stays square. A one-device
- * fleet gets the whole card shape.
- */
-private fun deviceGroupShape(index: Int, count: Int): androidx.compose.ui.graphics.Shape {
-  // Read straight off the `cardCorner` token rather than re-stating its dp value: the
-  // per-corner `CornerSize` is what the token holds, so a change to the token moves this
-  // shape with it and there is no second copy of the radius to keep in step.
-  val corner = FluentShapeDefaults.cardCorner.topStart
-  val square = CornerSize(0.dp)
-  return RoundedCornerShape(
-    topStart = if (index == 0) corner else square,
-    topEnd = if (index == 0) corner else square,
-    bottomStart = if (index == count - 1) corner else square,
-    bottomEnd = if (index == count - 1) corner else square
-  )
 }
 
 @Composable

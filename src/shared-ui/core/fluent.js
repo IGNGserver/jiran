@@ -250,17 +250,14 @@ export function finishFluentRender(root, view) {
   const changedView = view !== lastView || pendingNavigation;
   const chartTargets = root.querySelector('.chart-bar, .chart-svg-heat .heat');
   const shouldAnimateChart = Boolean(chartTargets)
-    && (changedView || pendingDataUpdate || !animatedChartViews.has(view));
+    && (changedView || !animatedChartViews.has(view));
   if (changedView) enter(root, 'enter');
-  if (changedView || pendingDataUpdate) {
-    if (!lastView) [...root.querySelectorAll('.panel')].slice(0, 6).forEach((panel, index) => enter(panel, 'enter', index * 24));
-    else if (pendingDataUpdate) {
-      const cards = [
-        ...document.querySelectorAll('#heroStrip .hero-card'),
-        ...root.querySelectorAll('.panel, .usage-metric-card')
-      ];
-      cards.slice(0, 12).forEach((card, index) => enter(card, 'enter', Math.min(index * 16, 112)));
-    }
+  // A data update no longer replays an entrance. `render()` is already
+  // write-gated on identical HTML, so by the time we get here the user did see a
+  // change — but animating the container it changed is the "the page reloaded"
+  // illusion, and it re-animates the very cards the user may be reading.
+  if (changedView && !lastView) {
+    [...root.querySelectorAll('.panel')].slice(0, 6).forEach((panel, index) => enter(panel, 'enter', index * 24));
   }
   if (shouldAnimateChart) {
     animateCharts(root);
@@ -307,6 +304,14 @@ export function setupFluentInteractions() {
     }
   });
   document.addEventListener('toggle', (event) => {
-    if (event.target.tagName === 'DETAILS' && event.target.open) enter(event.target.querySelector('.usage-row-detail, .device-detail-body'), 'enter');
+    if (event.target.tagName !== 'DETAILS' || !event.target.open) return;
+    // A detail reopened by the render snapshot already had its content painted;
+    // animating it again is the "my expand was undone and redone" flash. The
+    // marker is set by `restoreRenderState` for exactly this open.
+    if (event.target.dataset.restoredOpen) {
+      delete event.target.dataset.restoredOpen;
+      return;
+    }
+    enter(event.target.querySelector('.usage-row-detail, .device-detail-body'), 'enter');
   }, true);
 }

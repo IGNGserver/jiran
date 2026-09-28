@@ -72,7 +72,7 @@ export function renderSettingsPage({ consumption = '' } = {}) {
       ${consumptionVisible && consumption ? section('consumption', tr('management.section.consumption'), consumption, active('consumption')) : ''}
       ${renderPreferences({ active: active('preferences').active === true })}
       ${desktopHost
-        ? `<div class="settings-desktop-stack" data-desktop-settings>${renderDesktopSettings(appState().desktopSettings || {}, appState().desktopInfo || {})}</div>`
+        ? `<div class="settings-desktop-stack" data-desktop-settings data-draft-key="desktop-settings">${renderDesktopSettings(appState().desktopSettings || {}, appState().desktopInfo || {})}</div>`
         : ''}
       ${!desktopHost && owner
         ? section('advanced', tr('management.section.advanced'), renderTransferPanel(), { active: currentSection === 'advanced' })

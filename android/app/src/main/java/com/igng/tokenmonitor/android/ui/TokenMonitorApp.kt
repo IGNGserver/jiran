@@ -21,7 +21,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -115,10 +117,17 @@ fun TokenMonitorApp(
   val showGlobalNav = currentRoute in FluentDestinations.routes
   val colors = LocalFluentColors.current
 
+  // A live stream retries on its own every few seconds, so the same transient
+  // failure is re-reported on every frame while a screen the user is reading sits
+  // under the toast. Remember the last message shown and skip an immediate repeat;
+  // a *different* failure still surfaces, and the ViewModel still clears the state.
+  var lastShownError by remember { mutableStateOf<String?>(null) }
   LaunchedEffect(hubState.error) {
-    hubState.error?.let {
-      snackbarHost.showSnackbar(it)
-      hubViewModel.dismissError()
+    val message = hubState.error ?: return@LaunchedEffect
+    hubViewModel.dismissError()
+    if (message != lastShownError) {
+      lastShownError = message
+      snackbarHost.showSnackbar(message)
     }
   }
   LaunchedEffect(connectionState.message) {

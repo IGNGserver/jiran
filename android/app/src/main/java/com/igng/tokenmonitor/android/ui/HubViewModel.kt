@@ -214,7 +214,11 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
   fun refreshStats() = launchRequest { generation ->
     if (!isCurrent(generation)) return@launchRequest
     val frameVersion = statsFrameVersion
-    _state.value = _state.value.copy(isLoading = true, error = null)
+    // `isLoading` is the cold-start spinner, not a per-tick flag: setting it on
+    // every refresh made the devices screen flicker into its skeleton while the
+    // list it was replacing was still on screen.
+    val coldStart = _state.value.stats == null
+    _state.value = _state.value.copy(isLoading = coldStart, error = null)
     when (val result = repository.stats()) {
       is HubResult.Success -> if (isCurrent(generation)) {
         if (frameVersion == statsFrameVersion) {

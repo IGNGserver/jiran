@@ -817,7 +817,7 @@ function renderChrome() {
     ['nav.groupResources', ['devices', 'limits']],
     ['nav.groupAdministration', ['settings']]
   ];
-  els.primaryNav.innerHTML = navGroups.map(([label, ids]) => {
+  const navHtml = navGroups.map(([label, ids]) => {
     const items = visibleViews.filter((view) => ids.includes(view.id));
     if (!items.length) return '';
     return `<div class="nav-group"><span class="nav-group-label">${tr(label)}</span>${items.map((view) => `
@@ -825,6 +825,9 @@ function renderChrome() {
         <span class="nav-ico">${uiIcon(view.icon)}</span><span class="nav-label">${tr(`nav.${view.id}`)}</span>
       </a>`).join('')}</div>`;
   }).join('');
+  // Compare before assigning: a stats tick used to rebuild this list every few
+  // seconds, dropping focus and hover on a nav link the user was on.
+  if (els.primaryNav.innerHTML !== navHtml) els.primaryNav.innerHTML = navHtml;
   const scoped = viewUsesUsageScope();
   document.querySelector('.scope-commandbar')?.classList.toggle('hidden', !scoped);
   els.deviceFilter?.closest('.device-filter')?.classList.toggle('hidden', !scoped);
@@ -842,7 +845,10 @@ function renderChrome() {
   els.periodTabs.dataset.selection = 'period';
   els.periodTabs.setAttribute('name', 'period');
   els.periodTabs.setAttribute('aria-label', tr('period.label'));
-  els.periodTabs.innerHTML = segButtons(periodOptions, selectedPeriod, 'period');
+  const periodTabsHtml = segButtons(periodOptions, selectedPeriod, 'period');
+  // Rebuild only on a real change: this list is inside the scope bar the user
+  // interacts with, and replacing it every frame moved focus off the selected tab.
+  if (els.periodTabs.innerHTML !== periodTabsHtml) els.periodTabs.innerHTML = periodTabsHtml;
   els.periodTabs.value = selectedPeriod;
 
   els.pageTitle.textContent = tr(`nav.${state.prefs.view}`);
@@ -916,12 +922,15 @@ function renderMobileNav() {
     { id: 'more', icon: 'moreHorizontal', label: tr('nav.more'), active: isMoreActive }
   ];
 
-  nav.innerHTML = items.map((item) => `
+  const navHtml = items.map((item) => `
     <a href="${isCapable('desktopSettings') ? '#' : ''}${VIEW_PATHS[item.id] || '#'}" class="mobile-nav-item ${item.active ? 'active' : ''}" data-view="${item.id}" ${item.active ? 'aria-current="page"' : ''}>
       <span class="mobile-nav-icon">${uiIcon(item.icon)}</span>
       <span class="mobile-nav-label">${escapeHtml(item.label)}</span>
     </a>
   `).join('');
+  // Only the active marker changes between frames; rewriting the whole bar on a
+  // stats tick dropped the tap feedback on whichever item the user was touching.
+  if (nav.innerHTML !== navHtml) nav.innerHTML = navHtml;
 }
 
 function rowHtml(row, { showIcon = false, sub } = {}) {
@@ -972,8 +981,23 @@ function escapeHtml(value) {
     .replaceAll('"', '&quot;');
 }
 
-function draftKeyForForm(form) {
-  return String(form?.dataset?.draftKey || '').trim();
+function draftKeyForForm(container) {
+  return String(container?.dataset?.draftKey || '').trim();
+}
+
+/**
+ * Any element that owns a draft: the management `<form>`s and the two non-form
+ * groups (the desktop settings stack, the transfer form) all carry
+ * `data-draft-key`. The selector is a static literal so it stays trivially
+ * greppable.
+ */
+function draftScopes(root = els.content) {
+  return [...root.querySelectorAll('[data-draft-key]')];
+}
+
+/** The draft scope a control belongs to, if any. */
+function draftScopeFor(target) {
+  return target?.closest?.('[data-draft-key]') || null;
 }
 
 function formFieldSnapshot(form) {
@@ -981,7 +1005,15 @@ function formFieldSnapshot(form) {
   form?.querySelectorAll?.('[name]').forEach((control) => {
     const name = String(control.name || '').trim();
     if (!name || name === 'provider' || name === 'oauthSessionId') return;
-    if (control.type === 'checkbox' || control.type === 'radio') {
+    // Fluent's web components do not surface `.type`/`.value`/`.checked` the way
+    // a native control does, so a switch or radio group is snapshotted by its
+    // own property. Without this branch, a desktop settings draft could not
+    // remember the checkbox rows it owns.
+    if (control.matches('fluent-switch, fluent-checkbox')) {
+      fields[name] = { checked: Boolean(control.checked) };
+    } else if (control.matches('fluent-radio-group')) {
+      fields[name] = { value: String(control.value ?? '') };
+    } else if (control.type === 'checkbox' || control.type === 'radio') {
       fields[name] = { checked: Boolean(control.checked) };
     } else if (control.multiple) {
       fields[name] = { value: [...control.selectedOptions].map((option) => option.value) };
@@ -993,7 +1025,7 @@ function formFieldSnapshot(form) {
 }
 
 function rememberFormDraft(target) {
-  const form = target?.closest?.('form[data-draft-key]');
+  const form = draftScopeFor(target);
   const key = draftKeyForForm(form);
   if (!form || !key) return;
   const hasTopUpLedger = Boolean(form.querySelector('[data-topup-ledger]'));
@@ -1020,21 +1052,34 @@ function hasDirtyFormDraft(prefix) {
 }
 
 function restoreFormDrafts() {
-  els.content.querySelectorAll('form[data-draft-key]').forEach((form) => {
-    const draft = state.formDrafts.get(draftKeyForForm(form));
+  draftScopes().forEach((scope) => {
+    const draft = state.formDrafts.get(draftKeyForForm(scope));
     if (!draft?.dirty || !draft.fields) return;
-    for (const control of form.querySelectorAll('[name]')) {
+    for (const control of scope.querySelectorAll('[name]')) {
       const name = String(control.name || '').trim();
       const value = draft.fields[name];
       if (!name || !value || name === 'provider' || name === 'oauthSessionId') continue;
-      if (control.type === 'checkbox' || control.type === 'radio') {
+      if (control.matches('fluent-switch, fluent-checkbox')) {
+        control.checked = Boolean(value.checked);
+      } else if (control.matches('fluent-radio-group')) {
+        if (value.value !== undefined) control.value = value.value;
+      } else if (control.type === 'checkbox' || control.type === 'radio') {
         control.checked = Boolean(value.checked);
       } else if (control.multiple && Array.isArray(value.value)) {
         const selected = new Set(value.value);
         for (const option of control.options) option.selected = selected.has(option.value);
       } else if (value.value !== undefined) {
-        if (control.matches('fluent-dropdown')) setFluentDropdownValue(control, value.value);
-        else control.value = value.value;
+        if (control.matches('fluent-dropdown')) {
+          // Only restore a value an option actually offers. A draft can outlive
+          // the option it named (a device was removed, a provider was retired),
+          // and `setFluentDropdownValue` deselects every option when it finds no
+          // match — which would blank the control instead of leaving its default.
+          const hasOption = [...control.querySelectorAll('fluent-option')]
+            .some((option) => option.value === String(value.value));
+          if (hasOption) setFluentDropdownValue(control, value.value);
+        } else {
+          control.value = value.value;
+        }
       }
     }
   });
@@ -1059,33 +1104,78 @@ function closeManagementDrawer(kind) {
   render();
 }
 
+// Attributes that identify a control across a re-render. The first one present
+// (with a value) is the fingerprint, so a menu, a dropdown or a select row is
+// found again by what it *is*, not by where it sat in the list.
+const IDENTITY_ATTRIBUTES = [
+  'data-management-focus',
+  'data-view',
+  'data-select-tool',
+  'data-select-device',
+  'data-row-key',
+  'data-limit-provider',
+  'data-trends-device',
+  'data-trends-setting',
+  'data-desktop-action'
+];
+
+/** The nearest ancestor (or self) that a re-render can find again by identity. */
+function identityKeyFor(element) {
+  if (!element || element.nodeType !== 1) return null;
+  for (const attribute of IDENTITY_ATTRIBUTES) {
+    const match = element.closest(`[${attribute}]`);
+    if (match) return { attribute, value: match.getAttribute(attribute) || '' };
+  }
+  return null;
+}
+
+/**
+ * A stable descriptor for a form control, scoped to its draft form when one
+ * exists. Value is the discriminative field: two same-name controls in a
+ * repeated row (top-up date/amount) are told apart by the row's `data-topup-id`.
+ */
+function describeFormControl(element) {
+  const form = draftScopeFor(element);
+  const key = draftKeyForForm(form);
+  if (!key) return { key: '', name: '', index: 0 };
+  const controls = [...form.querySelectorAll('[name]')].filter((control) => control.name === element.name);
+  const rowId = element.closest('[data-topup-id]')?.getAttribute('data-topup-id') || '';
+  const indexInRow = rowId
+    ? [...element.closest('[data-topup-id]').querySelectorAll('[name]')]
+      .filter((control) => control.name === element.name)
+      .indexOf(element)
+    : 0;
+  return { key, name: element.name, index: Math.max(0, controls.indexOf(element)), rowId, indexInRow };
+}
+
 function describeActiveElement(element) {
   const selection = element?.control || element;
   if (!element || element === document.body || element === document.documentElement) return null;
-  if (element.id) return { kind: 'id', id: element.id };
-  const form = element.closest?.('form[data-draft-key]');
-  if (form) {
-    if (element.matches('[data-account-provider-select]')) return { kind: 'account-provider-select', key: draftKeyForForm(form) };
-    if (element.name) {
-      const controls = [...form.querySelectorAll('[name]')].filter((control) => control.name === element.name);
-      return {
-        kind: 'form-control',
-        key: draftKeyForForm(form),
-        name: element.name,
-        index: Math.max(0, controls.indexOf(element)),
-        selectionStart: typeof selection.selectionStart === 'number' ? selection.selectionStart : null,
-        selectionEnd: typeof selection.selectionEnd === 'number' ? selection.selectionEnd : null,
-        selectionDirection: selection.selectionDirection || 'none'
-      };
-    }
+  // Draft forms come first: a control registered by `rememberFormDraft` may also
+  // carry an identity attribute, and the form-scoped descriptor is the more
+  // precise one.
+  const formControl = describeFormControl(element);
+  if (formControl.key) {
+    if (element.matches('[data-account-provider-select]')) return { kind: 'account-provider-select', key: formControl.key };
+    return {
+      kind: 'form-control',
+      ...formControl,
+      selectionStart: typeof selection.selectionStart === 'number' ? selection.selectionStart : null,
+      selectionEnd: typeof selection.selectionEnd === 'number' ? selection.selectionEnd : null,
+      selectionDirection: selection.selectionDirection || 'none'
+    };
   }
-  const dataAttributes = [
-    'data-view',
-    'data-select-tool',
-    'data-select-device'
-  ];
-  for (const attribute of dataAttributes) {
-    if (element.hasAttribute?.(attribute)) return { kind: 'data', attribute, value: element.getAttribute(attribute) || '' };
+  // Standalone settings controls (the desktop groups are not draft forms) keep
+  // their identity by `id` or `name`, so a frame does not drop focus mid-edit.
+  if (element.id) return { kind: 'id', id: element.id };
+  if (element.name) return { kind: 'named', name: element.name };
+  const identity = identityKeyFor(element);
+  if (identity) return { kind: 'data', attribute: identity.attribute, value: identity.value };
+  // A menu summary is identified by the menu it opens.
+  const summary = element.closest('summary');
+  if (summary) {
+    const nested = identityKeyFor(summary.parentElement || summary);
+    if (nested) return { kind: 'data', attribute: nested.attribute, value: nested.value };
   }
   return null;
 }
@@ -1093,15 +1183,25 @@ function describeActiveElement(element) {
 function findActiveElement(snapshot) {
   if (!snapshot) return null;
   if (snapshot.kind === 'id') return document.getElementById(snapshot.id);
+  if (snapshot.kind === 'named') {
+    return els.content.querySelector(`[name="${CSS.escape(snapshot.name)}"]`)
+      || document.querySelector(`#settingsDrawer [name="${CSS.escape(snapshot.name)}"]`);
+  }
   if (snapshot.kind === 'account-provider-select') {
-    return [...els.content.querySelectorAll('form[data-draft-key]')]
+    return [...draftScopes()]
       .find((form) => draftKeyForForm(form) === snapshot.key)
       ?.querySelector('[data-account-provider-select]') || null;
   }
   if (snapshot.kind === 'form-control') {
-    const form = [...els.content.querySelectorAll('form[data-draft-key]')]
+    const form = [...draftScopes()]
       .find((entry) => draftKeyForForm(entry) === snapshot.key);
     if (!form) return null;
+    if (snapshot.rowId) {
+      const row = form.querySelector(`[data-topup-id="${CSS.escape(snapshot.rowId)}"]`);
+      const control = row && [...row.querySelectorAll('[name]')]
+        .filter((entry) => entry.name === snapshot.name)[snapshot.indexInRow];
+      if (control) return control;
+    }
     return [...form.querySelectorAll('[name]')]
       .filter((control) => control.name === snapshot.name)[snapshot.index] || null;
   }
@@ -1112,8 +1212,48 @@ function findActiveElement(snapshot) {
   return null;
 }
 
+// Nested scroll regions that a frame must not reset. `#content` is rebuilt
+// wholesale, so a scroll the user made inside a table wrapper or a status list
+// is lost unless it is keyed and restored with the rest of the render state.
+const SCROLL_REGIONS = ['.trends-table-wrap', '.device-status-details .status-tags', '.pricing-table', '.account-list', '.table-scroll'];
+
+function captureScrollRegions() {
+  const regions = [];
+  for (const selector of SCROLL_REGIONS) {
+    els.content.querySelectorAll(selector).forEach((element, index) => {
+      if (!element.scrollTop && !element.scrollLeft) return;
+      // These wrappers carry no identity attribute of their own, and there is
+      // normally exactly one per view, so position among same-selector matches is
+      // the stable-enough key. An identity ancestor, when there is one, is
+      // preferred so a list that also reorders still restores the right wrapper.
+      regions.push({
+        selector,
+        index,
+        identity: identityKeyFor(element),
+        scrollTop: element.scrollTop,
+        scrollLeft: element.scrollLeft
+      });
+    });
+  }
+  return regions;
+}
+
+function restoreScrollRegions(regions) {
+  for (const region of regions || []) {
+    const candidates = region.identity
+      ? [...els.content.querySelectorAll(region.selector)].filter((element) => (
+        element.closest(`[${region.identity.attribute}]`)?.getAttribute(region.identity.attribute)
+        === region.identity.value))
+      : [...els.content.querySelectorAll(region.selector)];
+    const target = candidates[region.identity ? 0 : region.index];
+    if (!target) continue;
+    target.scrollTop = region.scrollTop;
+    target.scrollLeft = region.scrollLeft;
+  }
+}
+
 function captureRenderState() {
-  els.content.querySelectorAll('form[data-draft-key]').forEach((form) => {
+  draftScopes().forEach((form) => {
     const key = draftKeyForForm(form);
     const draft = state.formDrafts.get(key);
     if (draft?.dirty) draft.fields = { ...draft.fields, ...formFieldSnapshot(form) };
@@ -1128,23 +1268,58 @@ function captureRenderState() {
     } else if (focusKey) {
       openDetails.push({ type: 'focus', value: focusKey });
     } else if (className) {
-      openDetails.push({ type: 'class', value: className });
+      // A class-only menu is not unique (the device list has one per row), so
+      // record its position among same-class menus and restore that index. The
+      // old `querySelector` always reopened the *first* match, which is how an
+      // expanded device menu moved to the top row after a refresh.
+      const sameClass = [...els.content.querySelectorAll(`details.${className.trim().split(/\s+/).join('.')}`)];
+      openDetails.push({ type: 'class', value: className, index: sameClass.indexOf(detail) });
     }
   });
+  const openDropdowns = [...els.content.querySelectorAll('fluent-dropdown')]
+    .map((dropdown) => ({
+      dropdown,
+      listbox: dropdown.listbox,
+      identity: dropdown.id ? { attribute: 'id', value: dropdown.id } : identityKeyFor(dropdown)
+    }))
+    .filter((entry) => entry.listbox?.matches?.(':popover-open') && entry.identity);
   const active = document.activeElement;
   const mainEl = document.querySelector('.main');
   return {
     active: describeActiveElement(active),
     openDetails,
+    openDropdowns: openDropdowns.map((entry) => entry.identity),
+    scrollRegions: captureScrollRegions(),
     scrollY: active && (active === els.content || els.content.contains(active)) ? window.scrollY : null,
     mainScrollTop: mainEl ? mainEl.scrollTop : null
   };
+}
+
+function findByIdentity(identity) {
+  if (!identity) return null;
+  if (identity.attribute === 'id') return document.getElementById(identity.value);
+  return [...els.content.querySelectorAll(`[${identity.attribute}]`)]
+    .find((element) => (element.getAttribute(identity.attribute) || '') === identity.value) || null;
 }
 
 function restoreRenderState(snapshot) {
   finishFluentRender(els.content, state.prefs.view);
   restoreFormDrafts();
   els.content.querySelectorAll('[data-web-settings-form]').forEach(syncWebSettingsFormState);
+  // Reopen the dropdowns that were open *before* the rebuild. `showPopover()`
+  // re-attaches the same listbox implementation, so the selection popover does
+  // not use the generic `setFluentDropdownValue` path.
+  // Reopening is best-effort: a dropdown whose options vanished with the frame is
+  // simply not restored.
+  for (const identity of snapshot?.openDropdowns || []) {
+    const dropdown = findByIdentity(identity);
+    const listbox = dropdown?.listbox;
+    try {
+      if (listbox && !listbox.matches(':popover-open')) listbox.showPopover();
+    } catch (_) {
+      // A popover without a valid DOM anchor throws; the dropdown stays closed.
+    }
+  }
   if (Array.isArray(snapshot?.openDetails)) {
     snapshot.openDetails.forEach((entry) => {
       let match = null;
@@ -1153,9 +1328,18 @@ function restoreRenderState(snapshot) {
       } else if (entry.type === 'focus') {
         match = els.content.querySelector(`details:has(> summary[data-management-focus="${CSS.escape(entry.value)}"])`);
       } else if (entry.type === 'class') {
-        match = els.content.querySelector(`details.${entry.value.trim().split(/\s+/).join('.')}`);
+        const sameClass = [...els.content.querySelectorAll(`details.${entry.value.trim().split(/\s+/).join('.')}`)];
+        match = sameClass[Number.isInteger(entry.index) ? entry.index : 0] || sameClass[0] || null;
       }
-      if (match) match.open = true;
+      // Assign only when it actually changed: setting `.open = true` on an
+      // already-open element fires a `toggle` event, and the tree's `toggle`
+      // listener replays the row's entrance animation — a re-render would
+      // re-animate every expanded row. The `data-restored-open` marker tells
+      // that listener this open is a snapshot restore, not a user opening.
+      if (match && !match.open) {
+        match.dataset.restoredOpen = '1';
+        match.open = true;
+      }
     });
   }
   const active = findActiveElement(snapshot?.active);
@@ -1179,6 +1363,7 @@ function restoreRenderState(snapshot) {
     const mainEl = document.querySelector('.main');
     if (mainEl) mainEl.scrollTop = snapshot.mainScrollTop;
   }
+  restoreScrollRegions(snapshot?.scrollRegions);
   const managementDialog = els.content.querySelector('.management-drawer:not(.hidden) [role="dialog"]');
   if (managementDialog && !managementDialog.contains(document.activeElement)) {
     (managementDialog.querySelector('input:not([type="hidden"]), textarea, fluent-text-input, fluent-dropdown, button, fluent-button') || managementDialog).focus({ preventScroll: true });
@@ -1610,10 +1795,66 @@ function formatTrendValue(value, metric) {
 }
 
 
+// A "quiet" render is one the user did not ask for: an SSE/stats frame, a
+// settings push, a history or management request settling. Those may need to
+// rebuild the DOM, but they must never do it while the user has a transient
+// control open (a Fluent dropdown popover, a dirty form) — replacing the DOM
+// closes the dropdown and snaps a half-typed value back. Each quiet render is
+// deferred to `renderPending` and retried once the interaction ends.
+const DEFERRED_RENDER_EVENTS = ['pointerdown', 'focusout', 'keyup'];
+
+// `renderPending` is the anchor the performance test slices this file on, so it
+// is declared first and every other deferral variable follows it: the test
+// evaluates the slice from here to `ensureHistory`, and a declaration above this
+// line would be missing from that context.
 let renderPending = false;
+let quietFailed = false; // a quiet view render threw; stay eager until one succeeds
+
+function queueDeferredRender() {
+  renderPending = true;
+}
+
+/**
+ * True while the user has a transient surface open that a content rebuild would
+ * destroy: a Fluent dropdown popover, a modal management drawer, or a form the
+ * *focused* control belongs to with unsaved input.
+ *
+ * The draft check is deliberately focus-scoped rather than "any dirty draft":
+ * a draft the user abandoned by clicking a nav link must not suppress updates
+ * for the rest of the session. A `details` menu is not counted — the render
+ * snapshot restores it, and a menu that closed on every frame is worse than one
+ * that stays open.
+ */
+function hasOpenTransientInteraction() {
+  const content = els?.content;
+  if (!content?.querySelector) return false;
+  if (content.querySelector('fluent-dropdown fluent-listbox:popover-open')) return true;
+  if (content.querySelector('.management-drawer:not(.hidden)')) return true;
+  // Only the scope the focused control belongs to counts: a draft abandoned by
+  // clicking elsewhere must not suppress updates for the rest of the session.
+  const active = document?.activeElement;
+  if (active?.closest) {
+    const scope = active.closest('[data-draft-key]');
+    const key = String(scope?.dataset?.draftKey || '').trim();
+    if (key && state.formDrafts?.get(key)?.dirty) return true;
+  }
+  return false;
+}
+
+function renderDeferred() {
+  // Replay as a *quiet* render so an interaction that is still open keeps
+  // deferring rather than being torn down by the retry itself. Once the
+  // interaction ends this applies the pending frame; until then it stays
+  // pending, which is the whole point of deferring.
+  if (renderPending) render({ quiet: true });
+}
+
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && renderPending) render();
+  if (!document.hidden && renderPending) render({ quiet: true });
 });
+// The replay listeners are installed in `bindEvents()` rather than at module
+// scope: booting the app is a host concern, and a module-scope `for` loop here
+// would also run in the unit tests that evaluate a slice of this file.
 
 // The desktop window delays its own reveal until this fires, so a reopened window
 // never paints the shell's static "0" placeholders first. The main process keeps a
@@ -1625,11 +1866,19 @@ function signalContentReady() {
   getTransport().desktop?.signalContentReady?.();
 }
 
-function render() {
+function render({ quiet = false } = {}) {
   // Continue accepting snapshots while hidden, but rebuild the DOM only once
   // with the latest state when the user returns to the window/tab.
   if (document.hidden) {
-    renderPending = true;
+    queueDeferredRender();
+    return;
+  }
+  // A quiet render that would destroy a control the user is in the middle of
+  // using is deferred, not dropped: `renderDeferred` replays it once the
+  // interaction ends. A user-driven render (a click, a preference change) is
+  // never deferred — the caller states the interaction is already committed.
+  if (quiet && !quietFailed && hasOpenTransientInteraction()) {
+    queueDeferredRender();
     return;
   }
   renderPending = false;
@@ -1641,13 +1890,11 @@ function render() {
   // settings usable while a remote request is timing out.
   const desktopHost = isCapable('desktopSettings');
   if (state.loading && !state.stats && !desktopHost) {
-    els.content.innerHTML = loadingHtml();
-    restoreRenderState(renderState);
+    writeContentHtml(loadingHtml(), renderState);
     return;
   }
   if (state.error && !state.stats && !desktopHost) {
-    els.content.innerHTML = `<section class="error-card"><div class="error-kicker">Token Monitor</div><h2>${escapeHtml(tr('error.title'))}</h2><p>${escapeHtml(state.error.message || tr('error.generic'))}</p><fluent-button appearance="primary" type="button" class="primary-btn" data-retry-dashboard>${tr('actions.retry')}</fluent-button></section>`;
-    restoreRenderState(renderState);
+    writeContentHtml(`<section class="error-card"><div class="error-kicker">Token Monitor</div><h2>${escapeHtml(tr('error.title'))}</h2><p>${escapeHtml(state.error.message || tr('error.generic'))}</p><fluent-button appearance="primary" type="button" class="primary-btn" data-retry-dashboard>${tr('actions.retry')}</fluent-button></section>`, renderState);
     return;
   }
   let html;
@@ -1680,9 +1927,33 @@ function render() {
     // diagnostic in the console without exposing internal details or secrets
     // in the page, and give the user a retry path.
     console.error('[token-monitor] view render failed', error);
-    html = `<section class="error-card" role="alert"><div class="error-kicker">Token Monitor</div><h2>${escapeHtml(tr('error.title'))}</h2><p>${escapeHtml(tr('error.generic'))}</p><fluent-button appearance="primary" type="button" class="primary-btn" data-retry-dashboard>${tr('actions.retry')}</fluent-button></section>`;
+    // A throwing quiet render must not take the quiet path on later frames:
+    // the error card is the only signal the user gets, so it has to paint.
+    quietFailed = true;
+    writeContentHtml(`<section class="error-card" role="alert"><div class="error-kicker">Token Monitor</div><h2>${escapeHtml(tr('error.title'))}</h2><p>${escapeHtml(tr('error.generic'))}</p><fluent-button appearance="primary" type="button" class="primary-btn" data-retry-dashboard>${tr('actions.retry')}</fluent-button></section>`, renderState);
+    return;
   }
+  // The skip-write check below makes per-frame work bounded: a tick that changes
+  // nothing the user can see costs one `innerHTML` read and no DOM mutation.
+  // A successful view render re-enables the quiet path after an earlier throw.
+  quietFailed = false;
+  writeContentHtml(html, renderState);
+}
+
+// The last HTML written to `#content`, and the view it belonged to. A quiet
+// render that reproduces the previous bytes leaves the DOM untouched, which is
+// what keeps an open dropdown, a focused input, a scroll position and a
+// restored `<details>` alive across a stats tick that changed nothing visible.
+let lastRenderedHtml = null;
+let lastRenderedView = '';
+
+/** Write `#content` only when the bytes actually changed; restore state either way. */
+function writeContentHtml(html, renderState) {
+  const view = state.prefs.view;
+  if (html === lastRenderedHtml && view === lastRenderedView) return;
   els.content.innerHTML = html;
+  lastRenderedHtml = html;
+  lastRenderedView = view;
   restoreRenderState(renderState);
 }
 
@@ -1745,7 +2016,7 @@ function applyStatsSnapshot(stats, meta = null) {
   if (historyChanged) {
     state.history = null;
     if (state.prefs.view === 'overview' || state.prefs.view === 'trends') {
-      void ensureHistory({ force: true }).then(() => render());
+      void ensureHistory({ force: true }).then(() => render({ quiet: true }));
     }
   }
   if (subscriptionsChanged && state.subscriptions) {
@@ -1755,8 +2026,11 @@ function applyStatsSnapshot(stats, meta = null) {
   // restored before any range has been fetched, and the first snapshot is the signal
   // that the host can answer it.
   const presetRange = pendingPresetRangeWindow();
-  render();
-  if (presetRange) void loadPresetRange(presetRange).then(() => render());
+  // A snapshot frame is data-driven: it must not tear down an open dropdown or a
+  // form the user is typing into. Deferring still accepts the frame; it just paints
+  // after the interaction ends.
+  render({ quiet: true });
+  if (presetRange) void loadPresetRange(presetRange).then(() => render({ quiet: true }));
   // Painted with real data: release a desktop window that is waiting to reveal.
   signalContentReady();
 }
@@ -1844,7 +2118,7 @@ async function loadSubscriptions({ force = false, preserveDraft = false } = {}) 
         state.subscriptionsLoading = false;
         state.managementControllers.subscriptions = null;
         state.managementPromises.subscriptions = null;
-        if (state.prefs.view === 'settings' && state.prefs.managementSection === 'consumption' && state.prefs.managementTab === 'subscriptions') render();
+        if (state.prefs.view === 'settings' && state.prefs.managementSection === 'consumption' && state.prefs.managementTab === 'subscriptions') render({ quiet: true });
       }
     }
   })();
@@ -1874,7 +2148,7 @@ async function loadPricing({ force = false } = {}) {
         state.pricingLoading = false;
         state.managementControllers.pricing = null;
         state.managementPromises.pricing = null;
-        if (state.prefs.view === 'settings' && state.prefs.managementSection === 'consumption' && state.prefs.managementTab === 'pricing') render();
+        if (state.prefs.view === 'settings' && state.prefs.managementSection === 'consumption' && state.prefs.managementTab === 'pricing') render({ quiet: true });
       }
     }
   })();
@@ -1904,7 +2178,7 @@ async function loadAccounts({ force = false } = {}) {
         state.accountsLoading = false;
         state.managementControllers.accounts = null;
         state.managementPromises.accounts = null;
-        if (state.prefs.view === 'settings' && state.prefs.managementSection === 'accounts') render();
+        if (state.prefs.view === 'settings' && state.prefs.managementSection === 'accounts') render({ quiet: true });
       }
     }
   })();
@@ -2198,7 +2472,7 @@ async function bootstrapAuthorized() {
     capabilities.pricing === false ? null : loadPricing(),
     capabilities.hubAccounts === false ? null : loadAccounts()
   ]).then(() => {
-    if (state.stats) render();
+    if (state.stats) render({ quiet: true });
   });
 }
 
@@ -2670,11 +2944,11 @@ function switchView(viewId, { updateHistory = true, replace = false, tab = '', s
   }
   openNav(false);
   if (changed) animateNavigation(els.content);
-  if (validView === 'settings' && managementSection === 'consumption' && managementTab === 'subscriptions') void loadSubscriptions().then(() => render());
-  if (validView === 'settings' && managementSection === 'consumption' && managementTab === 'pricing') void loadPricing().then(() => render());
-  if (validView === 'settings' && managementSection === 'accounts') void loadAccounts().then(() => render());
+  if (validView === 'settings' && managementSection === 'consumption' && managementTab === 'subscriptions') void loadSubscriptions().then(() => render({ quiet: true }));
+  if (validView === 'settings' && managementSection === 'consumption' && managementTab === 'pricing') void loadPricing().then(() => render({ quiet: true }));
+  if (validView === 'settings' && managementSection === 'accounts') void loadAccounts().then(() => render({ quiet: true }));
   if (validView === 'trends' || validView === 'overview') {
-    void ensureHistory().then(() => render());
+    void ensureHistory().then(() => render({ quiet: true }));
     return;
   }
   if (!changed && !updateHistory) return;
@@ -2683,6 +2957,15 @@ function switchView(viewId, { updateHistory = true, replace = false, tab = '', s
 
 function bindEvents() {
   setupFluentInteractions();
+  // Replay a render that was deferred because a transient control was open.
+  // These are passive and idempotent: `render()` is a no-op unless a deferral is
+  // actually pending, so a plain click or focus move costs one boolean read.
+  // Capture phase, so the replay sees the state *before* a handler that opens a
+  // new dropdown (which would otherwise be torn down by its own retry).
+  for (const eventName of DEFERRED_RENDER_EVENTS) {
+    document.addEventListener(eventName, renderDeferred, true);
+  }
+  document.addEventListener('toggle', () => queueMicrotask(renderDeferred), true);
   window.addEventListener('popstate', () => {
     const route = routeFromLocation();
     switchView(route.view, {
@@ -2709,7 +2992,7 @@ function bindEvents() {
         : null;
       animateDataUpdate();
       render();
-      if (historyRequest) void historyRequest.then(() => { animateDataUpdate(); render(); });
+      if (historyRequest) void historyRequest.then(() => { animateDataUpdate(); render({ quiet: true }); });
     });
   }
 
@@ -2868,7 +3151,7 @@ function bindEvents() {
     if (retryHistory) {
       const request = ensureHistory({ force: true });
       render();
-      void request.then(() => render());
+      void request.then(() => render({ quiet: true }));
       return;
     }
     const managementRetry = event.target.closest('[data-management-retry]');
@@ -3129,7 +3412,7 @@ function bindEvents() {
       const request = ensureHistory({ force: true });
       animateDataUpdate();
       render();
-      void request.then(() => { animateDataUpdate(); render(); });
+      void request.then(() => { animateDataUpdate(); render({ quiet: true }); });
       return;
     }
     const trendsSetting = event.target.closest?.('[data-trends-setting]');
@@ -3321,6 +3604,10 @@ function bindEvents() {
         openRange(false);
         return;
       }
+      // A Fluent dropdown popover is its own overlay: Escape must close it
+      // before this handler starts closing page-level overlays under it.
+      const openPopover = els.content.querySelector('fluent-dropdown fluent-listbox:popover-open');
+      if (openPopover) return;
       const managementDrawer = els.content.querySelector('.management-drawer:not(.hidden)');
       if (managementDrawer) {
         event.preventDefault();
@@ -3592,7 +3879,9 @@ async function init() {
     desktop?.onSettingsPush?.((next) => {
       state.desktopSettings = next || {};
       syncFluentMotion(state.desktopSettings.reduceMotion || 'system');
-      render();
+      // The main process pushes settings on a folder-picker or a collector tick;
+      // treat it as data so it cannot close a dropdown the user has open.
+      render({ quiet: true });
     });
     desktop?.onOpenSettings?.(() => switchView('settings'));
     desktop?.onOpenView?.((view) => switchView(normalizeViewId(view)));
@@ -3600,7 +3889,9 @@ async function init() {
     // install lifecycles; without this it would only ever show boot state.
     desktop?.onAppUpdatePush?.((next) => {
       state.desktopAppUpdate = next || null;
-      render();
+      // A pushed update state (a download that started or finished) is data, not
+      // a user action: it must not tear down a control the user has open.
+      render({ quiet: true });
     });
   }
   renderChrome();

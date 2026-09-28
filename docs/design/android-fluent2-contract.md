@@ -70,6 +70,26 @@ honours the platform animator scale, so the call sites that need the manual gate
 the ones that bypass it: `infiniteRepeatable` loops and `Animatable.animateTo` inside
 `LaunchedEffect`.
 
+## A refresh frame must not disturb the user
+
+An SSE frame re-emits the composed state every few seconds, so every screen is recomposed
+while the user may be reading it. Three rules, each with a mechanism rather than a review
+convention:
+
+- **Presentation-only state is remembered by identity, not by position.** Expansion sets
+  (`LimitsSection`), selected tabs and scroll positions are `rememberSaveable` and keyed on
+  a row's *identity* (`limitRowIdentity`) so a reorder cannot rename a row and silently
+  collapse it. Keying `remember` on a decoded list instance re-derives on every frame —
+  use the identity content.
+- **A background frame must not move or cover the content.** The "syncing" indicator lives
+  in the page header and reserves a fixed-height slot, so flipping `isRefreshing` cannot
+  change the header's measured height; a transient error is de-duplicated before it reaches
+  the snackbar; and `isLoading` is a cold-start signal, never set on a periodic tick.
+- **A growing list is virtualized and keyed.** One `items(key = …)` / `itemsIndexed(key = …)`
+  per row (the fleet, the pricing catalogue) with `listGroupShape` for the grouped look —
+  composing the whole list inside one `item {}` moves the row the user is on when it
+  reorders.
+
 Charts, the heatmap and the calendar share one week-start value
 (`ui/core/DateRanges.firstDayOfWeek`) — three different "weeks" on one screen is a
 measurement disagreement, not a style choice.

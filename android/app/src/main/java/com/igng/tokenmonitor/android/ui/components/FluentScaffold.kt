@@ -33,6 +33,8 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -440,6 +442,26 @@ fun FluentCardList(
       .background(colors.surfaceCard)
       .border(0.5.dp, colors.neutralStroke3, FluentShapeDefaults.cardCorner),
     content = content
+  )
+}
+
+/**
+ * The shape one row of a virtualized grouped list wears.
+ *
+ * A `LazyColumn` cannot hand every row to one [FluentCardList] when the list may be
+ * long (composing a whole fleet or pricing catalogue is what made those pages heavy),
+ * so the grouping is distributed instead: the first row rounds its top, the last
+ * rounds its bottom, and everything between stays square. A single-row list gets the
+ * whole card shape. Shared so the device list and the pricing list cannot drift.
+ */
+fun listGroupShape(index: Int, count: Int, shape: androidx.compose.foundation.shape.CornerBasedShape = FluentShapeDefaults.cardCorner): Shape {
+  val corner = shape.topStart
+  val square = CornerSize(0.dp)
+  return RoundedCornerShape(
+    topStart = if (index == 0) corner else square,
+    topEnd = if (index == 0) corner else square,
+    bottomStart = if (index == count - 1) corner else square,
+    bottomEnd = if (index == count - 1) corner else square
   )
 }
 

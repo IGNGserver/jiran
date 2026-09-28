@@ -45,7 +45,7 @@ export function renderTransferPanel() {
   return `
     <p class="muted tiny">${escapeHtml(tr('transfer.description'))}</p>
     <div class="notice warn" role="status">${escapeHtml(tr('transfer.notice'))}</div>
-    <form class="transfer-form" data-transfer-form>
+    <form class="transfer-form" data-transfer-form data-draft-key="transfer-device">
       <div class="form-grid">
         <label class="field"><span>${tr('transfer.source')}</span>
           <fluent-dropdown name="sourceDevice">${deviceOptions(rows, sourceId)}</fluent-dropdown>

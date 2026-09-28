@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -267,19 +268,28 @@ fun OverviewScreen(
                   // "Syncing" used to be a list item, which inserted a row above the
                   // content on every refresh — including the one `setForeground`
                   // triggers on each resume — and shifted whatever the user was
-                  // reading.  As header chrome it is visible, honest and inert.
-                  if (state.isRefreshing) {
-                    Row(
-                      verticalAlignment = Alignment.CenterVertically,
-                      horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.xs)
-                    ) {
-                      FluentProgressRing(size = 14.dp, strokeWidth = 2.dp)
-                      Text(
-                        "同步中",
-                        style = FluentTypeRamp.caption2,
-                        color = colors.neutralForeground2
-                      )
-                    }
+                  // reading. As header chrome it is visible, honest and inert, and it
+                  // is *always composed* (only its alpha animates) so the frame that
+                  // flips `isRefreshing` cannot change the header's measured height
+                  // and push the list below it.
+                  val syncingAlpha by animateFloatAsState(
+                    targetValue = if (state.isRefreshing) 1f else 0f,
+                    animationSpec = tween(FluentMotion.fast),
+                    label = "overviewSyncing"
+                  )
+                  Row(
+                    Modifier
+                      .graphicsLayer { alpha = syncingAlpha }
+                      .then(if (state.isRefreshing) Modifier else Modifier.clearAndSetSemantics {}),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.xs)
+                  ) {
+                    FluentProgressRing(size = 14.dp, strokeWidth = 2.dp)
+                    Text(
+                      "同步中",
+                      style = FluentTypeRamp.caption2,
+                      color = colors.neutralForeground2
+                    )
                   }
                   RealtimeStatusChip(state.realtime)
                 }

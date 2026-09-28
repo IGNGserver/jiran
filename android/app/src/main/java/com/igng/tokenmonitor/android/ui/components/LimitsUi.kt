@@ -31,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,6 +83,19 @@ fun providerDisplayName(id: String): String =
     if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
   }
 
+/**
+ * `rememberSaveable` saver for the set of expanded limit rows.
+ *
+ * A `Set<String>` is not one of the types the default saver can bundle, so the
+ * screen's "which rows are open" state would be lost on rotation without this.
+ * The value round-trips as a plain list; `rememberSaveable` reconstructs the
+ * `MutableState` it was declared with.
+ */
+private val LimitExpandedKeysSaver = androidx.compose.runtime.saveable.Saver<Set<String>, List<String>>(
+  save = { it.toList() },
+  restore = { it.toSet() }
+)
+
 fun windowKindLabel(kind: String): String = when (kind.lowercase(Locale.US)) {
   "session" -> "会话"
   "weekly" -> "每周"
@@ -91,6 +105,36 @@ fun windowKindLabel(kind: String): String = when (kind.lowercase(Locale.US)) {
   "named" -> "额度"
   "credits" -> "积分"
   else -> kind
+}
+
+/**
+ * The identity of one limit-account row.
+ *
+ * `accountKey` is the Hub's stable identity and is preferred. When an account
+ * has none, every identity field it *does* carry is folded in; only as a last
+ * resort is the row's index used, and that index is deliberately kept out of the
+ * stable part so a reorder does not change the row's identity. The old fallback
+ * put the index in the middle of the string, so a refresh that inserted, removed
+ * or reordered an account renamed every row after it and silently collapsed the
+ * one the user had expanded.
+ *
+ * Pure and free of Compose types, so the JVM suite can pin it.
+ */
+internal fun limitRowIdentity(provider: LimitProviderDto, index: Int): String {
+  val accountKey = provider.accountKey?.takeIf { it.isNotBlank() }
+  if (accountKey != null) return "key:$accountKey"
+  val providerId = provider.provider.trim().lowercase(Locale.US)
+  // Fields that actually distinguish two accounts of the same provider. When one
+  // exists the index is deliberately excluded, so a reorder cannot rename the row.
+  val fields = listOf(
+    provider.accountEmail,
+    provider.accountLabel,
+    provider.accountName,
+    provider.workspaceKind,
+    provider.plan
+  ).mapNotNull { it?.takeIf { value -> value.isNotBlank() } }
+  if (fields.isEmpty()) return "row:$providerId#$index"
+  return "row:$providerId|" + fields.joinToString("|")
 }
 
 fun findUrgentLimit(limits: LimitsDto?): Pair<LimitProviderDto, Double>? {
@@ -201,20 +245,23 @@ fun LimitsSection(
   // account opens itself: with nothing to scan against, a collapsed row would hide the
   // entire payload of the section.
   //
-  val providerKeys = remember(providers) {
-    providers.mapIndexed { index, provider -> limitRowKey(provider, index) }
-  }
-  // What the user has opened, kept across refresh frames.
-  var expandedKeys by remember {
+  // `identityContent` names the *identity* of the provider list, not its instance: a
+  // stats frame decodes a brand-new list every few seconds, and keying the effect on the
+  // list object would re-run (and, via the effect below, close) the expanded rows on
+  // every tick.
+  val providerKeys = providers.mapIndexed { index, provider -> limitRowKey(provider, index) }
+  val identityContent = providerKeys.joinToString("\u0000")
+  // What the user has opened, kept across refresh frames *and* rotation: it is a
+  // per-visit UI state, so it is saveable rather than merely remembered.
+  var expandedKeys by rememberSaveable(stateSaver = LimitExpandedKeysSaver) {
     mutableStateOf(
       if (providerKeys.size == 1) setOf(providerKeys.first()) else emptySet<String>()
     )
   }
   // Intersected, not reset, when the account set changes: a refresh that adds or drops a
   // provider closes the expanded rows that are *gone* while leaving the ones still on
-  // screen open, and a key that shifted onto a different account (the index fallback for
-  // an account with no stable identifier) is dropped rather than reported as expanded.
-  LaunchedEffect(providerKeys) {
+  // screen open. With a stable identity a row that merely moved keeps its open state.
+  LaunchedEffect(identityContent) {
     expandedKeys = expandedKeys.intersect(providerKeys.toSet())
   }
 
@@ -254,12 +301,7 @@ fun LimitsSection(
 }
 
 private fun limitRowKey(provider: LimitProviderDto, index: Int): String =
-  provider.accountKey?.takeIf { it.isNotBlank() }
-    // The index is a last-resort disambiguator for two accounts that are otherwise
-    // identical (same provider, no email, no label); it is stable while the provider
-    // list is, which is why `expandedKeys` is re-derived when it is not.
-    ?: "${provider.provider.trim().lowercase(Locale.US)}|${provider.accountEmail.orEmpty()}" +
-      "|${provider.accountLabel.orEmpty()}|${provider.accountName.orEmpty()}|$index"
+  limitRowIdentity(provider, index)
 
 @Composable
 private fun LimitAccountRow(

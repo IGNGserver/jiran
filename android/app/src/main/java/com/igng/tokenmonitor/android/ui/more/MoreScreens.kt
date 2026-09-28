@@ -21,6 +21,7 @@ import com.igng.tokenmonitor.android.ui.components.FluentListRow
 import com.igng.tokenmonitor.android.ui.components.FluentPageHeader
 import com.igng.tokenmonitor.android.ui.components.FluentTabStrip
 import com.igng.tokenmonitor.android.ui.components.FluentTopBar
+import com.igng.tokenmonitor.android.ui.components.listGroupShape
 import com.igng.tokenmonitor.android.ui.components.rememberScrolledFlag
 import com.igng.tokenmonitor.android.ui.theme.FluentElevationDefaults
 import com.igng.tokenmonitor.android.ui.theme.FluentMotion
@@ -69,6 +70,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -689,23 +691,28 @@ fun PricingScreen(state: HubUiState, viewModel: HubViewModel, onBack: () -> Unit
             EmptyState(text = "Hub 尚未配置任何模型定价。可手动新增，或在设备有模型记录后批量拉取。")
           }
         } else {
-          item {
-            FluentCardList {
-              state.pricing.forEachIndexed { index, pricing ->
-                PricingRow(
-                  pricing = pricing,
-                  dividerAbove = index > 0,
-                  onEdit = {
-                    haptics.perform(HapticEvent.Tap)
-                    editing = pricing
-                  },
-                  onFetch = {
-                    haptics.perform(HapticEvent.Refresh)
-                    viewModel.fetchUpstream(pricing.model)
-                  }
-                )
+          // One lazy item per model, keyed by its name: a refresh that reorders or
+          // adds a row must not recycle the *editing* row's composition onto a
+          // different model, and a long catalogue must stay virtualized. Each row
+          // draws its own grouped caps (the DevicesScreen pattern), because a
+          // virtualized list cannot hand the whole catalogue to one `FluentCardList`.
+          itemsIndexed(
+            items = state.pricing,
+            key = { _, pricing -> pricing.model }
+          ) { index, pricing ->
+            PricingRow(
+              pricing = pricing,
+              dividerAbove = index > 0,
+              groupShape = listGroupShape(index, state.pricing.size),
+              onEdit = {
+                haptics.perform(HapticEvent.Tap)
+                editing = pricing
+              },
+              onFetch = {
+                haptics.perform(HapticEvent.Refresh)
+                viewModel.fetchUpstream(pricing.model)
               }
-            }
+            )
           }
         }
       }
@@ -732,6 +739,7 @@ fun PricingScreen(state: HubUiState, viewModel: HubViewModel, onBack: () -> Unit
 private fun PricingRow(
   pricing: PricingDto,
   dividerAbove: Boolean,
+  groupShape: androidx.compose.ui.graphics.Shape = FluentShapeDefaults.cardCorner,
   onEdit: () -> Unit,
   onFetch: () -> Unit
 ) {
@@ -743,6 +751,10 @@ private fun PricingRow(
       "缓存读 ${pricing.cacheReadPricePerMillion} · 缓存写 ${pricing.cacheWritePricePerMillion} / 百万 token",
     disclosure = true,
     dividerAbove = dividerAbove,
+    containerShape = groupShape,
+    // Interior rows are separated by the hairline `dividerAbove` already draws;
+    // only the caps carry the outline or every interior edge stacks two strokes.
+    containerBorder = !dividerAbove,
     trailing = {
       FluentIconButton(
         icon = FluentIcons.ArrowSync,
