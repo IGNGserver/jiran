@@ -82,13 +82,14 @@ test('hub-owned fields are offered only in hub mode', () => {
 test('the window material folds into the legacy (systemGlass, windowsBackdrop) pair', () => {
   const { settingsPatchForSurface, surfaceValueFromSettings } = loadView();
   assert.deepEqual(settingsPatchForSurface('regular'), { systemGlass: false });
-  assert.deepEqual(settingsPatchForSurface('transparent'), { systemGlass: true });
+  assert.deepEqual(settingsPatchForSurface('transparent'), { systemGlass: true, windowsBackdrop: 'transparent' });
   assert.deepEqual(settingsPatchForSurface('acrylic'), { systemGlass: true, windowsBackdrop: 'acrylic' });
   assert.deepEqual(settingsPatchForSurface('mica'), { systemGlass: true, windowsBackdrop: 'mica' });
 
   assert.equal(surfaceValueFromSettings({ systemGlass: false }, { platform: 'win32' }), 'regular');
   assert.equal(surfaceValueFromSettings({ systemGlass: true, windowsBackdrop: 'mica' }, { platform: 'win32' }), 'mica');
   assert.equal(surfaceValueFromSettings({ systemGlass: true, windowsBackdrop: 'acrylic' }, { platform: 'win32' }), 'acrylic');
+  assert.equal(surfaceValueFromSettings({ systemGlass: true, windowsBackdrop: 'transparent' }, { platform: 'win32' }), 'transparent');
   assert.equal(surfaceValueFromSettings({ systemGlass: true, windowsBackdrop: 'mica' }, { platform: 'darwin' }), 'transparent',
     'a material another platform cannot apply reads as plain transparency');
 });

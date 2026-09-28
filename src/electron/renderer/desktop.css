@@ -274,6 +274,16 @@ body[data-window-surface="mica"] .panel {
   box-shadow: var(--shadow4);
 }
 
+body[data-window-surface="mica"] .overview-breakdowns .panel {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+body[data-window-surface="mica"] .overview-breakdowns > .panel + .panel {
+  border-left: 1px solid color-mix(in srgb, var(--colorNeutralStroke1) 50%, transparent);
+}
+
 body[data-window-surface="mica"] .desktop-sync-status {
   background: color-mix(in srgb, var(--colorNeutralBackground1) 75%, transparent);
   border-color: color-mix(in srgb, var(--colorNeutralStroke1) 70%, transparent);
@@ -305,6 +315,16 @@ body[data-window-surface="acrylic"] .panel {
   background: color-mix(in srgb, var(--colorNeutralBackground1) 86%, transparent);
   border-color: color-mix(in srgb, var(--colorNeutralStroke1) 80%, transparent);
   box-shadow: var(--shadow8);
+}
+
+body[data-window-surface="acrylic"] .overview-breakdowns .panel {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+body[data-window-surface="acrylic"] .overview-breakdowns > .panel + .panel {
+  border-left: 1px solid color-mix(in srgb, var(--colorNeutralStroke1) 50%, transparent);
 }
 
 body[data-window-surface="acrylic"] .desktop-sync-status {
@@ -350,6 +370,16 @@ body[data-window-surface="transparent"] .panel {
   background: color-mix(in srgb, var(--colorNeutralBackground1) 88%, transparent);
   border-color: color-mix(in srgb, var(--colorNeutralStroke1) 75%, transparent);
   box-shadow: var(--shadow4);
+}
+
+body[data-window-surface="transparent"] .overview-breakdowns .panel {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+body[data-window-surface="transparent"] .overview-breakdowns > .panel + .panel {
+  border-left: 1px solid color-mix(in srgb, var(--colorNeutralStroke1) 50%, transparent);
 }
 
 body[data-window-surface="transparent"] .desktop-sync-status {
