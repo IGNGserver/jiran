@@ -238,7 +238,7 @@ DTO 解析了但全站零判断/零展示：`HubCapabilitiesDto` 的 `stats/hist
 1. **数据正确性（C1，最先）**：`HubDtos.kt` 补 `clientCredits`/`clientModelCredits`/`session.credits`/`clientEstimated`/`periodWindows`；`Formatters.kt` 补 `estimatedValue()`（`~` 前缀）与 credits 格式化；把 `!stale` 与 `deviceCountsAsOnline` 统一成一个函数；设备列表单一数据源（统一用 `stats.devices`，SSE 帧即刷新，`/api/devices` 退化为兜底）；删掉 `DevicesScreen.kt:363` 的死区块。
    → 这一步只增字段不改语义，按 AGENTS.md 属兼容面**新增**，需同步 `docs/API.md` 与 `tests/shared/clientTracking.test.js` 类的期望清单。
 2. **作用域模型（C3 的 Yesterday/Week + B5）**：把 web 的 `dateRanges.js` 语义移植成 `ui/core/DateRanges.kt`（含 `firstDayOfWeekIndex(locale)`，别再用 `Locale.CHINA`），总览/分析/设备共用一个 `state.period`；`usageRange` 能力位缺失时按 web 一样隐藏预设并归一回 `today`。同时把 `FluentTabStrip` 的 `options: List<String>` + `selectedIndex: Int`（标签当身份、无左右方向键）改成 id/label 分离 + tablist 键盘漫游，与 web 的 `tm-tablist` 对齐。
-3. **账号管理（C3）**：接 `/api/accounts` 全套 + OAuth 两步向导 + 免责声明；这是 Android 最大的一块缺失，也是唯一需要新数据流的部分（可复用 `DateTimeRangePicker` 的浮层配方做抽屉表单）。
+3. **账号管理（C3）**：接 `/api/accounts` 全套 + OAuth 两步向导 + 免责声明；这是 Android 最大的一块缺失，也是唯一需要新数据流的部分（可复用 `DateTimeRangePicker` 的浮层配方做抽屉表单）。**后续进展**：已接入，且 codex/antigravity 统一为浏览器登录向导（编辑页可查看凭据状态、清除凭据、原地重授权；不再有会建重复账号的 exchange）。
 4. **次级补齐**：`/api/rates` + `settings.currency`、`/api/subscriptions`（含 `baseUpdatedAt` CAS）、`/api/history?deviceId=` + `historyRevision` 变化才重取、设备 rename/delete。
 5. **i18n（C2）**：建 `res/values/strings.xml` + `zh-CN/zh-TW/en/ja/ko`，把 Kotlin 里的中文字面量抽成 `R.string`（这是一次纯机械但面积很大的改动，建议独立提交并配合 lint 规则禁止 `Text("字面量")`）。**若不做**，则必须在 `docs/` 与 README 显式声明"Android 当前仅中文"，别让人以为两端同覆盖。
 6. **本地缓存与陈旧提示（C5）**：进程重启可读上次快照 + 标注"数据截至 X"，SSE 失效降级轮询，遵守 `Retry-After`。
@@ -299,6 +299,7 @@ DTO 解析了但全站零判断/零展示：`HubCapabilitiesDto` 的 `stats/hist
 | 模型↔客户端拆分口径不一致 | 两个方向统一走 `clientModels`，会话摊分只在无归属数据时兜底；删除只覆盖一种情形的死 helper | 编译 |
 | 作用域缺 昨日/本周 + 两处重复周期解析 | 新增 `ui/core/DateRanges.kt`（与 `dateRanges.js` 同语义）、标签按 locale 周起始；tab 顺序对齐 web `PERIOD_TABS`；`resolvePeriod` 单一来源 | 3 个 JVM 用例（闭区间、周起始随 locale、跨零点失效） |
 | 账号只读、无订阅、无币种、无逐设备作用域、无设备改名/删除 | 接 `/api/accounts*`（含 OAuth start/exchange、启停、单账号刷新）、`/api/subscriptions`（CAS）、`/api/rates`、`/api/history?deviceId=`、`rename`/`delete`；新增配额账号屏与订阅屏、币种设置 | 编译 + `assembleDebug`；月度折算 2 个 JVM 用例 |
+| 账号编辑走错了凭据形态（codex/agy 编辑退回手动粘贴；exchange 不带 accountId 会建重复账号） | codex/antigravity 只保留浏览器登录向导（web 与 Android 同步）；编辑页显示 `credentialConfigured` 与安全元数据、可清除凭据；exchange 带 `accountId` 原地重授权 | web 守卫 3 条 + Hub 2 个测试文件；Android 4 个 JVM 用例 |
 | 日历/热力图周起始三处不一致 | 三者统一取 `DateRanges.firstDayOfWeek` | 1 个 JVM 用例行标映射 |
 | Gradle 原生 `test` 被禁用 | 恢复启用，保留 Windows JUnitCore 通道，CI 用 `testDebugUnitTest` | `:app:testDebugUnitTest` 34 通过 |
 | 文档与代码互相矛盾（D1） | 按“自绘 Fluent 控件为唯一路径”改写 Platform mapping，并新增 `android-fluent2-contract.md` | — |

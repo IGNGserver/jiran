@@ -1,6 +1,7 @@
 package com.igng.tokenmonitor.android.data.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class HealthDto(
@@ -420,6 +421,10 @@ data class HubAccountDto(
   val lastSuccessAt: String? = null,
   val lastAttemptAt: String? = null,
   val lastError: String? = null,
+  /** Whether the Hub still holds a credential for this account.  Absent when the
+   *  Hub was asked without credential metadata, so `null` means "unknown". */
+  val credentialConfigured: Boolean? = null,
+  val credentialMetadata: JsonObject? = null,
   val limits: LimitsDto? = null
 )
 
@@ -463,7 +468,9 @@ data class OAuthExchangeRequestDto(
   val sessionId: String = "",
   val redirectUrl: String = "",
   val name: String? = null,
-  val label: String? = null
+  val label: String? = null,
+  /** When set, the Hub re-authorizes that account in place instead of adding one. */
+  val accountId: String? = null
 )
 
 @Serializable

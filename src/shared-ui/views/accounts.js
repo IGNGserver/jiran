@@ -5,7 +5,7 @@
 // renders the normalized result the Hub returns.
 
 import { formatRelative } from '../core/format.js';
-import { clientLabel, HUB_ACCOUNT_PROVIDERS } from '../core/data.js';
+import { clientLabel, HUB_ACCOUNT_PROVIDERS, isBrowserLoginProvider } from '../core/data.js';
 import { tr, escapeHtml, appState, toolIconHtml, viewHelper } from '../core/viewContext.js';
 
 const emptyHtml = (key) => viewHelper('emptyHtml')(key);
@@ -25,6 +25,25 @@ function accountField(record, key, fallback = '') {
 function accountCredentialField(record, key, fallback = '') {
   const value = record?.credentialMetadata?.[key];
   return escapeHtml(value === undefined || value === null ? fallback : value);
+}
+
+// The only identity the Hub can safely surface for a stored credential is the
+// safe-metadata subset (never the secret). Show whichever of those is present so
+// the owner can tell two logins apart without seeing a token.
+function accountCredentialMetadataLine(record) {
+  const metadata = record?.credentialMetadata;
+  if (!metadata || typeof metadata !== 'object') return '';
+  const parts = [];
+  if (record.accountEmail) parts.push(String(record.accountEmail));
+  for (const key of ['accountId', 'endpoint', 'enterpriseHost', 'baseUrl', 'organizationId', 'projectId', 'region', 'site']) {
+    const value = metadata[key];
+    if (value === undefined || value === null || value === '') continue;
+    const text = String(value);
+    if (parts.some((part) => part === text || part.endsWith(text))) continue;
+    parts.push(text);
+  }
+  if (!parts.length) return '';
+  return `<span class="account-credential-meta tiny">${escapeHtml(parts.join(' · '))}</span>`;
 }
 
 
@@ -110,10 +129,12 @@ export function renderAccounts() {
       <input type="hidden" name="provider" value="${escapeHtml(currentProvider)}" data-account-provider-input />
     </div>`;
   const formTitle = isEditing ? tr('accounts.edit') : tr('accounts.add');
-  const isOAuthCandidate = !isEditing && (currentProvider === 'codex' || currentProvider === 'antigravity');
-  // If editing, default to simple; if OAuth candidate and mode not explicitly switched to simple/json, default to oauth
-  const effectiveMode = isOAuthCandidate
-    ? (appState().accountFormMode === 'simple' || appState().accountFormMode === 'json' ? appState().accountFormMode : 'oauth')
+  // Codex and Antigravity only know the browser sign-in: their manual token /
+  // endpoint shapes are gone from the UI, on add and on edit alike. Everything
+  // else keeps the simple / JSON pair.
+  const browserLogin = isBrowserLoginProvider(currentProvider);
+  const effectiveMode = browserLogin
+    ? 'oauth'
     : (appState().accountFormMode === 'json' ? 'json' : 'simple');
   const oauthModeActive = effectiveMode === 'oauth';
   const simpleModeActive = effectiveMode === 'simple';
@@ -207,18 +228,12 @@ export function renderAccounts() {
       `;
       break;
     case 'codex':
-      simpleFieldsHtml = `
-        <label class="field field-wide"><span>${tr('accounts.codexAuthJson')}</span><textarea name="authJson" rows="3" spellcheck="false" autocomplete="off" placeholder="${escapeHtml(tr('accounts.codexAuthJsonPlaceholder'))}"></textarea></label>
-        <fluent-text-input class="field" name="accessToken" type="password" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(tr('accounts.codexAccessTokenPlaceholder'))}">${tr('accounts.accessToken')}</fluent-text-input>
-        <fluent-text-input class="field" name="accountId" value="${accountCredentialField(editing, 'accountId')}" spellcheck="false" placeholder="chatgpt_account_id">Account ID (optional)</fluent-text-input>
-      `;
-      break;
     case 'antigravity':
-      simpleFieldsHtml = `
-        <fluent-text-input class="field" name="endpoint" type="url" value="${accountCredentialField(editing, 'endpoint')}" spellcheck="false" placeholder="http://hub-accessible-host:port" ${isEditing ? '' : 'required'}>${tr('accounts.agyEndpoint')}</fluent-text-input>
-        <fluent-text-input class="field" name="csrfToken" type="password" autocomplete="off" spellcheck="false" placeholder="csrf token" ${isEditing ? '' : 'required'}>${tr('accounts.agyCsrfToken')}</fluent-text-input>
-        <p class="muted tiny" style="grid-column:1 / -1;margin-top:2px">${escapeHtml(tr('accounts.agyEndpointHint'))}</p>
-      `;
+      // Unreachable: these providers run the browser sign-in wizard on both add
+      // and edit (`BROWSER_LOGIN_PROVIDERS`), whose OAuth branch is chosen before
+      // simple fields are rendered. Kept as an explicit case so a future change
+      // cannot quietly fall through to the generic API-key field.
+      simpleFieldsHtml = '';
       break;
     case 'qoder':
       simpleFieldsHtml = `
@@ -295,11 +310,24 @@ export function renderAccounts() {
     const session = appState().oauthSession && appState().oauthSession.provider === currentProvider
       ? appState().oauthSession
       : null;
+    // On edit, state who the Hub currently holds and give the owner a way to drop
+    // it. The Hub never echoes the credential, so the best this can say is
+    // whether one is stored — which is exactly the question "is this account
+    // still authorized, and did the sign-in I just did land?".
+    const credentialStatusHtml = isEditing ? `
+      <div class="account-credential-status${editing?.credentialConfigured === false ? ' is-empty' : ''}">
+        <div class="account-credential-status-copy">
+          <span class="account-credential-badge">${escapeHtml(tr(editing?.credentialConfigured === false ? 'accounts.credentialMissing' : 'accounts.credentialPresent'))}</span>
+          ${accountCredentialMetadataLine(editing)}
+        </div>
+        <fluent-button appearance="transparent" type="button" class="ghost-btn danger-btn" data-account-clear-credential="${escapeHtml(editing?.id || '')}" ${appState().accountsSaving ? 'disabled' : ''}>${tr('accounts.clearCredential')}</fluent-button>
+      </div>` : '';
     credentialInputsHtml = `
       <div class="account-oauth-wizard">
+        ${credentialStatusHtml}
         <div class="account-oauth-step">
-          <strong>${escapeHtml(tr('accounts.oauthStep1'))}</strong>
-          <p class="muted tiny">${escapeHtml(tr('accounts.oauthStep1Desc'))}</p>
+          <strong>${escapeHtml(tr(isEditing ? 'accounts.oauthReauthTitle' : 'accounts.oauthStep1'))}</strong>
+          <p class="muted tiny">${escapeHtml(tr(isEditing ? 'accounts.oauthReauthDesc' : 'accounts.oauthStep1Desc'))}</p>
           ${session ? `
             <div class="account-oauth-link-row">
               <input type="text" readonly value="${escapeHtml(session.authUrl)}" class="account-oauth-link-input" />
@@ -308,7 +336,7 @@ export function renderAccounts() {
             </div>
           ` : `
             <fluent-button appearance="primary" type="button" class="primary-btn" data-account-oauth-start="${escapeHtml(currentProvider)}" ${appState().oauthLoading ? 'disabled' : ''}>
-              ${appState().oauthLoading ? tr('accounts.oauthStarting') : tr('accounts.oauthStart')}
+              ${appState().oauthLoading ? tr('accounts.oauthStarting') : tr(isEditing ? 'accounts.oauthRestart' : 'accounts.oauthStart')}
             </fluent-button>
           `}
         </div>
@@ -324,6 +352,7 @@ export function renderAccounts() {
             <input name="redirectUrl" required placeholder="${escapeHtml(tr('accounts.oauthUrlPlaceholder'))}" class="account-oauth-redirect-input" spellcheck="false" autocomplete="off" autocapitalize="off" />
             <p class="muted tiny">${escapeHtml(tr(currentProvider === 'antigravity' ? 'accounts.oauthCodeHint' : 'accounts.oauthUrlHint'))}</p>
             <input type="hidden" name="oauthSessionId" value="${escapeHtml(session.sessionId)}" />
+            ${isEditing ? `<input type="hidden" name="oauthAccountId" value="${escapeHtml(editing.id)}" />` : ''}
           </div>
         ` : ''}
       </div>
@@ -339,14 +368,13 @@ export function renderAccounts() {
   const accountDraftKey = `account:${editing?.id || 'new'}`;
   const form = `<form class="management-form account-form" data-account-form data-account-mode="${escapeHtml(effectiveMode)}" data-draft-key="${escapeHtml(accountDraftKey)}">
     <div class="form-section-head">
-      <div>${isEditing ? `<p class="muted tiny">${tr('accounts.credentialKeepHint')}</p>` : ''}</div>
-      <div class="account-form-head-actions">
+      <div>${isEditing && !browserLogin ? `<p class="muted tiny">${tr('accounts.credentialKeepHint')}</p>` : ''}</div>
+      ${browserLogin ? '' : `<div class="account-form-head-actions">
         <div class="mode-toggle-group">
-          ${isOAuthCandidate ? `<fluent-button appearance="transparent" type="button" class="ghost-btn ${oauthModeActive ? 'active' : ''}" data-account-mode="oauth">${tr('accounts.oauthModeToggle')}</fluent-button>` : ''}
-          <fluent-button appearance="transparent" type="button" class="ghost-btn ${!oauthModeActive && simpleModeActive ? 'active' : ''}" data-account-mode="simple">${tr('accounts.modeSimple')}</fluent-button>
-          <fluent-button appearance="transparent" type="button" class="ghost-btn ${!oauthModeActive && !simpleModeActive ? 'active' : ''}" data-account-mode="json">${tr('accounts.modeJson')}</fluent-button>
+          <fluent-button appearance="transparent" type="button" class="ghost-btn ${simpleModeActive ? 'active' : ''}" data-account-mode="simple">${tr('accounts.modeSimple')}</fluent-button>
+          <fluent-button appearance="transparent" type="button" class="ghost-btn ${!simpleModeActive ? 'active' : ''}" data-account-mode="json">${tr('accounts.modeJson')}</fluent-button>
         </div>
-      </div>
+      </div>`}
     </div>
     <div class="form-grid">
       ${providerSelectHtml}
@@ -359,7 +387,7 @@ export function renderAccounts() {
       </label>` : ''}
     </div>
     ${credentialInputsHtml}
-    ${(currentProvider === 'codex' || currentProvider === 'antigravity') ? `
+    ${browserLogin ? `
     <div class="account-disclaimer-box">
       <div class="account-disclaimer-head">
         <span class="account-disclaimer-icon">${uiIcon('warning')}</span>

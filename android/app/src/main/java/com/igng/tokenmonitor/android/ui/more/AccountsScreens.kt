@@ -260,13 +260,15 @@ fun AccountsScreen(
         editing = null
       },
       onStartOAuth = { provider -> viewModel.startOAuth(provider) },
-      // The paste field used to be collected and then dropped: the dialog handed the
-      // provider back with a null credential and nothing ever called the exchange, so a
-      // Hub-side OAuth sign-in could not actually be completed from this screen.
+      // The exchange must target the account being edited, or "finish login" would
+      // post a new account and the Hub would reject it as a duplicate.
       onExchangeOAuth = { sessionId, pasted, name, label ->
-        viewModel.exchangeOAuth(sessionId, pasted, name, label)
+        viewModel.exchangeOAuth(sessionId, pasted, name, label, editing?.id)
       },
       onClearOAuth = { viewModel.clearOAuthSession() },
+      onClearCredential = editing?.let { account ->
+        { viewModel.clearAccountCredential(account.id) }
+      },
       oauthSession = state.oauthSession
     )
   }
@@ -395,6 +397,7 @@ internal fun AccountEditorDialog(
   onStartOAuth: (String) -> Unit,
   onExchangeOAuth: (sessionId: String, pasted: String, name: String?, label: String?) -> Unit,
   onClearOAuth: () -> Unit,
+  onClearCredential: (() -> Unit)?,
   oauthSession: com.igng.tokenmonitor.android.data.model.OAuthStartDto?
 ) {
   val colors = LocalFluentColors.current
@@ -470,10 +473,48 @@ internal fun AccountEditorDialog(
       }
       if (isOauth) {
         Text(
-          "账号由完成授权时创建：先登录，再把回调地址粘回来并点「完成登录」。",
+          if (existing == null) {
+            "账号由完成授权时创建：先登录，再把回调地址粘回来并点「完成登录」。"
+          } else {
+            "该账号已保存凭据。重新登录并粘贴结果即可原地替换，账号本身保留。"
+          },
           style = FluentTypeRamp.caption2,
           color = colors.neutralForeground3
         )
+        if (existing != null) {
+          // The Hub never echoes a credential, so the best this can show is whether
+          // one is stored — which is the question "am I still authorized?".
+          val configured = existing.credentialConfigured
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+              Text(
+                when (configured) {
+                  false -> "未填写凭据 — 请重新登录"
+                  null -> "凭据状态未知"
+                  else -> "已填写凭据"
+                },
+                style = FluentTypeRamp.caption1,
+                color = if (configured == false) colors.warningForeground else colors.neutralForeground1
+              )
+              existing.credentialMetadata?.let { metadata ->
+                val identity = listOfNotNull(
+                  existing.accountEmail?.takeIf { it.isNotBlank() },
+                  metadata["accountId"]?.let { it.toString().trim('"').takeIf { text -> text.isNotBlank() } }
+                ).joinToString(" · ")
+                if (identity.isNotBlank()) {
+                  Text(identity, style = FluentTypeRamp.caption2, color = colors.neutralForeground3)
+                }
+              }
+            }
+            if (onClearCredential != null) {
+              FluentButton(
+                label = "清除凭据",
+                onClick = onClearCredential,
+                variant = FluentButtonVariant.Outline
+              )
+            }
+          }
+        }
         FluentButton(
           label = if (oauthSession != null) "重新开始登录" else "开始登录",
           onClick = {

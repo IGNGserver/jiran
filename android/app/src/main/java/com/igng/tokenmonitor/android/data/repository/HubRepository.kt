@@ -97,6 +97,8 @@ class HubRepository @Inject constructor(
     withConnection { apiFactory.create(it).patchAccount(id, request) }
   suspend fun deleteAccount(id: String): HubResult<AccountsResponseDto> =
     withConnection { apiFactory.create(it).deleteAccount(id) }
+  suspend fun clearAccountCredential(id: String): HubResult<AccountsResponseDto> =
+    withConnection { apiFactory.create(it).clearAccountCredential(id) }
   suspend fun refreshAccount(id: String): HubResult<AccountsResponseDto> =
     withConnection { apiFactory.create(it).refreshAccount(id) }
   suspend fun startOAuth(provider: String): HubResult<OAuthStartDto> =

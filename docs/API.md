@@ -346,7 +346,11 @@ never returns the stored credential.
 
 Returns `{ "authority": "hub", "providers": [...], "accounts": [...] }`.
 Each account includes its `id`, provider, display fields, status, refresh
-timestamps, identity metadata, and `limits`; credential material is omitted.
+timestamps, identity metadata, and `limits`; credential material is omitted. A
+record read by the owner also carries `credentialConfigured` (whether a usable
+credential is still stored, derived without echoing a value) and, when present,
+`credentialMetadata` — the non-secret subset (`accountId`, `endpoint`,
+`enterpriseHost`, `site`, `region`, …) a client may display.
 
 ### `POST /api/accounts`
 
@@ -377,6 +381,15 @@ Performs an immediate Hub-side quota refresh and returns the sanitized account.
 
 Deletes the account, its encrypted credential, and its stored quota snapshot.
 
+### `DELETE /api/accounts/:id/credential`
+
+Requires the owner key. Clears the account's stored credential while keeping the
+account, its name/label/enabled state, and its identity; the status becomes
+`notConfigured` and the published snapshot is emptied. No provider probe runs —
+an empty credential can only fail, and turning a deliberate clear into a 4xx
+would leave the account in an undetermined state. Use this before re-authorizing
+the same account.
+
 ### `POST /api/accounts/oauth/start`
 
 Requires the owner key. Begins the Hub-side OAuth sign-in for a provider whose
@@ -392,9 +405,12 @@ verifier and `state` in memory only and expires after 10 minutes.
 ### `POST /api/accounts/oauth/exchange`
 
 Requires the owner key. Exchanges the authorization result for a credential,
-stores it encrypted, and adds the account in one step.
+stores it encrypted, and adds the account in one step — or, when `accountId` is
+present, replaces that existing account's credential in place and keeps the
+account (`200` instead of `201`). The in-place form is what the edit surface uses,
+so re-authorizing a `codex` or `antigravity` account cannot create a duplicate.
 
-Body: `{"sessionId","redirectUrl","name"?,"label"?}`.
+Body: `{"sessionId","redirectUrl","name"?,"label"?,"accountId"?}`.
 
 `redirectUrl` is deliberately permissive, because providers hand the user one of
 three shapes: a full callback URL, a schemeless URL or bare query string, or a
@@ -404,7 +420,9 @@ button and never puts it in the address bar). Missing `sessionId` or
 `400 {"error":"code_missing"}` with a hint naming the accepted shapes.
 
 `name` defaults to a generated `<provider>-<stamp>`; the response is the same
-redacted account record as `POST /api/accounts`.
+redacted account record as `POST /api/accounts`. A same-identity collision with a
+*different* account still returns `account_duplicate`; the edited account's own
+identity never conflicts with itself.
 
 ## `GET /api/devices`
 
