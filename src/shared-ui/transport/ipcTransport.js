@@ -75,8 +75,12 @@ function createIpcTransport(bridge) {
       // the idle watchdog. Re-deriving that here would double it.
       const offStats = bridge.onStatsPush((payload) => {
         if (!payload) return;
+        // The main process publishes `sendPush({ event: 'sync-health', data: { health } })`,
+        // so the per-channel health record lives one level down. Handing the
+        // envelope to the renderer made every channel read as `unknown`, because
+        // `health.local` etc. only exist on `data.health`.
         if (payload.event === 'sync-health') {
-          onHealth?.(payload.data || {});
+          onHealth?.(payload.data?.health || null);
           return;
         }
         if (payload.event !== 'stats') return;
@@ -86,6 +90,9 @@ function createIpcTransport(bridge) {
           lastEventAt: Date.now(),
           snapshot: data.snapshot || null
         });
+        // Only the snapshot is forwarded here; a full health record arrives on
+        // its own `sync-health` push. Spreading the stats frame instead would
+        // blank one that has already landed.
         if (data.snapshot) onHealth?.({ snapshot: data.snapshot });
         onStatus?.('live', { lastEventAt: Date.now() });
       });

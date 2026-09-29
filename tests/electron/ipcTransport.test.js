@@ -134,6 +134,45 @@ test('the stream bridge forwards stats frames and reports live status', async ()
   dispose();
 });
 
+test('a sync-health push is unwrapped to the channel record, not the envelope', () => {
+  let push = null;
+  const transport = createIpcTransport(bridge({
+    onStatsPush: (callback) => { push = callback; return () => {}; }
+  }));
+  const health = [];
+  transport.openStream({ onHealth: (record) => health.push(record) });
+  // This is the exact envelope main.js emits; the per-channel records must
+  // reach the renderer, otherwise every row in the desktop sync panel renders
+  // as "unknown".
+  push({
+    event: 'sync-health',
+    data: {
+      health: {
+        mode: 'client',
+        local: { state: 'ok' },
+        upload: { state: 'waiting' },
+        rest: { state: 'ok' },
+        stream: { state: 'live' }
+      }
+    }
+  });
+  assert.equal(health.length, 1);
+  assert.equal(health[0].local.state, 'ok');
+  assert.equal(health[0].upload.state, 'waiting');
+  assert.equal(health[0].stream.state, 'live');
+});
+
+test('a stats frame forwards only its snapshot to onHealth', () => {
+  let push = null;
+  const transport = createIpcTransport(bridge({
+    onStatsPush: (callback) => { push = callback; return () => {}; }
+  }));
+  const health = [];
+  transport.openStream({ onHealth: (record) => health.push(record) });
+  push({ event: 'stats', data: { type: 'stats', stats: { devices: [] }, snapshot: { source: 'local' } } });
+  assert.deepEqual(health, [{ snapshot: { source: 'local' } }]);
+});
+
 test('routing is hash-based because file:// has no SPA fallback', () => {
   const transport = createIpcTransport(bridge());
   assert.equal(transport.capabilities.routing, 'hash');
