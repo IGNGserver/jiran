@@ -1,7 +1,100 @@
 'use strict';
 
+const zlib = require('node:zlib');
 const { MAX_JSON_BODY_BYTES } = require('./wireValidation');
 const DEFAULT_HTTP_REQUEST_TIMEOUT_MS = 15 * 1000;
+
+// Below this the framing overhead and the thread-pool handoff cost more than the
+// savings, and Node's own `res.write` already keeps small bodies in one packet.
+const COMPRESSION_MIN_BYTES = 1024;
+// Quality 4 for brotli: on JSON it is within a few percent of quality 11 at a
+// fraction of the CPU, and the Hub must not block its single event loop on
+// compressing a multi-megabyte fleet snapshot.
+const BROTLI_QUALITY = 4;
+
+/**
+ * The single encoding to use for a response body, or null to send it as-is.
+ *
+ * Reads `res.req` (Node sets it on every response) rather than taking the request
+ * as a parameter: `sendJson` has dozens of call sites and none of them should
+ * have to thread the request through just to enable compression.
+ */
+function negotiateEncoding(res) {
+  const header = res?.req?.headers?.['accept-encoding'] || res?.req?.headers?.['Accept-Encoding'];
+  const value = String(header || '');
+  if (!value) return null;
+  let brotliQ = 0;
+  let gzipQ = 0;
+  let wildcardQ = 0;
+  for (const part of value.split(',')) {
+    const [rawName, ...params] = part.trim().split(';');
+    const name = rawName.trim().toLowerCase();
+    if (!name) continue;
+    let quality = 1;
+    for (const param of params) {
+      const match = /^\s*q\s*=\s*([0-9.]+)\s*$/i.exec(param);
+      if (match) {
+        const parsed = Number(match[1]);
+        if (Number.isFinite(parsed)) quality = parsed;
+      }
+    }
+    if (name === 'br' || name === 'brotli') brotliQ = Math.max(brotliQ, quality);
+    else if (name === 'gzip' || name === 'x-gzip') gzipQ = Math.max(gzipQ, quality);
+    else if (name === '*') wildcardQ = Math.max(wildcardQ, quality);
+  }
+  // `br` is only offered when the client actually asked for it; an `*` wildcard is
+  // satisfied with gzip, which every HTTP client that speaks encodings understands.
+  if (brotliQ > 0 && brotliQ >= gzipQ) return 'br';
+  if (gzipQ > 0) return 'gzip';
+  if (wildcardQ > 0) return 'gzip';
+  return null;
+}
+
+/**
+ * Write a body, compressing it when the client asked for an encoding it supports.
+ *
+ * Compression runs on the libuv thread pool (`zlib.gzip` / `zlib.brotliCompress`),
+ * not synchronously: a fleet snapshot is multi-megabyte JSON and a sync pass would
+ * stall the event loop that also has to serve SSE heartbeats and every other
+ * request. `res.end()` is asynchronous anyway, so callers keep their current
+ * fire-and-forget contract. A compression failure falls back to the raw body.
+ */
+function sendBuffer(res, statusCode, body, contentType, extraHeaders = {}) {
+  const headers = corsHeaders({
+    'content-type': contentType,
+    'cache-control': 'no-store',
+    vary: 'accept-encoding',
+    ...extraHeaders
+  });
+  const buffer = Buffer.isBuffer(body) ? body : Buffer.from(String(body ?? ''), 'utf8');
+  const encoding = buffer.length >= COMPRESSION_MIN_BYTES ? negotiateEncoding(res) : null;
+  if (!encoding) {
+    headers['content-length'] = String(buffer.length);
+    res.writeHead(statusCode, headers);
+    res.end(buffer);
+    return;
+  }
+  const done = (error, compressed) => {
+    if (res.destroyed || res.writableEnded) return;
+    if (error) {
+      // Never fail a response because compression failed: send it uncompressed.
+      delete headers['content-encoding'];
+      headers['content-length'] = String(buffer.length);
+      res.writeHead(statusCode, headers);
+      res.end(buffer);
+      return;
+    }
+    headers['content-encoding'] = encoding;
+    headers['content-length'] = String(compressed.length);
+    res.writeHead(statusCode, headers);
+    res.end(compressed);
+  };
+  if (encoding === 'br') {
+    zlib.brotliCompress(buffer, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: BROTLI_QUALITY } }, done);
+  } else {
+    zlib.gzip(buffer, done);
+  }
+}
 
 function abortError(reason) {
   if (reason instanceof Error) return reason;
@@ -94,21 +187,39 @@ function corsHeaders(extraHeaders = {}) {
 }
 
 function sendJson(res, statusCode, payload, extraHeaders = {}) {
-  const body = JSON.stringify(payload, null, 2);
-  res.writeHead(statusCode, corsHeaders({
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-    ...extraHeaders
-  }));
-  res.end(body);
+  // No pretty-printing. The 2-space format the Hub used to emit cost ~1.8x the
+  // bytes of the compact form and every consumer parses JSON, not prose; the
+  // whitespace was pure transfer cost on a multi-megabyte fleet snapshot.
+  sendBuffer(res, statusCode, JSON.stringify(payload), 'application/json; charset=utf-8', extraHeaders);
 }
 
 function sendText(res, statusCode, body, contentType = 'text/plain; charset=utf-8') {
-  res.writeHead(statusCode, corsHeaders({
-    'content-type': contentType,
-    'cache-control': 'no-store'
+  sendBuffer(res, statusCode, body, contentType);
+}
+
+/**
+ * Answer `304 Not Modified` when the caller's `If-None-Match` covers [etag].
+ *
+ * Returns true when it did. Deliberately opt-in per route: it is only correct
+ * where the ETag is derived from the *whole* response document, and a bare
+ * `Date.now()` inside a payload (staleness) makes any other token unable to
+ * promise the body is unchanged.
+ */
+function sendNotModifiedIfFresh(req, res, etag) {
+  const header = req?.headers?.['if-none-match'];
+  if (!etag || typeof header !== 'string' || !header.trim()) return false;
+  const matches = header
+    .split(',')
+    .map((value) => value.trim().replace(/^W\//, ''))
+    .some((value) => value === '*' || value === etag);
+  if (!matches) return false;
+  res.writeHead(304, corsHeaders({
+    etag,
+    'cache-control': 'no-store',
+    vary: 'accept-encoding'
   }));
-  res.end(body);
+  res.end();
+  return true;
 }
 
 function readJsonBody(req, maxBytes = MAX_JSON_BODY_BYTES) {
@@ -141,12 +252,16 @@ function readJsonBody(req, maxBytes = MAX_JSON_BODY_BYTES) {
 }
 
 module.exports = {
+  COMPRESSION_MIN_BYTES,
   DEFAULT_HTTP_REQUEST_TIMEOUT_MS,
   MAX_JSON_BODY_BYTES,
   corsHeaders,
   fetchBufferedWithTimeout,
   fetchWithTimeout,
+  negotiateEncoding,
   readJsonBody,
+  sendBuffer,
   sendJson,
+  sendNotModifiedIfFresh,
   sendText
 };
