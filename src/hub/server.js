@@ -10,7 +10,8 @@ const {
   aggregateHistory,
   mergeDeviceRecord,
   mergePeriods,
-  normalizeDeviceRecord
+  normalizeDeviceRecord,
+  summarizeStats
 } = require('../shared/usage');
 const { normalizeLimitsSummary } = require('../shared/limits');
 const { historyPreview, historyRevision } = require('../shared/history');
@@ -22,7 +23,7 @@ const {
 } = require('../shared/subscriptionDisplay');
 const { CURRENCY_CODES, normalizeCurrency } = require('../shared/currency');
 const { currentHubBuild } = require('../shared/hubBuildIdentity');
-const { readJsonBody, sendJson, sendText } = require('../shared/http');
+const { readJsonBody, sendJson, sendNotModifiedIfFresh, sendText } = require('../shared/http');
 const {
   AUTHENTICATED_SCOPE,
   createHubAuthPolicy
@@ -56,6 +57,10 @@ const DEFAULT_MAX_SSE_CLIENTS = 64;
 // Must stay below the account refresh interval so a slow provider cannot consume
 // a whole cycle; accountService also enforces it internally.
 const DEFAULT_HUB_PROBE_DEADLINE_MS = 60 * 1000;
+// Display cap for `/api/sessions`. The shared UI shows 200 rows; the mobile list
+// is capped the same way. The full count is reported alongside, so a capped list
+// never reads as the whole archive.
+const SESSION_LIST_LIMIT = 200;
 const RESERVED_DYNAMIC_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
 function hasOwn(object, key) {
@@ -397,6 +402,10 @@ function createHub({
   }
   let statsCache = null;
   let subscriptionsCache = emptySubscriptionDocument();
+  // Normalized fleet + aggregate history, shared by /api/stats, /api/history and
+  // /api/devices. Never outlives a mutation: `invalidateStatsCache` drops it.
+  let recordsBundle = null;
+  let recordsBundleInFlight = null;
   // A stale in-flight aggregation must not be allowed to repopulate the cache
   // after a mutation. The generation is advanced by every invalidation.
   let statsCacheGeneration = 0;
@@ -456,6 +465,11 @@ function createHub({
     statsCache = null;
     statsCacheAt = 0;
     statsInFlight = null;
+    // The normalized fleet + history bundle is derived from the fleet and goes
+    // stale with it. Dropping the reference also releases a multi-megabyte
+    // retained snapshot immediately rather than at the next rebuild.
+    recordsBundle = null;
+    recordsBundleInFlight = null;
   }
 
   async function getSubscriptions() {
@@ -465,32 +479,40 @@ function createHub({
     return subscriptionsCache;
   }
 
-  async function getStats() {
-    const now = Date.now();
-    if (statsCache && statsCacheTtlMs > 0 && now - statsCacheAt < statsCacheTtlMs) {
-      return statsCache;
-    }
-    // Share one computation across concurrent readers instead of stacking them.
-    if (statsInFlight) return statsInFlight;
+  // One read of the device fleet, shared by every derived document.
+  //
+  // `/api/stats`, `/api/history` and `/api/devices` all start from
+  // `listDeviceRecords()`, and any ingest/mutation invalidates all three. Without
+  // this each endpoint paid its own SELECT plus its own `normalizeDeviceRecord()`
+  // pass, and `/api/history` — which does not even look at the periods — paid for
+  // a second full fleet read that the stats path had already performed.
+  //
+  // The bundle only lives as long as the mutation generation does; a write drops
+  // it (see `invalidateStatsCache`) so a cached read can never outlive its data.
+  async function getFleetRecords() {
+    if (recordsBundle) return recordsBundle;
+    if (recordsBundleInFlight) return recordsBundleInFlight;
     const generation = statsCacheGeneration;
-    const inFlight = computeStats()
-      .then((stats) => {
-        if (generation === statsCacheGeneration) {
-          statsCache = stats;
-          statsCacheAt = Date.now();
-        }
-        return stats;
-      })
-      .finally(() => {
-        if (statsInFlight === inFlight) statsInFlight = null;
-      });
-    statsInFlight = inFlight;
+    const inFlight = (async () => {
+      const rawRecords = await store.listDeviceRecords();
+      const records = rawRecords.map((record) => normalizeDeviceRecord(record));
+      const history = aggregateHistory(records, { normalized: true });
+      const bundle = { rawRecords, records, history };
+      if (generation === statsCacheGeneration) recordsBundle = bundle;
+      return bundle;
+    })().finally(() => {
+      if (recordsBundleInFlight === inFlight) recordsBundleInFlight = null;
+    });
+    recordsBundleInFlight = inFlight;
     return inFlight;
   }
 
-  async function computeStats() {
-    const rawRecords = await store.listDeviceRecords();
-    const records = rawRecords.map((record) => normalizeDeviceRecord(record));
+  // The fleet aggregate is the expensive part; both shapes derive from one
+  // computation. `summarizeStats` is a projection over the same numbers (no
+  // re-measurement), so the summary endpoint costs one extra shallow copy rather
+  // than a second aggregation.
+  async function computeStatsBundle() {
+    const { rawRecords, records, history } = await getFleetRecords();
     const stats = aggregateDevices(records, staleAfterMs, Date.now(), { normalized: true });
     const centralLimits = accountService
       ? await accountService.getLimitsSummary()
@@ -499,7 +521,6 @@ function createHub({
     stats.limits = centralLimits;
     stats.limitsAuthority = accountService ? 'hub' : 'none';
     stats.staleAfterMs = staleAfterMs;
-    const history = aggregateHistory(records, { normalized: true });
     stats.historyPreview = historyPreview(history);
     stats.historyRevision = historyRevision(history);
     stats.deviceHistoryRevision = deviceHistoryRevision(rawRecords);
@@ -509,12 +530,66 @@ function createHub({
     return stats;
   }
 
+  async function getStatsBundle() {
+    const now = Date.now();
+    if (statsCache && statsCacheTtlMs > 0 && now - statsCacheAt < statsCacheTtlMs) {
+      return statsCache;
+    }
+    // Share one computation across concurrent readers instead of stacking them.
+    if (statsInFlight) return statsInFlight;
+    const generation = statsCacheGeneration;
+    const inFlight = computeStatsBundle()
+      .then((bundle) => {
+        if (generation === statsCacheGeneration) {
+          statsCache = bundle;
+          statsCacheAt = Date.now();
+        }
+        return bundle;
+      })
+      .finally(() => {
+        if (statsInFlight === inFlight) statsInFlight = null;
+      });
+    statsInFlight = inFlight;
+    return inFlight;
+  }
+
+  // Full shape: every device carries its complete periods (sessions, projects,
+  // client×model grain). This is what `/api/stats` has always returned and stays
+  // the default so the desktop and web hosts are untouched.
+  async function getStats() {
+    return getStatsBundle();
+  }
+
+  // First-paint shape: the same aggregate and device list, minus the session
+  // archive and the per-device client×model grain. `/api/stats/summary` serves it
+  // so the mobile client is not forced to download every device's session rows
+  // before it can draw a headline number.
+  async function getStatsSummary() {
+    const bundle = await getStatsBundle();
+    if (bundle.__summary) return bundle.__summary;
+    const summary = summarizeStats(bundle);
+    Object.defineProperty(bundle, '__summary', { value: summary, enumerable: false, configurable: true });
+    return summary;
+  }
+
   async function getHistory(deviceId = '') {
-    const records = await store.listDeviceRecords();
+    const { rawRecords, history } = await getFleetRecords();
     const scopedDeviceId = String(deviceId || '').trim();
-    return aggregateHistory(scopedDeviceId
-      ? records.filter((record) => String(record.deviceId || '') === scopedDeviceId)
-      : records);
+    return scopedDeviceId
+      ? aggregateHistoryRangeFromRecords(rawRecords, history, scopedDeviceId)
+      : history;
+  }
+
+  // `/api/history?deviceId=` is a separate document from the fleet aggregate:
+  // `aggregateHistory(records.filter(...))` re-merges one device's history from
+  // its stored daily/monthly tiers. The fleet bundle already holds every raw
+  // record, so the scoped read reuses that list instead of issuing a second
+  // `listDeviceRecords()` (the query that made /api/history cost as much as a
+  // full /api/stats rebuild).
+  function aggregateHistoryRangeFromRecords(rawRecords, fleetHistory, deviceId) {
+    const scoped = rawRecords.filter((record) => String(record?.deviceId || record?.id || '') === deviceId);
+    if (scoped.length === rawRecords.length) return fleetHistory;
+    return aggregateHistory(scoped.map((record) => normalizeDeviceRecord(record)));
   }
 
   async function setSubscriptions(subscriptions, baseUpdatedAt) {
@@ -790,6 +865,13 @@ function createHub({
   const sseClients = new Set();
   const sseHeartbeats = new Map();
   const sseStates = new Map();
+  // Per-client frame shape. `/api/stats/stream?detail=slim` asks for the
+  // first-paint projection; a client that omits it keeps receiving the full
+  // document it has always received, which is what the shared web/desktop renderer
+  // depends on (it reads the session archive and per-device detail straight off the
+  // stream and has no re-fetch path). Negotiated per client rather than globally
+  // because both kinds can be connected at once.
+  const sseShapes = new Map();
   const statsListeners = new Set();
 
   function sseFormat(event, data) {
@@ -798,6 +880,7 @@ function createHub({
 
   function dropSseClient(res) {
     sseClients.delete(res);
+    sseShapes.delete(res);
     const heartbeat = sseHeartbeats.get(res);
     if (heartbeat) clearInterval(heartbeat);
     sseHeartbeats.delete(res);
@@ -859,16 +942,36 @@ function createHub({
     return true;
   }
 
+  // The frame each subscriber asked for, built once per shape per broadcast.
+  //
+  // A frame is re-sent on every ingest broadcast, so shipping the full snapshot to
+  // a phone made each device's tick cost it megabytes. `detail=slim` subscribers
+  // get the first-paint projection plus the `historyRevision` /
+  // `deviceHistoryRevision` tokens that tell them the omitted documents moved;
+  // everyone else keeps the full document.
+  async function statsFrames(reason, stats, at) {
+    let full = null;
+    let slim = null;
+    const payloadFor = async (shape) => {
+      if (shape !== 'slim') {
+        if (full === null) full = sseFormat('stats', { type: 'stats', reason, stats, at });
+        return full;
+      }
+      if (slim === null) {
+        slim = sseFormat('stats', { type: 'stats', reason, stats: await getStatsSummary(), at });
+      }
+      return slim;
+    };
+    for (const res of sseClients) {
+      writeSse(res, await payloadFor(sseShapes.get(res)));
+    }
+  }
+
   async function broadcastStats(reason = 'update', statsOverride = null) {
     if (sseClients.size === 0 && statsListeners.size === 0) return;
-    const stats = statsOverride || await getStats();
+    const stats = statsOverride || await getStatsBundle();
     const at = new Date().toISOString();
-    if (sseClients.size > 0) {
-      const payload = sseFormat('stats', { type: 'stats', reason, stats, at });
-      for (const res of sseClients) {
-        writeSse(res, payload);
-      }
-    }
+    if (sseClients.size > 0) await statsFrames(reason, stats, at);
     for (const listener of statsListeners) {
       try { listener(stats, reason, at); } catch (_) { /* listener errors must not break ingest */ }
     }
@@ -939,8 +1042,9 @@ function createHub({
     let stats = null;
     if (includeStats || sseClients.size > 0 || statsListeners.size > 0) {
       try {
-        stats = await getStats();
-        await broadcastStats('ingest', stats);
+        const bundle = await getStatsBundle();
+        stats = bundle;
+        await broadcastStats('ingest', bundle);
       } catch (error) {
         logger.warn?.(`[hub-ingest] post-commit stats/broadcast failed: ${error?.message || error}`);
         stats = null;
@@ -1360,10 +1464,26 @@ function createHub({
       });
     }
     const readRoute = (req.method === 'GET' || req.method === 'HEAD') && (
-      ['/api/stats', '/api/devices', '/api/history', '/api/subscriptions', '/api/usage/range', '/api/pricing', '/api/stats/stream'].includes(url.pathname)
+      [
+        '/api/stats',
+        '/api/stats/summary',
+        '/api/sessions',
+        '/api/devices',
+        '/api/history',
+        '/api/subscriptions',
+        '/api/usage/range',
+        '/api/pricing',
+        '/api/stats/stream'
+      ].includes(url.pathname)
+      // A device detail is `/api/devices/<id>`; the collection itself stays an
+      // exact match above so this prefix cannot swallow it.
+      || /^\/api\/devices\/[^/]+$/.test(url.pathname)
     );
     if (readRoute && !authorize(AUTHENTICATED_SCOPE)) return;
 
+    if (req.method === 'GET' && url.pathname === '/api/stats/summary') {
+      return sendJson(res, 200, await getStatsSummary());
+    }
     if (req.method === 'GET' && url.pathname === '/api/stats') return sendJson(res, 200, await getStats());
     if (req.method === 'GET' && url.pathname === '/api/devices') {
       // Keep this endpoint on the same normalized/staleness boundary as
@@ -1373,8 +1493,44 @@ function createHub({
       const stats = await getStats();
       return sendJson(res, 200, { devices: stats.devices });
     }
+    // One device's full periods, including the session archive and the
+    // client×model grain the fleet summary omits. A device detail view needs
+    // *one* machine's detail; before this it had to download every machine's.
+    if (req.method === 'GET' && /^\/api\/devices\/[^/]+$/.test(url.pathname)) {
+      const deviceId = decodeURIComponent(url.pathname.slice('/api/devices/'.length));
+      const stats = await getStats();
+      const device = stats.devices.find((entry) => String(entry.deviceId || '') === deviceId);
+      if (!device) return sendJson(res, 404, { error: 'device_not_found', deviceId });
+      return sendJson(res, 200, { device });
+    }
+    // The aggregate session list on its own, so `/api/stats` can stop carrying
+    // it for a screen the user may never open. Capped for display, matching the
+    // shared UI's session table; the cap is reported rather than implied.
+    if (req.method === 'GET' && url.pathname === '/api/sessions') {
+      const stats = await getStats();
+      const requested = String(url.searchParams.get('period') || '').trim();
+      const periods = requested && PERIODS.includes(requested)
+        ? [requested]
+        : ['today', 'month', 'allTime'];
+      let rows = [];
+      for (const periodName of periods) {
+        const sessions = stats.periods?.[periodName]?.sessions || {};
+        rows = rows.concat(Object.values(sessions).map((session) => ({ ...session, period: periodName })));
+      }
+      rows.sort((left, right) => String(right.lastUsedAt || '').localeCompare(String(left.lastUsedAt || '')));
+      const shown = rows.slice(0, SESSION_LIST_LIMIT);
+      return sendJson(res, 200, { total: rows.length, shown: shown.length, sessions: shown });
+    }
     if (req.method === 'GET' && url.pathname === '/api/history') {
-      return sendJson(res, 200, await getHistory(url.searchParams.get('deviceId')));
+      const deviceId = String(url.searchParams.get('deviceId') || '').trim();
+      const document = await getHistory(deviceId);
+      // The document is derived entirely from stored records (no wall clock), so
+      // its revision is a complete identity and a repeat read can be answered
+      // without a body. That matters because "re-ask for history" is what the
+      // client does when the stream's `historyRevision` moves.
+      const etag = `"hist-${historyRevision(document)}${deviceId ? `-${deviceId}` : ''}"`;
+      if (sendNotModifiedIfFresh(req, res, etag)) return;
+      return sendJson(res, 200, document, { etag });
     }
     if (req.method === 'GET' && url.pathname === '/api/subscriptions') {
       return sendJson(res, 200, { ok: true, ...(await getSubscriptions()) });
@@ -1614,6 +1770,7 @@ function createHub({
         }, { 'retry-after': '30' });
       }
       sseClients.add(res);
+      sseShapes.set(res, url.searchParams.get('detail') === 'slim' ? 'slim' : 'full');
       sseStates.set(res, {
         ready: false,
         backpressured: false,
@@ -1633,7 +1790,8 @@ function createHub({
       res.on('close', cleanup);
       res.on('error', cleanup);
 
-      const snapshot = await getStats();
+      const slim = sseShapes.get(res) === 'slim';
+      const snapshot = slim ? await getStatsSummary() : await getStats();
       // The client may have gone away during the await.
       if (res.destroyed || res.writableEnded) {
         dropSseClient(res);
@@ -1759,7 +1917,7 @@ function createHub({
         audit(owner.principal, 'device.transfer', `${sourceDeviceId}->${targetDeviceId}`);
         invalidateStatsCache();
         try {
-          const stats = await getStats();
+          const stats = await getStatsBundle();
           await broadcastStats('transfer', stats);
         } catch (error) {
           logger.warn?.(`[hub-transfer] post-commit stats/broadcast failed: ${error?.message || error}`);
@@ -1860,6 +2018,7 @@ function createHub({
     stop,
     server,
     getStats,
+    getStatsSummary,
     getHistory,
     getSubscriptions,
     getUsageRange,

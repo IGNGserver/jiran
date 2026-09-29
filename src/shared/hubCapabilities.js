@@ -16,7 +16,14 @@ function hubCapabilities(runtime, options = {}) {
     publicStats: Boolean(options.publicStats),
     hubAccounts,
     centralLimits: hubAccounts,
-    limitsAuthority: hubAccounts ? 'hub' : 'none'
+    limitsAuthority: hubAccounts ? 'hub' : 'none',
+    // Staged reads. A client that has them can ask for the first-paint summary
+    // and pull session/device detail on demand instead of downloading it with
+    // every fleet snapshot. Older Hubs omit the flags and their clients must
+    // keep using `/api/stats` alone, so absence means "not available".
+    statsSummary: true,
+    deviceDetail: true,
+    sessionList: true
   });
 }
 

@@ -1564,7 +1564,14 @@ function aggregateHistory(devices, options = {}) {
 // Adds every numeric field and nested map of `source` into `target` (an
 // emptyPeriod()-shaped object). Shared by device aggregation and the WSL merge so
 // the two never diverge on which period fields exist.
-function addPeriodInto(target, source) {
+//
+// `options.omitSessionDetail` skips the per-session archive and the project
+// rollup. The mobile first-paint payload reads headline totals, the client/model
+// split and provenance, but not session rows, and those rows are the single
+// largest field on the wire (they dominate a fleet snapshot). The detail stays
+// reachable through `/api/devices/:id` and `/api/sessions`; only the copy folded
+// into the fleet aggregate is dropped.
+function addPeriodInto(target, source, options = {}) {
   if (source.estimated === true) target.estimated = true;
   target.capabilities.tokenComponents = target.capabilities.tokenComponents === true
     && source.capabilities?.tokenComponents === true;
@@ -1676,8 +1683,10 @@ function addPeriodInto(target, source) {
       if (model) targetCredits[model] = mapNumber(targetCredits, model) + credits;
     }
   }
-  for (const [key, project] of Object.entries(source.projects || {})) addProjectInto(target.projects, key, project);
-  for (const session of Object.values(source.sessions)) addSession(target, session);
+  if (!options.omitSessionDetail) {
+    for (const [key, project] of Object.entries(source.projects || {})) addProjectInto(target.projects, key, project);
+    for (const session of Object.values(source.sessions)) addSession(target, session);
+  }
   return target;
 }
 
@@ -1770,7 +1779,7 @@ function aggregateDevices(devices, staleAfterMs, nowMs = Date.now(), options = {
     }
     for (const periodName of PERIODS) {
       if (isPeriodExpired(normalized, periodName, now)) continue;
-      addPeriodInto(aggregate.periods[periodName], normalizePeriod(normalized.periods[periodName]));
+      addPeriodInto(aggregate.periods[periodName], normalizePeriod(normalized.periods[periodName]), options);
     }
   }
   aggregate.limits = aggregateLimits(aggregate.devices, staleAfterMs, now);
@@ -1817,6 +1826,101 @@ function aggregateDevices(devices, staleAfterMs, nowMs = Date.now(), options = {
     }
   }
   return aggregate;
+}
+
+// Fields the first-paint payload cannot do without, per period.
+//
+// `sessions` and `projects` are deliberately absent: session rows alone are ~76%
+// of a fleet snapshot's bytes, and the mobile surfaces that read them (the
+// 会话 list and the 项目 rollup) are separate screens that pull their own
+// endpoint. Keeping the list explicit is what makes a new period field a
+// deliberate addition to the mobile payload instead of an accidental one.
+const SUMMARY_PERIOD_FIELDS = [
+  'totalTokens',
+  'costUsd',
+  'cacheReadTokens',
+  'cacheWriteTokens',
+  'outputTokens',
+  'unclassifiedTokens',
+  'timedTokens',
+  'timedOutputTokens',
+  'timedDurationMs',
+  'estimated',
+  'capabilities'
+];
+const SUMMARY_PERIOD_MAPS = [
+  'clients',
+  'clientCosts',
+  'clientCredits',
+  'clientEstimated',
+  'clientMeasurements',
+  'models',
+  'modelCosts',
+  'clientModels',
+  'clientModelCosts',
+  'clientModelCredits',
+  'clientCacheReads',
+  'clientCacheWrites',
+  'clientOutputs',
+  'clientUnclassifiedTokens',
+  'modelCacheReads',
+  'modelCacheWrites',
+  'modelOutputs',
+  'modelUnclassifiedTokens',
+  // The 项目 screen renders the aggregate project rollup from the snapshot, so it
+  // has to stay. It is one copy of a client-attributed map (not the per-device
+  // archive), and `periodProjectsOmitted` already bounds it.
+  'projects'
+];
+
+function summaryPeriod(period = {}) {
+  const projected = {};
+  for (const field of SUMMARY_PERIOD_FIELDS) {
+    if (period[field] !== undefined) projected[field] = period[field];
+  }
+  for (const map of SUMMARY_PERIOD_MAPS) {
+    const value = period[map];
+    if (value !== undefined) projected[map] = value;
+  }
+  return projected;
+}
+
+// Per-device periods in the first-paint payload are headline numbers only.
+//
+// Every device breakdown map (clients, models, clientModels, clientModelCosts,
+// provenance) is device-detail material: the fleet list renders a device's
+// totals, the comparison chart renders its totals, and the device page pulls its
+// own document. Keeping the grain here cost ~90% of the remaining summary bytes
+// on a fleet with a wide client×model matrix, for data no first-paint surface
+// reads. `/api/stats` still carries it in full for the desktop and web hosts.
+function summaryDevicePeriod(period = {}) {
+  return {
+    totalTokens: period.totalTokens ?? 0,
+    costUsd: period.costUsd ?? 0,
+    ...(period.estimated === true ? { estimated: true } : {})
+  };
+}
+
+/**
+ * Project an aggregate built by [aggregateDevices] down to the first-paint shape.
+ *
+ * Not a second measurement: every value here is a reference to a value the full
+ * aggregate already computed, minus the detail collections. Callers use it on the
+ * result of an `aggregateDevices(..., { omitSessionDetail: true })` pass so the
+ * session fold never happens in the first place.
+ */
+function summarizeStats(stats = {}) {
+  const periods = {};
+  for (const periodName of PERIODS) periods[periodName] = summaryPeriod(stats.periods?.[periodName]);
+  return {
+    ...stats,
+    periods,
+    devices: (stats.devices || []).map((device) => {
+      const devicePeriods = {};
+      for (const periodName of PERIODS) devicePeriods[periodName] = summaryDevicePeriod(device.periods?.[periodName]);
+      return { ...device, periods: devicePeriods };
+    })
+  };
 }
 
 // Exact broader-period update from a fresh --today scan. Tokens written since the
@@ -1900,5 +2004,6 @@ module.exports = {
   normalizeModelNameForClient,
   normalizeDeviceRecord,
   normalizePeriod,
-  projectRollupFromSessions
+  projectRollupFromSessions,
+  summarizeStats
 };
