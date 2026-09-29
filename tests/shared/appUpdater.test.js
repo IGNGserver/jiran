@@ -254,9 +254,16 @@ ${added}
   assert.match(notes.en[0].items[0], /…$/);
 });
 
-test('release template carries the marked Chinese app summary', () => {
-  const template = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'RELEASE_TEMPLATE.md'), 'utf8');
-  const notes = extractReleaseNotes(template);
+test('the current release notes file carries the marked Chinese app summary', () => {
+  // Per-version notes are the point: one shared template block grew a section per tag and
+  // every body and latest*.yml shipped the whole history. The current version's file is the
+  // only thing the updater bytes can contain.
+  const version = require('../../package.json').version;
+  const notesFile = fs.readFileSync(
+    path.join(__dirname, '..', '..', '.github', 'release-notes', `${version}.md`),
+    'utf8'
+  );
+  const notes = extractReleaseNotes(notesFile);
   // One language, or a second section quietly keeps reporting the previous release.
   assert.deepEqual(Object.keys(notes), ['zh']);
   assert.ok(notes.zh.length > 0);
@@ -266,7 +273,7 @@ test('release template carries the marked Chinese app summary', () => {
   assert.doesNotMatch(zhItemText, /（#\d/);
   // PR trailers are optional for project releases that do not cite GitHub PRs; when present
   // they must use the Chinese trailer form so extractReleaseNotes can strip them.
-  if (/（#\d/.test(template)) assert.match(template, /（#\d+(?:、#\d+)*）/);
+  if (/（#\d/.test(notesFile)) assert.match(notesFile, /（#\d+(?:、#\d+)*）/);
 });
 test('mergeLatestReleaseMetadata preserves notes when native updater metadata omits them', () => {
   const releaseNotes = { en: [{ title: 'Fixed', items: ['An updater fix.'] }] };

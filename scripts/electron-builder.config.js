@@ -1,8 +1,12 @@
 'use strict';
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 const packageJson = require('../package.json');
 const { resolveElectronVersionOverride } = require('./electron-builder-version');
 const { prepareLinuxPackageMetadata } = require('./prepare-linux-package-metadata');
+const { releaseNotesPath } = require('./generate-release-notes');
 
 // electron-builder downloads the framework selected by this top-level option.
 // The release workflow sets the override only for the Linux artifact, so macOS
@@ -16,6 +20,16 @@ const config = {
   ...packageJson.build,
   ...(electronVersion ? { electronVersion } : {})
 };
+
+// The embedded updater notes resolve to the *current version's* file, never to a shared
+// template: reading one accumulated template is what made every latest*.yml ship the
+// whole note history. A build for a version without notes fails with the fix, not later
+// with stale bytes inside the installer.
+const notesFile = releaseNotesPath(packageJson.version);
+if (!fs.existsSync(path.join(__dirname, '..', notesFile))) {
+  throw new Error(`${notesFile} is missing: write this release's 本次更新 there before building (see .github/RELEASE_NOTES_FORMAT.md)`);
+}
+config.releaseInfo = { ...config.releaseInfo, releaseNotesFile: notesFile };
 
 const metainfoPath = prepareLinuxPackageMetadata({ version: packageJson.version });
 

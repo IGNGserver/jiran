@@ -6,10 +6,13 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
+  NOTES_PLACEHOLDER,
   RELEASE_ARTIFACTS,
   generateReleaseBody,
   hubDeploymentSection,
+  readReleaseNotes,
   releaseDownloadLines,
+  releaseNotesPath,
   renderReleaseBody
 } = require('../../scripts/generate-release-notes');
 const { extractReleaseNotes } = require('../../src/shared/appUpdater');
@@ -17,6 +20,7 @@ const { extractReleaseNotes } = require('../../src/shared/appUpdater');
 const root = path.join(__dirname, '..', '..');
 const templatePath = path.join(root, '.github', 'RELEASE_TEMPLATE.md');
 const workflowPath = path.join(root, '.github', 'workflows', 'release.yml');
+const notesDir = path.join(root, '.github', 'release-notes');
 const rootPackage = require('../../package.json');
 
 const template = [
@@ -24,10 +28,7 @@ const template = [
   '',
   '## 本次更新',
   '',
-  '<!-- app-update-notes:zh:start -->',
-  '### 修复',
-  '- 旧版本说明。',
-  '<!-- app-update-notes:zh:end -->',
+  NOTES_PLACEHOLDER,
   '',
   '## 快捷下载',
   '',
@@ -39,21 +40,42 @@ const template = [
   ''
 ].join('\n');
 
+const notes = [
+  '<!-- app-update-notes:zh:start -->',
+  '### 修复',
+  '- 本版说明。',
+  '<!-- app-update-notes:zh:end -->',
+  ''
+].join('\n');
+
+function render(overrides = {}) {
+  return renderReleaseBody(template, { version: '0.47.0', notes, ...overrides });
+}
+
 test('release body renders one Chinese section with version injected everywhere', () => {
-  const body = renderReleaseBody(template, { version: '0.47.0', releaseType: 'prerelease' });
+  const body = render();
 
   assert.match(body, /^# Token Monitor v0\.47\.0$/m);
-  assert.doesNotMatch(body, /旧版本说明。.*### Fixed/s);
-  assert.match(body, /### 修复\n- 旧版本说明。/);
+  assert.match(body, /<!-- app-update-notes:zh:start -->\n### 修复\n- 本版说明。\n<!-- app-update-notes:zh:end -->/);
   assert.match(body, /Token-Monitor-0\.47\.0\.deb/);
   assert.match(body, /https:\/\/github\.com\/IGNGserver\/token-monitor-suite#readme/);
-  assert.doesNotMatch(body, /\{\{/);
+  assert.doesNotMatch(body, /\{\{|\}\}/);
 });
 
 test('release body is Chinese-only for the app updater', () => {
-  const notes = extractReleaseNotes(renderReleaseBody(template, { version: '0.47.0' }));
-  assert.deepEqual(Object.keys(notes), ['zh']);
-  assert.deepEqual(notes.zh.map((group) => group.title), ['修复']);
+  const parsed = extractReleaseNotes(render());
+  assert.deepEqual(Object.keys(parsed), ['zh']);
+  assert.deepEqual(parsed.zh.map((group) => group.title), ['修复']);
+});
+
+test('a release renders only its own notes, never an accumulated history', () => {
+  // The regression this guards: every prep commit appended its section to one shared
+  // template block, so each release body repeated every previous release.
+  const olderNotes = notes.replace('本版说明。', '上一版的说明。');
+  const body = render();
+  assert.ok(!body.includes('上一版的说明。'));
+  const olderBody = render({ notes: olderNotes });
+  assert.ok(!olderBody.includes('本版说明。'));
 });
 
 test('download list is built from the artifact table and covers every published platform', () => {
@@ -81,42 +103,82 @@ test('hub section follows the release channel', () => {
 });
 
 test('renderer refuses a release body it cannot describe', () => {
-  const empty = template.replace('- 旧版本说明。', '');
-  assert.throws(() => renderReleaseBody(empty, { version: '1.0.0' }), /本次更新 block is empty/);
-  assert.throws(() => renderReleaseBody(template, { version: ' ' }), /requires a version/);
-  assert.throws(() => renderReleaseBody(template.replace('{{tag}}', '{{unknown}}'), { version: '1.0.0' }), /unknown release template placeholder/);
+  assert.throws(() => render({ notes: '<!-- app-update-notes:zh:start -->\n### 修复\n<!-- app-update-notes:zh:end -->\n' }), /本次更新 block .*is empty/);
+  assert.throws(() => render({ notes: '' }), /write 本次更新/);
+  assert.throws(() => render({ version: ' ' }), /requires a version/);
+  assert.throws(() => renderReleaseBody(template.replace('{{tag}}', '{{unknown}}'), { version: '1.0.0', notes }), /unknown release template placeholder/);
+  assert.throws(() => render({ notes: notes.replace('本版说明。', '版本 {{unknown}} 说明。') }), /unknown release template placeholder/);
   assert.throws(
-    () => renderReleaseBody(template.replace('<!-- release-downloads -->', ''), { version: '1.0.0' }),
+    () => render({ notes: notes.replace('<!-- app-update-notes:zh:start -->', '') }),
+    /exactly one Chinese release-note start marker/
+  );
+  assert.throws(
+    () => renderReleaseBody(template.replace('<!-- release-downloads -->', ''), { version: '1.0.0', notes }),
     /exactly one download list marker/
   );
   assert.throws(
-    () => renderReleaseBody(`${template}\n<!-- release-hub-image -->`, { version: '1.0.0' }),
+    () => renderReleaseBody(`${template}\n<!-- release-hub-image -->`, { version: '1.0.0', notes }),
     /exactly one Hub deployment marker/
   );
 });
 
+test('the template must not hand-write notes again', () => {
+  assert.throws(
+    () => renderReleaseBody(template.replace(NOTES_PLACEHOLDER, '<!-- app-update-notes:zh:start -->\n### 修复\n- 手写。\n<!-- app-update-notes:zh:end -->'), { version: '1.0.0', notes }),
+    /must not contain <!-- app-update-notes:zh:start/
+  );
+  assert.throws(
+    () => renderReleaseBody(template.replace(NOTES_PLACEHOLDER, '（空占位）'), { version: '1.0.0', notes }),
+    /missing the \{\{release_notes\}\} placeholder/
+  );
+});
+
 test('prose-only release notes are accepted', () => {
-  const prose = template.replace('### 修复\n- 旧版本说明。', '这一版只把深色主题换成纯黑底色，其余没有改动。');
-  const body = renderReleaseBody(prose, { version: '1.0.0' });
+  const prose = notes.replace('### 修复\n- 本版说明。', '这一版只把深色主题换成纯黑底色，其余没有改动。');
+  const body = render({ notes: prose });
   assert.match(body, /这一版只把深色主题换成纯黑底色/);
   // The app updater only parses `###` groups, so prose simply yields no in-app notes.
   assert.deepEqual(extractReleaseNotes(body), {});
 });
 
-test('the committed template renders for the current project version', () => {
-  const body = renderReleaseBody(fs.readFileSync(templatePath, 'utf8'), {
+test('notes resolve by version, including the v prefix on a tag', () => {
+  assert.equal(releaseNotesPath('v0.47.0-rev.35'), '.github/release-notes/0.47.0-rev.35.md');
+  assert.equal(releaseNotesPath('0.47.0'), '.github/release-notes/0.47.0.md');
+  assert.throws(() => releaseNotesPath('  '), /requires a version/);
+});
+
+test('the committed template and current-version notes render the real release body', () => {
+  const committedTemplate = fs.readFileSync(templatePath, 'utf8');
+  assert.ok(committedTemplate.includes(NOTES_PLACEHOLDER));
+  assert.ok(!committedTemplate.includes('<!-- app-update-notes:'));
+  const body = renderReleaseBody(committedTemplate, {
     version: rootPackage.version,
+    notes: readReleaseNotes(rootPackage.version, { cwd: root }),
     repositoryOwner: 'IGNGserver',
     releaseType: 'prerelease'
   });
 
-  const notes = extractReleaseNotes(body);
-  assert.deepEqual(Object.keys(notes), ['zh']);
-  assert.ok(notes.zh.length > 0);
-  assert.ok(notes.zh.every((group) => group.items.length > 0));
+  const parsed = extractReleaseNotes(body);
+  assert.deepEqual(Object.keys(parsed), ['zh']);
+  assert.ok(parsed.zh.length > 0);
+  assert.ok(parsed.zh.every((group) => group.items.length > 0));
   assert.equal((body.match(/^## /gm) || []).length >= 2, true);
   for (const stale of ['<!-- app-update-notes:en:start -->', 'Full Changelog', '繁體中文', '한국어', '日本語', "## What's changed"]) {
     assert.ok(!body.includes(stale), `release body must not carry ${stale}`);
+  }
+});
+
+test('every archived notes file is a valid single-version block', () => {
+  const files = fs.readdirSync(notesDir).filter((name) => name.endsWith('.md'));
+  assert.ok(files.includes(`${rootPackage.version}.md`), 'the current project version must have its own notes file');
+  for (const name of files) {
+    const content = fs.readFileSync(path.join(notesDir, name), 'utf8');
+    const parsed = extractReleaseNotes(content);
+    assert.deepEqual(Object.keys(parsed), ['zh'], `${name} must carry exactly the zh marked block`);
+    assert.ok(parsed.zh.length > 0, `${name} has no release-note groups`);
+    assert.ok(parsed.zh.every((group) => group.items.length > 0), `${name} has an empty release-note group`);
+    assert.ok(!content.includes('{{'), `${name} must not carry template placeholders`);
+    assert.ok(!content.includes('# Token Monitor'), `${name} holds only the 本次更新 block, not a whole body`);
   }
 });
 
@@ -163,4 +225,9 @@ test('generateReleaseBody writes the rendered body to disk', (t) => {
   const onDisk = fs.readFileSync(result.outputPath, 'utf8');
   assert.equal(onDisk.trimEnd(), result.body.trimEnd());
   assert.ok(onDisk.endsWith('\n'));
+
+  assert.throws(
+    () => generateReleaseBody({ version: '9.9.9', templatePath, cwd: root, outputPath: path.join(dir, 'missing.md') }),
+    /\.github\/release-notes\/9\.9\.9\.md is missing/
+  );
 });

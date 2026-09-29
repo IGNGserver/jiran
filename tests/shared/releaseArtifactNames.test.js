@@ -16,7 +16,7 @@ const {
 const { mergeMacUpdaterMetadata } = require('../../scripts/merge-mac-updater-metadata');
 const { resolveElectronVersionOverride } = require('../../scripts/electron-builder-version');
 const { extractReleaseNotes } = require('../../src/shared/appUpdater');
-const { RELEASE_ARTIFACTS, renderReleaseBody } = require('../../scripts/generate-release-notes');
+const { RELEASE_ARTIFACTS, readReleaseNotes, renderReleaseBody, releaseNotesPath } = require('../../scripts/generate-release-notes');
 const { MAC_APP_MIN_DARWIN_VERSION } = require('../../src/shared/macSystemRequirements');
 
 function macUpdaterMetadata(version, arch) {
@@ -57,19 +57,25 @@ test('release artifact templates use GitHub-safe names', () => {
   for (const pattern of patterns) assert.doesNotMatch(pattern, /\s/);
 });
 
-test('updater metadata embeds the Chinese release-note section', () => {
-  assert.equal(rootPackage.build.releaseInfo?.releaseNotesFile, '.github/RELEASE_TEMPLATE.md');
-  const releaseTemplate = fs.readFileSync(
-    path.join(__dirname, '..', '..', rootPackage.build.releaseInfo.releaseNotesFile),
-    'utf8'
-  );
-  const notes = extractReleaseNotes(releaseTemplate);
+test('updater metadata embeds the current version Chinese release-note section', () => {
+  // One file per version is what keeps `latest*.yml` from shipping an accumulated
+  // 本次更新 block; package.json must not pin a shared notes template again.
+  assert.equal(rootPackage.build.releaseInfo, undefined, 'package.json must not hard-code a shared releaseNotesFile');
+  const projectRoot = path.join(__dirname, '..', '..');
+  const configNotesFile = execFileSync(
+    process.execPath,
+    ['-e', "process.stdout.write(require('./scripts/electron-builder.config.js').releaseInfo.releaseNotesFile)"],
+    { cwd: projectRoot }
+  ).toString();
+  assert.equal(configNotesFile, releaseNotesPath(rootPackage.version));
+  const notesFile = fs.readFileSync(path.join(projectRoot, configNotesFile), 'utf8');
+  const notes = extractReleaseNotes(notesFile);
   // The release body is Chinese-only by project decision; `.github/RELEASE_NOTES_FORMAT.md`
   // is the shape, and a second language here would silently become a stale one.
   assert.deepEqual(Object.keys(notes), ['zh']);
   assert.ok(notes.zh.length > 0, 'zh has no release-note groups');
   assert.ok(notes.zh.every((group) => group.items.length > 0), 'zh has an empty release-note group');
-  assert.doesNotMatch(releaseTemplate, /releases\/download\//, 'download links are rendered from RELEASE_ARTIFACTS; the template must not hand-write them');
+  assert.doesNotMatch(notesFile, /releases\/download\//, 'download links are rendered from RELEASE_ARTIFACTS; the notes must not hand-write them');
 });
 
 test('download list names match the artifacts the build actually produces', () => {
@@ -110,7 +116,10 @@ test('mac release scripts build native Apple Silicon and Intel artifacts', () =>
   assert.doesNotMatch(workflow, /latest-mac-(?:arm64|x64)\.yml/);
 
   const releaseTemplate = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'RELEASE_TEMPLATE.md'), 'utf8');
-  const body = renderReleaseBody(releaseTemplate, { version: rootPackage.version });
+  const body = renderReleaseBody(releaseTemplate, {
+    version: rootPackage.version,
+    notes: readReleaseNotes(rootPackage.version, { cwd: path.join(__dirname, '..', '..') })
+  });
   const intelBullets = body.split('\n').filter((line) => line.startsWith('- **macOS Intel**'));
   const intelDmg = `Token-Monitor-${rootPackage.version}-x64.dmg`;
   assert.equal(intelBullets.length, 1);

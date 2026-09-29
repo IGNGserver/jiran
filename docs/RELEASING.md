@@ -25,7 +25,7 @@ Android 正式包必须使用长期保存的签名密钥。不要把 keystore �
 
 ## 发布新版本
 
-1. 把本次更新写进 `.github/RELEASE_TEMPLATE.md` 里 `<!-- app-update-notes:zh:start -->` 与 `<!-- app-update-notes:zh:end -->` 之间。发布正文只有中文；快捷下载列表、版本号与 Hub 镜像段都由 `scripts/generate-release-notes.js` 注入，不要手写 `releases/download/` 链接。结构约定见 `.github/RELEASE_NOTES_FORMAT.md`。
+1. 新建 `.github/release-notes/<版本号>.md`（文件名是无 `v` 前缀的项目版本号，例如 `0.47.0-rev.36.md`），把本次更新写进文件里的 `<!-- app-update-notes:zh:start -->` 与 `<!-- app-update-notes:zh:end -->` 之间。一个版本一个文件：模板 `.github/RELEASE_TEMPLATE.md` 只留 `{{release_notes}}` 占位符，发布时渲染脚本按 tag 的版本读取对应文件，旧版本的说明不会再累积进新 Release。发布正文只有中文；快捷下载列表、版本号与 Hub 镜像段都由 `scripts/generate-release-notes.js` 注入，不要手写 `releases/download/` 链接。结构约定见 `.github/RELEASE_NOTES_FORMAT.md`。
 
 2. 在根项目和锁文件中同步版本号，例如 `0.47.0`，然后运行：
 
