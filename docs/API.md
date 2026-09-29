@@ -78,6 +78,11 @@ Requires the owner key and returns the server feature set plus `authenticated: t
 }
 ```
 
+Staged reads are advertised as `statsSummary`, `deviceDetail`, and `sessionList`
+(see `GET /api/stats/summary`). They are additive: a Hub that omits them has only
+`/api/stats`, so a client must treat absence as "not available" and fall back
+rather than call an endpoint that may not exist.
+
 ## `POST /api/ingest`
 
 Posts one device usage summary.
@@ -274,19 +279,87 @@ Response includes:
 
 The top-level `limits` object is the Hub-owned account snapshot. Public
 stats omit account identifiers. The Hub does not merge device-reported quota
-rows because the device protocol does not accept them as authoritative.
+rows because the device protocol does not accept those as authoritative.
+
+Every JSON response is compact (no pretty-printing) and is compressed
+(`br`, else `gzip`) when the client sends a matching `Accept-Encoding`. The
+response carries `Vary: accept-encoding`; a client that sends none receives the
+raw body with a `Content-Length`.
+
+## `GET /api/stats/summary`
+
+Requires the owner key. The first-paint projection of `GET /api/stats`: the same
+aggregate and device list, minus the two detail collections a dashboard does not
+draw. Every headline number is a reference to the value `/api/stats` already
+computed, not a second measurement.
+
+Dropped relative to `/api/stats`:
+
+- `periods.*.sessions`, `devices[].periods.*.sessions` — the session archive
+- `devices[].periods.*.projects` — the per-device project rollup
+- `devices[].periods.*.clientModels` / `clientModelCosts` — the per-device client×model grain
+- `devices[].periods.*.clients` / `clientCosts` / `models` — the per-device breakdown maps
+- `devices[].periods.*.clientEstimated` / `clientCredits` / `clientMeasurements` — per-device provenance
+
+Device periods reduce to `totalTokens`, `costUsd`, and an `estimated` flag: the
+device list and the comparison chart render a device's totals, and every
+breakdown below that is device-detail material served by `GET /api/devices/:id`.
+
+Retained: top-level `periods.*` headline totals and the full client/model/
+provenance maps (`clients`, `clientCosts`, `models`, `modelCosts`,
+`clientModels`, `clientModelCosts`, `clientEstimated`, `clientCredits`,
+`clientMeasurements`, `projects`), every device identity and staleness field,
+`limits`, `limitsAuthority`, `historyPreview`, `deviceCount`, and the
+`historyRevision` / `deviceHistoryRevision` invalidation tokens.
+
+This is the difference between a first paint measured in tens of kilobytes and
+one measured in megabytes on a fleet whose devices retain hundreds of sessions
+each. Clients should prefer it when `capabilities.statsSummary` is advertised and
+fall back to `/api/stats` otherwise. The dropped detail is reachable through
+`GET /api/devices/:id` and `GET /api/sessions`.
+
+## `GET /api/devices/:id`
+
+Requires the owner key. One device's full record, including the session archive
+and client×model grain `/api/stats/summary` omits, so a device detail view does
+not have to download every other device to render one. Returns
+`{ "device": { ... } }` with the same device shape as `stats.devices[]`; an
+unknown id returns `404 {"error":"device_not_found"}`. Advertised as
+`capabilities.deviceDetail`.
+
+## `GET /api/sessions`
+
+Requires the owner key. The aggregate session list on its own, so
+`/api/stats` no longer has to carry it for a screen the user may never open.
+Returns `{ total, shown, sessions }`:
+
+- `total` is the number of session rows the Hub holds for the requested periods
+- `shown` is the number returned after the display cap (200 rows, newest first
+  by `lastUsedAt`); `total > shown` means the list is capped, not complete
+- `sessions[]` is the session shape from `periods.*.sessions`, plus a `period`
+  field naming where the row came from (`today` / `month` / `allTime`)
+
+The optional `period` query parameter restricts the list to one of those three.
+Advertised as `capabilities.sessionList`.
 
 ## `GET /api/stats/stream`
 
-Requires the owner key. Server-Sent Events: the Hub pushes a full aggregate after
+Requires the owner key. Server-Sent Events: the Hub pushes an aggregate after
 every change, so a client never polls to stay live.
 
-- The first frame is `event: snapshot`, carrying the same `stats` payload as
-  `GET /api/stats`.
-- Later frames are `event: stats` with
+- The first frame is `event: snapshot`, and later frames are `event: stats` with
   `{ type: "stats", reason, stats, at }`. `reason` is one of `ingest`,
   `account-update`, `subscriptions`, `delete`, `rename`, `transfer`, or the
   generic `update`.
+- **`?detail=slim` opts into the `/api/stats/summary` projection instead of the
+  full `/api/stats` payload.** A frame is re-sent on every ingest broadcast, so
+  the full snapshot makes each device's tick cost every subscriber megabytes. The
+  slim frame keeps the headline numbers and the `historyRevision` /
+  `deviceHistoryRevision` tokens, which is how a client detects that the documents
+  the frame omits have moved and re-fetches them (`GET /api/devices/:id`,
+  `GET /api/sessions`, `GET /api/history`).
+  Without the parameter the stream is unchanged and carries the full document,
+  which is what the shared web/desktop renderer reads directly.
 - A `: hb` comment line is written on a fixed 30-second cadence purely to keep
   the connection alive; it never queries MySQL.
 - Streams are bounded. At capacity the Hub answers `503` with
@@ -309,6 +382,13 @@ that report the optional `history` field contribute — collection is controlled
 the same response shape; an unknown ID returns an empty history document. This
 supports the Trends page's device scope without presenting Hub-wide history as
 device-specific data.
+
+The response carries an `ETag` derived from the document's own revision (it is
+built entirely from stored records, so the token is a complete identity). A
+repeat read with a matching `If-None-Match` is answered `304 Not Modified` with
+no body. This is what makes "re-ask for history when the stream's
+`historyRevision` moves" cheap for a client that has already fetched it: it
+costs a request, not a download.
 
 ## `GET /api/subscriptions` / `PUT /api/subscriptions`
 
