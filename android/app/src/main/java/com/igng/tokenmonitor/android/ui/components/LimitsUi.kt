@@ -88,14 +88,23 @@ fun providerDisplayName(id: String): String =
  *
  * A `Set<String>` is not one of the types the default saver can bundle, so the
  * screen's "which rows are open" state would be lost on rotation without this.
- * The value round-trips as a plain list; `rememberSaveable` reconstructs the
- * `MutableState` it was declared with.
+ * The value round-trips as a plain list.
+ *
+ * Deliberately a *local* value built inside the composable rather than a
+ * top-level `val`: a top-level Compose-typed property would run in this file's
+ * class initializer, and the JVM unit tests (which cannot load
+ * `androidx.compose.*` — see `docs/design/android-fluent2-contract.md`) reach
+ * `limitRowIdentity` in this same file. A local keeps the file's `<clinit>`
+ * Compose-free.
  */
-private val LimitExpandedKeysSaver = androidx.compose.runtime.saveable.Saver<Set<String>, List<String>>(
-  save = { it.toList() },
-  restore = { it.toSet() }
-)
-
+@Composable
+private fun rememberExpandedKeysSaver(): androidx.compose.runtime.saveable.Saver<Set<String>, Any> =
+  remember {
+    androidx.compose.runtime.saveable.listSaver<Set<String>, String>(
+      save = { it.toList() },
+      restore = { it.toSet() }
+    )
+  }
 fun windowKindLabel(kind: String): String = when (kind.lowercase(Locale.US)) {
   "session" -> "会话"
   "weekly" -> "每周"
@@ -253,7 +262,7 @@ fun LimitsSection(
   val identityContent = providerKeys.joinToString("\u0000")
   // What the user has opened, kept across refresh frames *and* rotation: it is a
   // per-visit UI state, so it is saveable rather than merely remembered.
-  var expandedKeys by rememberSaveable(stateSaver = LimitExpandedKeysSaver) {
+  var expandedKeys by rememberSaveable(stateSaver = rememberExpandedKeysSaver()) {
     mutableStateOf(
       if (providerKeys.size == 1) setOf(providerKeys.first()) else emptySet<String>()
     )
