@@ -10,6 +10,7 @@ import com.igng.tokenmonitor.android.data.model.RatesResponseDto
 import com.igng.tokenmonitor.android.data.model.SubscriptionsRequestDto
 import com.igng.tokenmonitor.android.data.model.SubscriptionsResponseDto
 import com.igng.tokenmonitor.android.data.model.BatchPricingResponseDto
+import com.igng.tokenmonitor.android.data.model.DeviceResponseDto
 import com.igng.tokenmonitor.android.data.model.DevicesResponseDto
 import com.igng.tokenmonitor.android.data.model.HealthDto
 import com.igng.tokenmonitor.android.data.model.HubAuthorizationDto
@@ -17,6 +18,7 @@ import com.igng.tokenmonitor.android.data.model.HistoryDto
 import com.igng.tokenmonitor.android.data.model.PricingListDto
 import com.igng.tokenmonitor.android.data.model.PricingRequestDto
 import com.igng.tokenmonitor.android.data.model.PricingResponseDto
+import com.igng.tokenmonitor.android.data.model.SessionsResponseDto
 import com.igng.tokenmonitor.android.data.model.SseStatsDto
 import com.igng.tokenmonitor.android.data.model.StatsDto
 import com.igng.tokenmonitor.android.data.model.UsageRangeDto
@@ -41,6 +43,12 @@ sealed interface HubResult<out T> {
   data class Success<T>(val value: T) : HubResult<T>
   data class Failure(val error: HubError) : HubResult<Nothing>
 }
+
+/**
+ * A conditional read's outcome: [document] is null when the server answered
+ * `304 Not Modified`, and [etag] is the validator to send on the next read.
+ */
+data class HistoryFetch(val document: HistoryDto?, val etag: String?)
 
 data class HubError(val message: String, val kind: Kind) {
   enum class Kind { NotConfigured, Unauthorized, Network, MalformedResponse, Api }
@@ -73,8 +81,58 @@ class HubRepository @Inject constructor(
   }
   suspend fun capabilities(): HubResult<HubAuthorizationDto> = withConnection { apiFactory.create(it).capabilities() }
   suspend fun stats(): HubResult<StatsDto> = withConnection { apiFactory.create(it).stats() }
+  /**
+   * [staged] asks for the first-paint summary instead of the full fleet snapshot.
+   * The caller decides from the Hub's advertised capability, so an older Hub is
+   * served by the unchanged `/api/stats`.
+   */
+  suspend fun stats(staged: Boolean): HubResult<StatsDto> =
+    withConnection { apiFactory.create(it).let { api -> if (staged) api.statsSummary() else api.stats() } }
+  suspend fun device(deviceId: String): HubResult<DeviceResponseDto> =
+    withConnection { apiFactory.create(it).device(deviceId) }
+  suspend fun sessions(period: String? = null): HubResult<SessionsResponseDto> =
+    withConnection { apiFactory.create(it).sessions(period) }
   suspend fun history(deviceId: String? = null): HubResult<HistoryDto> =
     withConnection { apiFactory.create(it).history(deviceId) }
+
+  /**
+   * Conditional history read.
+   *
+   * [HistoryFetch.document] is null when the Hub answered `304 Not Modified`, which
+   * means the caller's cached document is still current and no body crossed the
+   * wire. The ETag is returned so the caller can reuse it on the next read. Kept as
+   * its own method because a 304 is a success to the caller but not a 2xx, so it
+   * never goes through [safeCall]'s HttpException path.
+   */
+  suspend fun historyIfChanged(deviceId: String? = null, etag: String?): HubResult<HistoryFetch> {
+    val config = try {
+      withContext(Dispatchers.IO) { connection() }
+    } catch (error: CancellationException) {
+      throw error
+    } catch (_: Exception) {
+      return HubResult.Failure(HubError("无法读取本机连接设置，请重新保存连接信息。", HubError.Kind.Api))
+    }
+    if (!config.isComplete) {
+      return HubResult.Failure(HubError("请先在设置中保存 Hub 地址和共享密钥。", HubError.Kind.NotConfigured))
+    }
+    return try {
+      val response = apiFactory.create(config).historyConditional(deviceId, etag)
+      HubResult.Success(HistoryFetch(
+        document = if (response.code() == 304) null else response.body(),
+        etag = response.headers()["etag"]
+      ))
+    } catch (error: HttpException) {
+      val message = when (error.code()) {
+        401 -> "未授权：请检查共享密钥。"
+        else -> "Hub 返回 HTTP ${error.code()}。"
+      }
+      HubResult.Failure(HubError(message, if (error.code() == 401) HubError.Kind.Unauthorized else HubError.Kind.Api))
+    } catch (_: SerializationException) {
+      HubResult.Failure(HubError("Hub 返回的数据格式无法解析，请确认客户端与 Hub 版本兼容。", HubError.Kind.MalformedResponse))
+    } catch (error: IOException) {
+      HubResult.Failure(HubError("无法连接 Hub：${error.message ?: "网络不可用"}", HubError.Kind.Network))
+    }
+  }
   suspend fun devices(): HubResult<DevicesResponseDto> = withConnection { apiFactory.create(it).devices() }
   suspend fun usageRange(
     startDate: String,

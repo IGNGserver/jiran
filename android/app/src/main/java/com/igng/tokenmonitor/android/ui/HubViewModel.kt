@@ -15,6 +15,7 @@ import com.igng.tokenmonitor.android.data.model.HubAuthorizationDto
 import com.igng.tokenmonitor.android.data.model.PeriodDto
 import com.igng.tokenmonitor.android.data.model.PricingDto
 import com.igng.tokenmonitor.android.data.model.PricingRequestDto
+import com.igng.tokenmonitor.android.data.model.SessionRowDto
 import com.igng.tokenmonitor.android.data.model.StatsDto
 import com.igng.tokenmonitor.android.data.model.UsageRangeDto
 import com.igng.tokenmonitor.android.data.repository.HubRepository
@@ -111,7 +112,25 @@ data class HubUiState(
   val deviceHistories: Map<String, HistoryDto> = emptyMap(),
   /** Set when /api/history failed: trends and model splits fall back to the
    *  narrower historyPreview until it succeeds, so the UI can offer a retry. */
-  val historyError: String? = null
+  val historyError: String? = null,
+  /**
+   * Per-device full periods from `/api/devices/{id}`, keyed by device id.
+   *
+   * The first-paint summary deliberately drops each device's session archive and
+   * client×model grain, so the fleet snapshot in [devices] cannot answer a device
+   * detail page. Pulling one device's detail on demand is the whole point of the
+   * split; the detail page merges this over its snapshot entry.
+   */
+  val deviceDetails: Map<String, DeviceDto> = emptyMap(),
+  /** Set when a device detail request failed, so the page can offer a retry. */
+  val deviceDetailError: String? = null,
+  val deviceDetailLoading: Boolean = false,
+  /** Aggregate session list from `/api/sessions`, independent of the snapshot. */
+  val sessions: List<SessionRowDto> = emptyList(),
+  val sessionsTotal: Int = 0,
+  val sessionsShown: Int = 0,
+  val sessionsLoading: Boolean = false,
+  val sessionsError: String? = null
 )
 
 @HiltViewModel
@@ -134,6 +153,12 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
   private var rangeRetryAfterMs = 0L
   private val requestJobs = mutableSetOf<Job>()
   private var connectionGeneration = 0L
+  /** Validator for the fleet history document, so a repeat read can be a 304. */
+  private var historyEtag: String? = null
+  /** Last `historyRevision` seen on the stream; a change is the only reason to re-ask. */
+  private var historyRevisionSeen: String? = null
+  /** Whether a history document has been fetched at least once this session. */
+  private var hasObservedHistory = false
 
   private fun isCurrent(generation: Long) = generation == connectionGeneration
 
@@ -176,14 +201,23 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
     if (refreshJob?.isActive == true) return
     val generation = connectionGeneration
     _state.value = _state.value.copy(isLoading = _state.value.stats == null, isRefreshing = true)
-    val jobs = mutableListOf(refreshStats(), refreshHistory(), refreshRates())
-    // /api/stats already carries the same device list. An extra /api/devices call
-    // duplicates Hub aggregation and competes with the first useful response.
+    // First paint is the snapshot alone. `/api/stats` (full) and
+    // `/api/stats/summary` (staged) both carry every headline number the
+    // dashboard draws, so the history and rates fetches are no longer raced
+    // against it: the trend tab re-asks for history when it opens, and the
+    // currency block tolerates a beat of latency. Racing them used to mean the
+    // slowest of three requests decided when the spinner stopped.
+    val jobs = mutableListOf(refreshStats())
     if (_state.value.authorization?.capabilities?.pricing == true) jobs += refreshPricing()
     if (_state.value.authorization?.capabilities?.hubAccounts != false && _state.value.authorization != null) jobs += refreshAccounts()
     refreshJob = viewModelScope.launch {
       jobs.forEach { it.join() }
       if (isCurrent(generation)) _state.value = _state.value.copy(isRefreshing = false)
+    }
+    // Secondary documents load behind the first paint rather than in front of it.
+    launchRequest { generation ->
+      refreshRates().join()
+      if (isCurrent(generation) && _state.value.stats != null) refreshHistory()
     }
     val current = _state.value
     if (current.analyticsPeriod == AnalyticsPeriodKind.Custom && current.customRange != null) {
@@ -197,9 +231,18 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
   }
 
   fun refreshHistory() = launchRequest { generation ->
-    when (val result = repository.history()) {
+    if (!isCurrent(generation)) return@launchRequest
+    // Conditional: the Hub answers 304 when the document has not moved, so the
+    // repeated "re-ask for history" a stream frame triggers costs headers, not a
+    // body. A Hub without the revision-based validator simply answers 200.
+    when (val result = repository.historyIfChanged(etag = historyEtag)) {
       is HubResult.Success -> if (isCurrent(generation)) {
-        _state.value = _state.value.copy(history = result.value, historyError = null)
+        result.value.etag?.let { historyEtag = it }
+        val document = result.value.document
+        if (document != null) {
+          hasObservedHistory = true
+          _state.value = _state.value.copy(history = document, historyError = null)
+        }
       }
       is HubResult.Failure -> if (isCurrent(generation)) {
         // Not fatal to the dashboard, but the fallback (historyPreview) carries no
@@ -219,7 +262,8 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
     // list it was replacing was still on screen.
     val coldStart = _state.value.stats == null
     _state.value = _state.value.copy(isLoading = coldStart, error = null)
-    when (val result = repository.stats()) {
+    val staged = _state.value.authorization?.capabilities?.statsSummary == true
+    when (val result = repository.stats(staged)) {
       is HubResult.Success -> if (isCurrent(generation)) {
         if (frameVersion == statsFrameVersion) {
           _state.value = _state.value.copy(
@@ -236,6 +280,51 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
           isLoading = false,
           error = if (frameVersion == statsFrameVersion) result.error.message else _state.value.error
         )
+      }
+    }
+  }
+
+  /**
+   * Pull one device's full periods (session archive + client×model grain).
+   *
+   * The first-paint summary omits them on purpose, so this is what a device detail
+   * page calls on open. It is a separate cache keyed by id rather than an overwrite
+   * of the fleet list: the summary's entry stays authoritative for staleness.
+   */
+  fun refreshDeviceDetail(deviceId: String) = launchRequest { generation ->
+    if (deviceId.isBlank()) return@launchRequest
+    if (_state.value.authorization?.capabilities?.deviceDetail != true) return@launchRequest
+    _state.value = _state.value.copy(deviceDetailLoading = true, deviceDetailError = null)
+    when (val result = repository.device(deviceId)) {
+      is HubResult.Success -> if (isCurrent(generation)) {
+        val device = result.value.device
+        _state.value = _state.value.copy(
+          deviceDetails = if (device != null) _state.value.deviceDetails + (deviceId to device) else _state.value.deviceDetails,
+          deviceDetailLoading = false,
+          deviceDetailError = if (device == null) "设备已从当前 Hub 快照中移除。" else null
+        )
+      }
+      is HubResult.Failure -> if (isCurrent(generation)) {
+        _state.value = _state.value.copy(deviceDetailLoading = false, deviceDetailError = result.error.message)
+      }
+    }
+  }
+
+  /** Load the aggregate session list from `/api/sessions`, independent of the snapshot. */
+  fun refreshSessions(period: String? = null) = launchRequest { generation ->
+    if (_state.value.authorization?.capabilities?.sessionList != true) return@launchRequest
+    _state.value = _state.value.copy(sessionsLoading = true, sessionsError = null)
+    when (val result = repository.sessions(period)) {
+      is HubResult.Success -> if (isCurrent(generation)) {
+        _state.value = _state.value.copy(
+          sessions = result.value.sessions,
+          sessionsTotal = result.value.total,
+          sessionsShown = result.value.shown,
+          sessionsLoading = false
+        )
+      }
+      is HubResult.Failure -> if (isCurrent(generation)) {
+        _state.value = _state.value.copy(sessionsLoading = false, sessionsError = result.error.message)
       }
     }
   }
@@ -555,6 +644,14 @@ class HubViewModel @Inject constructor(private val repository: HubRepository) : 
               // re-resolved here.  The predicate is a date comparison unless the window
               // actually moved, so this never turns into a request per frame.
               refreshPendingRangeWindow()
+              // The slim frame omits history; its `historyRevision` is the signal
+              // that the document behind it moved. Re-ask only then — and that ask
+              // is conditional, so an unchanged document costs a 304.
+              val revision = stats.historyRevision
+              if (revision != null && revision != historyRevisionSeen) {
+                historyRevisionSeen = revision
+                if (hasObservedHistory) refreshHistory()
+              }
             }
             }
             backoffMs = 1_000L

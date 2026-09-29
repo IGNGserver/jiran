@@ -344,7 +344,18 @@ private fun AppNavHost(
       MoreHubScreen(navController, hubState)
     }
     composable("sessions") {
-      SessionsScreen(hubState.stats, navController, onHome = navigateHome)
+      SessionsScreen(
+        stats = hubState.stats,
+        navController = navController,
+        onHome = navigateHome,
+        stagedSessions = hubState.sessions,
+        stagedTotal = hubState.sessionsTotal,
+        stagedLoading = hubState.sessionsLoading,
+        stagedError = hubState.sessionsError,
+        stagedSupported = hubState.authorization?.capabilities?.sessionList == true,
+        onEnsureSessions = { hubViewModel.refreshSessions() },
+        onRetrySessions = { hubViewModel.refreshSessions() }
+      )
     }
     composable("status") {
       StatusScreen(
@@ -416,14 +427,26 @@ private fun AppNavHost(
         onBack = { navController.popBackStack() },
         onHome = navigateHome,
         hubState = hubState,
-         canManage = hubState.authorization?.authenticated == true,
+        canManage = hubState.authorization?.authenticated == true,
         onRenameDevice = hubViewModel::renameDevice,
-        onDeleteDevice = hubViewModel::deleteDevice
+        onDeleteDevice = hubViewModel::deleteDevice,
+        detail = hubState.deviceDetails[id],
+        detailLoading = hubState.deviceDetailLoading,
+        detailError = hubState.deviceDetailError,
+        detailSupported = hubState.authorization?.capabilities?.deviceDetail == true,
+        onRetryDetail = { hubViewModel.refreshDeviceDetail(id) }
       )
       // Ask for the device's own history once, when the page opens.
       LaunchedEffect(id) {
         if (hubState.authorization?.authenticated == true) {
           hubViewModel.refreshDeviceHistory(id)
+        }
+      }
+      // And its full periods (session archive + client×model grain), which the
+      // first-paint summary omits.
+      LaunchedEffect(id) {
+        if (hubState.authorization?.capabilities?.deviceDetail == true) {
+          hubViewModel.refreshDeviceDetail(id)
         }
       }
     }

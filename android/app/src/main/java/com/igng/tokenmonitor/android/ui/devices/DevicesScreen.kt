@@ -53,6 +53,7 @@ import com.igng.tokenmonitor.android.ui.components.DevicesSkeleton
 import com.igng.tokenmonitor.android.ui.components.EmptyState
 import com.igng.tokenmonitor.android.ui.components.FluentListRow
 import com.igng.tokenmonitor.android.ui.components.FluentPageHeader
+import com.igng.tokenmonitor.android.ui.components.FluentProgressRing
 import com.igng.tokenmonitor.android.ui.components.FluentTabStrip
 import com.igng.tokenmonitor.android.ui.components.FluentTopBar
 import com.igng.tokenmonitor.android.ui.components.LimitsSection
@@ -203,31 +204,60 @@ fun DeviceDetailScreen(
   hubState: HubUiState? = null,
   canManage: Boolean = false,
   onRenameDevice: (String, String) -> Unit = { _, _ -> },
-  onDeleteDevice: (String) -> Unit = {}
+  onDeleteDevice: (String) -> Unit = {},
+  /** Full periods (session archive + client×model grain) from `/api/devices/{id}`. */
+  detail: DeviceDto? = null,
+  detailLoading: Boolean = false,
+  detailError: String? = null,
+  /** Whether the Hub serves the on-demand detail endpoint at all. */
+  detailSupported: Boolean = false,
+  onRetryDetail: () -> Unit = {}
 ) {
   val colors = LocalFluentColors.current
   var periodIndex by rememberSaveable { mutableIntStateOf(0) }
   val scrollState = rememberScrollState()
   val scrolled = rememberScrolledFlag(scrollState)
+  // The fleet summary drops each device's session archive and client×model grain,
+  // so the on-demand detail is what the period blocks below actually read. Prefer
+  // it, and fall back to the snapshot entry so staleness/identity render instantly.
+  val resolved = detail ?: device
+  val shown = resolved
 
   Column(Modifier.fillMaxSize()) {
     FluentTopBar(
-      title = device?.hostname ?: "设备详情",
+      title = resolved?.hostname ?: "设备详情",
       onBack = onBack,
       onHome = onHome,
       scrolled = scrolled,
-      subtitle = device?.let {
+      subtitle = resolved?.let {
         devicePlatformLabel(it.platform, it.osName, it.osVersion)
       }
     )
-    if (device == null) {
-      EmptyState(text = "设备已从当前 Hub 快照中移除。")
+    if (shown == null) {
+      if (detailLoading) {
+        Row(
+          Modifier.padding(FluentSpacingDefaults.l),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.s)
+        ) {
+          FluentProgressRing(size = 16.dp, strokeWidth = 2.dp)
+          Text("正在获取本设备明细…", style = FluentTypeRamp.caption1, color = colors.neutralForeground2)
+        }
+      } else if (detailError != null) {
+        Column(Modifier.padding(FluentSpacingDefaults.l)) {
+          Text(detailError, style = FluentTypeRamp.body2, color = colors.neutralForeground2)
+          Spacer(Modifier.height(FluentSpacingDefaults.s))
+          FluentButton(label = "重试", onClick = onRetryDetail, variant = FluentButtonVariant.Outline)
+        }
+      } else {
+        EmptyState(text = "设备已从当前 Hub 快照中移除。")
+      }
       return@Column
     }
     val selectedPeriod: PeriodDto = when (periodIndex) {
-      1 -> device.periods.month
-      2 -> device.periods.allTime
-      else -> device.periods.today
+      1 -> shown.periods.month
+      2 -> shown.periods.allTime
+      else -> shown.periods.today
     }
     val periodLabel = periodOptions[periodIndex]
 
@@ -240,20 +270,20 @@ fun DeviceDetailScreen(
     ) {
       // Identity block
       Row(verticalAlignment = Alignment.CenterVertically) {
-        StatusDot(active = !device.stale, size = 10.dp)
+        StatusDot(active = !shown.stale, size = 10.dp)
         Spacer(Modifier.width(FluentSpacingDefaults.m))
         Column {
           Text(
-            device.hostname ?: device.deviceId.orEmpty(),
+            shown.hostname ?: shown.deviceId.orEmpty(),
             style = FluentTypeRamp.title1,
             color = colors.neutralForeground1
           )
           Text(
             buildString {
-              append(devicePlatformLabel(device.platform, device.osName, device.osVersion))
+              append(devicePlatformLabel(shown.platform, shown.osName, shown.osVersion))
               append(" · ")
-              append(deviceConnectionLabel(device.stale, device.clientStatus))
-              agentRuntimeLabel(device.agentRuntime).takeIf { it.isNotBlank() }?.let {
+              append(deviceConnectionLabel(shown.stale, shown.clientStatus))
+              agentRuntimeLabel(shown.agentRuntime).takeIf { it.isNotBlank() }?.let {
                 append(" · ")
                 append(it)
               }
@@ -262,18 +292,18 @@ fun DeviceDetailScreen(
             color = colors.neutralForeground2
           )
           Text(
-            "上次上报 ${formatRelativeTime(device.receivedAt)}",
+            "上次上报 ${formatRelativeTime(shown.receivedAt)}",
             style = FluentTypeRamp.caption2,
             color = colors.neutralForeground3
           )
         }
       }
 
-      if (device.clientStatus.isNotEmpty()) {
+      if (shown.clientStatus.isNotEmpty()) {
         AppCard {
           SectionHeader(title = "工具状态", subtitle = "来自采集端 clientStatus")
           Spacer(Modifier.height(FluentSpacingDefaults.s))
-          device.clientStatus.entries
+          shown.clientStatus.entries
             .sortedBy { it.key }
             .forEach { (client, state) ->
               Row(
@@ -302,12 +332,12 @@ fun DeviceDetailScreen(
         }
       }
 
-      device.wslStatus?.state?.takeIf { it.isNotBlank() }?.let { state ->
+      shown.wslStatus?.state?.takeIf { it.isNotBlank() }?.let { state ->
         AppCard {
           SectionHeader(title = "WSL 状态", subtitle = wslStatusLabel(state))
           Spacer(Modifier.height(FluentSpacingDefaults.s))
-          val detected = device.wslStatus?.detected.orEmpty()
-          val withData = device.wslStatus?.withData.orEmpty()
+          val detected = shown.wslStatus?.detected.orEmpty()
+          val withData = shown.wslStatus?.withData.orEmpty()
           if (detected.isNotEmpty()) {
             Text(
               "已检测：" + detected.joinToString { ClientBranding.label(it) },
@@ -336,15 +366,41 @@ fun DeviceDetailScreen(
 
       MetricHeroCard(title = periodLabel, period = selectedPeriod)
 
+      // A summary-only snapshot has headline totals for this device but no
+      // client×model grain; say so and offer the pull rather than rendering empty
+      // breakdowns that look like "no usage".
+      if (detail == null && detailLoading) {
+        Row(
+          Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.s)
+        ) {
+          FluentProgressRing(size = 16.dp, strokeWidth = 2.dp)
+          Text("正在获取本设备明细…", style = FluentTypeRamp.caption1, color = colors.neutralForeground2)
+        }
+      } else if (detail == null && detailError != null) {
+        AppCard {
+          Text(detailError, style = FluentTypeRamp.body2, color = colors.neutralForeground2)
+          Spacer(Modifier.height(FluentSpacingDefaults.s))
+          FluentButton(label = "重试", onClick = onRetryDetail, variant = FluentButtonVariant.Outline)
+        }
+      } else if (detail == null && detailSupported) {
+        FluentButton(
+          label = "加载本设备明细",
+          onClick = onRetryDetail,
+          variant = FluentButtonVariant.Outline
+        )
+      }
+
       Row(horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.s)) {
         CompactMetricCard(
           title = "本月",
-          period = device.periods.month,
+          period = shown.periods.month,
           modifier = Modifier.weight(1f)
         )
         CompactMetricCard(
           title = "全部时间",
-          period = device.periods.allTime,
+          period = shown.periods.allTime,
           modifier = Modifier.weight(1f)
         )
       }
@@ -400,7 +456,7 @@ fun DeviceDetailScreen(
       // fleet aggregated, so this page previously had no answer to "what did *this*
       // machine do".
       hubState?.let { snapshot ->
-        val own = snapshot.deviceHistories[device.deviceId]
+        val own = snapshot.deviceHistories[shown.deviceId]
         if (own != null && own.daily.isNotEmpty()) {
           AppCard {
             SectionHeader(
@@ -417,11 +473,11 @@ fun DeviceDetailScreen(
       }
 
       DeviceAdminRow(
-        device = device,
+        device = resolved,
         canRename = canManage && hubState?.authorization?.capabilities?.deviceRename != false,
         canDelete = canManage && hubState?.authorization?.capabilities?.deviceDelete != false,
-        onRename = { name -> device.deviceId?.let { onRenameDevice(it, name) } },
-        onDelete = { device.deviceId?.let { onDeleteDevice(it) } }
+        onRename = { name -> shown.deviceId?.let { onRenameDevice(it, name) } },
+        onDelete = { shown.deviceId?.let { onDeleteDevice(it) } }
       )
 
       // No per-device limits block here, deliberately: the Hub deletes `limits` from

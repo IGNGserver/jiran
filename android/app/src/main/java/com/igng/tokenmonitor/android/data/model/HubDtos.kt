@@ -27,6 +27,17 @@ data class HubCapabilitiesDto(
   val deviceRename: Boolean = false,
   val publicStats: Boolean = false,
   /**
+   * Whether the Hub serves the staged first-paint endpoints
+   * (`/api/stats/summary`, `/api/devices/{id}`, `/api/sessions`).
+   *
+   * Absent on an older Hub, and absence must mean "not available": falling back
+   * to `/api/stats` is always correct, only slower, whereas calling a
+   * `statsSummary` that does not exist would fail the whole refresh.
+   */
+  val statsSummary: Boolean = false,
+  val deviceDetail: Boolean = false,
+  val sessionList: Boolean = false,
+  /**
    * Whether this Hub owns quota accounts (`/api/accounts`).  Defaults to true on
    * purpose: an older Hub that omits the field still has the endpoint, and hiding
    * account management on a missing key would be a regression, not a safety win.
@@ -62,6 +73,14 @@ data class StatsDto(
    */
   val limitsAuthority: String? = null,
   val historyPreview: HistoryDto? = null,
+  /**
+   * Revision of the fleet history document. The slim stream frame omits the
+   * document, so this is how a client learns the document behind it moved; an
+   * unchanged value means the cached copy is still current.
+   */
+  val historyRevision: String? = null,
+  /** Per-device attribution revision; changes when a device's history source moves. */
+  val deviceHistoryRevision: String? = null,
   val limits: LimitsDto? = null
 )
 
@@ -309,6 +328,47 @@ data class WslStatusDto(
 
 @Serializable
 data class DevicesResponseDto(val devices: List<DeviceDto> = emptyList())
+
+/** One device's full periods, from `/api/devices/{id}`. */
+@Serializable
+data class DeviceResponseDto(val device: DeviceDto? = null)
+
+/**
+ * The aggregate session list from `/api/sessions`.
+ *
+ * [total] is the number of rows the Hub holds and [shown] the number it returned
+ * after its display cap; the list is capped rather than complete, so the screen
+ * can say so instead of presenting a truncated list as the whole archive.
+ */
+@Serializable
+data class SessionsResponseDto(
+  val total: Int = 0,
+  val shown: Int = 0,
+  val sessions: List<SessionRowDto> = emptyList()
+)
+
+/** A [SessionDto] plus the period it was drawn from. */
+@Serializable
+data class SessionRowDto(
+  val period: String? = null,
+  val client: String? = null,
+  val sessionId: String? = null,
+  val projectId: String? = null,
+  val projectLabel: String? = null,
+  val totalTokens: Long = 0,
+  val costUsd: Double = 0.0,
+  val messageCount: Long = 0,
+  val inputTokens: Long = 0,
+  val outputTokens: Long = 0,
+  val cacheReadTokens: Long = 0,
+  val cacheWriteTokens: Long = 0,
+  val reasoningTokens: Long = 0,
+  val startedAt: String? = null,
+  val lastUsedAt: String? = null,
+  val models: Map<String, Long> = emptyMap(),
+  val credits: Double? = null,
+  val modelCredits: Map<String, Double> = emptyMap()
+)
 
 @Serializable
 data class PricingDto(

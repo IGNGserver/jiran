@@ -77,6 +77,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -98,6 +99,7 @@ import com.igng.tokenmonitor.android.data.model.ProjectDto
 import com.igng.tokenmonitor.android.data.model.PricingDto
 import com.igng.tokenmonitor.android.data.model.PricingRequestDto
 import com.igng.tokenmonitor.android.data.model.SessionDto
+import com.igng.tokenmonitor.android.data.model.SessionRowDto
 import com.igng.tokenmonitor.android.data.model.StatsDto
 import com.igng.tokenmonitor.android.ui.ConnectionUiState
 import com.igng.tokenmonitor.android.ui.ConnectionViewModel
@@ -288,14 +290,42 @@ private fun MoreNavRow(
 
 private const val MAX_SESSION_ROWS = 200
 @Composable
-fun SessionsScreen(stats: StatsDto?, navController: NavHostController, onHome: (() -> Unit)? = null) {
+fun SessionsScreen(
+  stats: StatsDto?,
+  navController: NavHostController,
+  onHome: (() -> Unit)? = null,
+  /**
+   * Session rows fetched from `/api/sessions`. The fleet summary no longer carries
+   * the aggregate session archive, so this is the primary source; the snapshot is
+   * only a fallback for a Hub that does not stage it.
+   */
+  stagedSessions: List<SessionRowDto> = emptyList(),
+  stagedTotal: Int = 0,
+  stagedLoading: Boolean = false,
+  stagedError: String? = null,
+  stagedSupported: Boolean = false,
+  onEnsureSessions: () -> Unit = {},
+  onRetrySessions: () -> Unit = {}
+) {
   val haptics = rememberAppHaptics()
   val listState = rememberLazyListState()
   val scrolled = rememberScrolledFlag(listState)
-  val allSessions = availableSessions(stats)
-  val totalSessions = allSessions.size
-  val sessions = allSessions.take(MAX_SESSION_ROWS)
+  // One row shape for both sources: the staged response is keyed by period, so
+  // fall back to the snapshot key when it is absent.
+  val allSessions: List<Pair<String, SessionDto>> = when {
+    stagedSupported && stagedSessions.isNotEmpty() -> stagedSessions.map { row ->
+      (row.sessionId?.takeIf { it.isNotBlank() } ?: "${row.client.orEmpty()}:${row.period.orEmpty()}") to row.toSessionDto()
+    }
+    else -> availableSessions(stats)
+  }
+  val totalSessions = if (stagedSupported && stagedSessions.isNotEmpty()) stagedTotal else allSessions.size
+  val sessions = if (stagedSupported && stagedSessions.isNotEmpty()) allSessions else allSessions.take(MAX_SESSION_ROWS)
   val sessionsTruncated = totalSessions > sessions.size
+  // The Hub's list is already capped; without re-asking there is no fuller list to
+  // show, only the stale flag. Refresh on open the first time it is empty.
+  LaunchedEffect(stagedSupported) {
+    if (stagedSupported && stagedSessions.isEmpty()) onEnsureSessions()
+  }
   val costRank = allSessions
     .sortedByDescending { it.second.costUsd }
     .take(8)
@@ -325,7 +355,22 @@ fun SessionsScreen(stats: StatsDto?, navController: NavHostController, onHome: (
       onHome = onHome,
       scrolled = scrolled
     )
-    if (sessions.isEmpty()) {
+    if (sessions.isEmpty() && stagedLoading) {
+      Row(
+        Modifier.padding(FluentSpacingDefaults.l),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(FluentSpacingDefaults.s)
+      ) {
+        FluentProgressRing(size = 16.dp, strokeWidth = 2.dp)
+        Text("正在获取会话…", style = FluentTypeRamp.caption1, color = LocalFluentColors.current.neutralForeground2)
+      }
+    } else if (sessions.isEmpty() && stagedError != null) {
+      Column(Modifier.padding(FluentSpacingDefaults.l)) {
+        Text(stagedError, style = FluentTypeRamp.body2, color = LocalFluentColors.current.neutralForeground2)
+        Spacer(Modifier.height(FluentSpacingDefaults.s))
+        FluentButton(label = "重试", onClick = onRetrySessions, variant = FluentButtonVariant.Outline)
+      }
+    } else if (sessions.isEmpty()) {
       EmptyState(title = "暂无对话", text = "Hub 当前没有可用的会话快照。")
     } else {
       LazyColumn(
@@ -1258,6 +1303,27 @@ fun availableSessions(stats: StatsDto?): List<Pair<String, SessionDto>> {
     .toList()
     .sortedByDescending { it.second.lastUsedAt.orEmpty() }
 }
+
+/** Fold the staged `/api/sessions` row onto the snapshot [SessionDto] shape. */
+internal fun SessionRowDto.toSessionDto(): SessionDto = SessionDto(
+  client = client,
+  sessionId = sessionId,
+  projectId = projectId,
+  projectLabel = projectLabel,
+  totalTokens = totalTokens,
+  costUsd = costUsd,
+  messageCount = messageCount,
+  inputTokens = inputTokens,
+  outputTokens = outputTokens,
+  cacheReadTokens = cacheReadTokens,
+  cacheWriteTokens = cacheWriteTokens,
+  reasoningTokens = reasoningTokens,
+  startedAt = startedAt,
+  lastUsedAt = lastUsedAt,
+  models = models,
+  credits = credits,
+  modelCredits = modelCredits
+)
 @Composable
 fun StatusScreen(stats: StatsDto?, onBack: () -> Unit, onHome: (() -> Unit)? = null) {
   val haptics = rememberAppHaptics()

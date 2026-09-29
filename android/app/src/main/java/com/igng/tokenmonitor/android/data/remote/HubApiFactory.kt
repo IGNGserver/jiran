@@ -62,7 +62,11 @@ class HubApiFactory private constructor(
     EventSources.createFactory(clients(config).streamClient).newEventSource(request, listener)
 
   fun statsRequest(config: ConnectionConfig): Request = Request.Builder()
-    .url("${checkedUrl(config.hubUrl, config.allowInsecureHttp)}api/stats/stream")
+    // `detail=slim` asks for the first-paint frame. Without it the Hub keeps
+    // sending the full fleet document on every ingest broadcast, which is what the
+    // shared web/desktop renderer needs but a phone does not — the phone re-fetches
+    // the omitted documents via the staged endpoints when its revisions move.
+    .url("${checkedUrl(config.hubUrl, config.allowInsecureHttp)}api/stats/stream?detail=slim")
     .header("Accept", "text/event-stream")
     .build()
 
