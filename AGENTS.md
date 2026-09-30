@@ -7,7 +7,7 @@ Validation: 以 package.json 实际存在的脚本为准（`npm test`、`npm run
 Worktree: `~/项目/.wt/token记录系统/<slug>`
 
 ## 补充
-- 本文件是 158 行的架构与约定权威文档：改动架构约定必须同步更新本文件。`CLAUDE.md` 已用 `@AGENTS.md` 引用本文件，不要再往它里面写内容。
+- 本文件是架构与约定的权威文档：改动架构约定必须同步更新本文件。`CLAUDE.md` 已用 `@AGENTS.md` 引用本文件，不要再往它里面写内容。
 - 历史里有 19 个外部作者邮箱，来自导入的上游历史，不代表有外部协作者：仍是 solo。
 - 本机 8G 内存、仓库在 NAS 共享上：多 worktree 并行时依赖与产物走共享目录，不要各存一份。
 - 文档面：README 只有 `README.md`（英文）与 `README.zh-CN.md`（简中）两份，逐工具一行的矩阵在

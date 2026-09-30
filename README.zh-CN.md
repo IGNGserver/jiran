@@ -2,7 +2,7 @@
    <a href="./README.md">English</a> | <strong>简体中文</strong>
 </p>
 <div align="center">
-    <img src=".github/assets/jiran-icon.png" alt="计然" width="120">
+    <img src="assets/icon.png" alt="计然" width="120">
     <h1>计然</h1>
 </div>
 

@@ -2,7 +2,7 @@
   "name": "jiran",
   "productName": "Jiran",
   "version": "0.47.0-rev.38",
-  "description": "Live token & cost widget for Claude Code, Codex & Hermes — local-first, optional multi-device sync.",
+  "description": "Local-first token, cost and plan-quota monitoring for AI coding tools — desktop app, Docker Compose Hub, headless agent, Android read client.",
   "main": "src/electron/main.js",
   "scripts": {
     "start": "electron .",
@@ -123,8 +123,8 @@
       "maintainer": "IGNGserver <176017966+IGNGserver@users.noreply.github.com>",
       "category": "Development",
       "icon": "assets/icon.png",
-      "synopsis": "Live token & cost widget for AI coding tools",
-      "description": "Real-time token, cost, and AI limits widget with multi-device sync for Claude Code, Codex, OpenCode and more."
+      "synopsis": "Local-first token, cost and plan-quota monitor for AI coding tools",
+      "description": "Real-time token, cost and plan-quota monitoring across Claude Code, Codex, OpenCode and more, with an optional self-hosted multi-device Hub."
     },
     "nsis": {
       "artifactName": "Jiran-Setup-${version}.${ext}",
@@ -153,7 +153,7 @@
     "llm",
     "ai-tools",
     "electron",
-    "desktop-widget",
+    "desktop-app",
     "local-first",
     "self-hosted"
   ],
@@ -161,11 +161,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/IGNGserver/token-monitor-suite.git"
+    "url": "git+https://github.com/IGNGserver/jiran.git"
   },
-  "homepage": "https://github.com/IGNGserver/token-monitor-suite#readme",
+  "homepage": "https://github.com/IGNGserver/jiran#readme",
   "bugs": {
-    "url": "https://github.com/IGNGserver/token-monitor-suite/issues"
+    "url": "https://github.com/IGNGserver/jiran/issues"
   },
   "dependencies": {
     "chokidar": "^4.0.3",

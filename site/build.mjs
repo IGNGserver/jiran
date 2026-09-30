@@ -10,8 +10,7 @@ const jsFiles = ["scripts/i18n.js", "scripts/theme.js", "scripts/main.js"];
 // assets/icons/ stay mask-only currentColor and must not be mutated to serve the web).
 const iconNames = ["claude", "codex", "cursor", "antigravity", "hermes-agent", "opencode", "openclaw", "os-apple", "os-windows", "gemini", "xai", "deepseek", "qwen", "moonshot", "mistral", "meta", "zai", "minimax", "cline", "copilot", "pi", "zed", "kilocode", "kiro", "mimo-code"];
 const assets = [
-  ["assets/app.png", "assets/app.png"], // full app icon used by the Discord mockup
-  ["assets/icon.png", "assets/icon.png"], // nav brand mark (glass sigma)
+  ["assets/icon.png", "assets/icon.png"], // the shipped brand mark (nav mark, favicon, og:image, mocks)
   ...iconNames.map((name) => [`assets/icons/${name}.svg`, `assets/icons/${name}.svg`]),
 ];
 

@@ -58,7 +58,7 @@ test('release body renders one Chinese section with version injected everywhere'
   assert.match(body, /^# Jiran v0\.47\.0$/m);
   assert.match(body, /<!-- app-update-notes:zh:start -->\n### 修复\n- 本版说明。\n<!-- app-update-notes:zh:end -->/);
   assert.match(body, /Jiran-0\.47\.0\.deb/);
-  assert.match(body, /https:\/\/github\.com\/IGNGserver\/token-monitor-suite#readme/);
+  assert.match(body, /https:\/\/github\.com\/IGNGserver\/jiran#readme/);
   assert.doesNotMatch(body, /\{\{|\}\}/);
 });
 

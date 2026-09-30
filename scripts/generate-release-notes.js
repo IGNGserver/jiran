@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DEFAULT_REPOSITORY = 'IGNGserver/token-monitor-suite';
+const DEFAULT_REPOSITORY = 'IGNGserver/jiran';
 const DEFAULT_TEMPLATE = '.github/RELEASE_TEMPLATE.md';
 const DEFAULT_NOTES_DIR = '.github/release-notes';
 const DEFAULT_OUTPUT = 'release-body.md';

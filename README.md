@@ -2,7 +2,7 @@
    <strong>EN</strong> | <a href="./README.zh-CN.md">简体中文</a>
 </p>
 <div align="center">
-    <img src=".github/assets/jiran-icon.png" alt="计然 / Jiran" width="120">
+    <img src="assets/icon.png" alt="计然 / Jiran" width="120">
     <h1>计然 · Jiran</h1>
 </div>
 
