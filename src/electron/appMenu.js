@@ -7,7 +7,7 @@
 // standard Edit and View roles so clipboard shortcuts and zoom work. The
 // widget-era build had no menu at all because it also hid from the Dock and the taskbar.
 
-const { Menu, app, shell } = require('electron');
+const { Menu, shell } = require('electron');
 
 const REPOSITORY_URL = 'https://github.com/IGNGserver/jiran';
 
@@ -48,7 +48,10 @@ function createAppMenu(deps) {
 
   if (isMac) {
     template.push({
-      label: app.name,
+      // Localized display name (计然 in zh); macOS renders the bundle name for
+      // the very first item regardless, but the About/Hide/Quit subitems and
+      // Windows/Linux menu bars use this label.
+      label: t('brand.name'),
       submenu: [
         { role: 'about' },
         { type: 'separator' },

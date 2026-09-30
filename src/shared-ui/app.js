@@ -625,6 +625,9 @@ function applyLocale() {
   state.locale = resolveLocale(state.prefs.language);
   document.documentElement.lang = state.locale;
   applyI18n(document, state.locale);
+  // The window/plateau title is the app name: zh shows 计然, other locales the
+  // romanized brand — same brand.name surface as the sidebar and PWA banner.
+  document.title = tr('brand.name');
   renderChrome();
   render();
 }

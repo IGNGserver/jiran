@@ -2,6 +2,8 @@
   "id": "/",
   "name": "Jiran",
   "short_name": "Jiran",
+  "name_i18n": { "zh-CN": "计然", "zh-TW": "计然", "zh_CN": "计然", "zh_TW": "计然" },
+  "short_name_i18n": { "zh-CN": "计然", "zh-TW": "计然", "zh_CN": "计然", "zh_TW": "计然" },
   "description": "Multi-device token, cost, and AI limits dashboard",
   "start_url": "/?source=pwa",
   "scope": "/",

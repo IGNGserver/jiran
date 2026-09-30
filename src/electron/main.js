@@ -6,7 +6,7 @@ const path = require('node:path');
 const { app, BrowserWindow, clipboard, dialog, ipcMain, nativeTheme, net, powerMonitor, screen, session, shell } = require('electron');
 // The native downloader is needed only after the user requests an update.
 let autoUpdater;
-const { defaultDeviceId, loadDotEnv, parseBoolean, pidFilePath, sharedDataDir, normalizeHubUrl } = require('../shared/config');
+const { defaultDeviceId, loadDotEnv, parseBoolean, pidFileCandidates, sharedDataDir, normalizeHubUrl } = require('../shared/config');
 const {
   CredentialStore,
   credentialSettingsForRenderer,
@@ -111,11 +111,14 @@ const {
 } = require('./macosGlassNative');
 const { configureLinuxDisplayBackend } = require('./linuxDisplay');
 const { migrateLegacyUserData } = require('./userDataMigration');
+const { migrateLegacySharedData } = require('../shared/sharedDataMigration');
 
 if (!app.isPackaged) loadDotEnv();
 configureLinuxDisplayBackend({ app, platform: process.platform, env: process.env, argv: process.argv });
 
 const APP_NAME = 'Jiran';
+// Install/directory identity (userData anchor); the user-visible name is
+// localized through the `brand.name` i18n key — zh shows 计然.
 // Release pages for the current repo plus the pre-rename `token-monitor-suite`,
 // so cached updater metadata and in-app links keep working across the 计然 migration.
 const RELEASE_URL_PREFIXES = [
@@ -189,6 +192,9 @@ if (process.platform === 'win32') app.setAppUserModelId('com.igng.tokenmonitor')
 // 计然 / Jiran rename: Electron derives userData from app.getName(), so the profile must be
 // carried over from the legacy `Token Monitor` folder before anything reads it.
 migrateLegacyUserData({ appDataDir: app.getPath('appData'), appName: APP_NAME });
+// Same directory-name change applies to the shared runtime state (device identity,
+// archives, tokscale cache): merge the legacy folder forward before any read/write.
+migrateLegacySharedData();
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.exit(0);
@@ -575,7 +581,7 @@ function reportCredentialStorageError(context, error) {
   try {
     dialog.showErrorBox(
       'Credential storage error',
-      `Jiran could not safely access credentials.json (${context}). The save was stopped and previous data was restored where possible. Check the file's JSON and permissions, then restart the app.\n\n${detail}`
+      `${nativeShellText('brand.name')} could not safely access credentials.json (${context}). The save was stopped and previous data was restored where possible. Check the file's JSON and permissions, then restart the app.\n\n${detail}`
     );
   } catch (_) {}
 }
@@ -1135,7 +1141,7 @@ let localStatsLive = false;
 let desktopSnapshotCache = null;
 let desktopSnapshotCacheLoaded = false;
 let desktopSnapshotCacheWriteTimer = null;
-const AGENT_PID_PATH = pidFilePath();
+const AGENT_PID_PATHS = pidFileCandidates();
 let modeQueue = Promise.resolve();
 let modeGeneration = 0;
 
@@ -1252,13 +1258,16 @@ function safeEffectiveHubConfig() {
 }
 
 function isExternalAgentActive() {
-  try {
-    const raw = fs.readFileSync(AGENT_PID_PATH, 'utf8').trim();
-    const pid = parseInt(raw, 10);
-    if (!pid || pid === process.pid) return false;
-    process.kill(pid, 0);
-    return true;
-  } catch (_) { return false; }
+  for (const agentPidPath of AGENT_PID_PATHS) {
+    try {
+      const raw = fs.readFileSync(agentPidPath, 'utf8').trim();
+      const pid = parseInt(raw, 10);
+      if (!pid || pid === process.pid) continue;
+      process.kill(pid, 0);
+      return true;
+    } catch (_) { /* try the next candidate */ }
+  }
+  return false;
 }
 
 async function postToHub(summary, context = {}) {
@@ -3297,12 +3306,14 @@ function appDiagnosticsInfo() {
 
 // The tooltip is the only always-visible tray surface, so it carries the two facts
 // that matter without a window: that collection is paused, and what today cost.
+// The prefix is the localized display name (zh users see 计然, not the romanization).
 function trayTooltipText() {
-  if (settings?.collectionPaused === true) return `Jiran · ${nativeShellText('trayMenu.paused')}`;
+  const brand = nativeShellText('brand.name');
+  if (settings?.collectionPaused === true) return `${brand} · ${nativeShellText('trayMenu.paused')}`;
   const tokens = Number((localDevice || lastCollectedDevice)?.today?.totalTokens || 0);
   return tokens > 0
-    ? `Jiran · ${nativeShellText('trayMenu.tooltipToday', { tokens: formatCompactTokens(tokens) })}`
-    : 'Jiran';
+    ? `${brand} · ${nativeShellText('trayMenu.tooltipToday', { tokens: formatCompactTokens(tokens) })}`
+    : brand;
 }
 
 // One function so the tray, the settings switch and any later menu entry all take
@@ -3327,6 +3338,16 @@ function nativeShellText(key, params) {
 // keyboard-reachable entry point to Settings and each view. Rebuilt when the
 // language changes: the menu is native, so a renderer re-render cannot relabel it.
 function buildApplicationMenu() {
+  // The About panel is native on Windows/Linux and reads app.name by default;
+  // show the localized display name there, same as the menu/tray. macOS builds
+  // its panel from the bundle (CFBundleName = the ASCII install identity) and
+  // offers no runtime override — that is the intended split: ASCII path/bundle,
+  // localized display.
+  if (process.platform !== 'darwin') {
+    try {
+      app.setAboutPanelOptions({ applicationName: nativeShellText('brand.name'), applicationVersion: appVersion() });
+    } catch (_) { /* older Electron without the API keeps app.name */ }
+  }
   createAppMenu({
     getWindow: () => mainWindow,
     openView: openSharedUiView,
