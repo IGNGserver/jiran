@@ -29,6 +29,7 @@ const UI_ROOT = path.join(
   'android/app/src/main/java/com/igng/tokenmonitor/android/ui'
 );
 const THEME_DIR = path.join(UI_ROOT, 'theme');
+const MANIFEST = path.join(ROOT, 'android/app/src/main/AndroidManifest.xml');
 
 /** Material 3 widgets whose look is Material's own, token bridge or not. */
 const FORBIDDEN_WIDGETS = [
@@ -118,6 +119,11 @@ const BASELINE = {
   hexInTheme: { cap: 0, why: 'Color.kt is the only place hex lives, because that is the file ' +
     'verify-android-fluent-contrast.js measures. A hex in Theme.kt is an unmeasured colour.' },
   offGridSpacing: { cap: 0, why: 'FluentSpacing is a strict 4 dp design unit.' },
+  backHandlerCalls: { cap: 0, why: 'Back belongs to NavHost: its own handler is what seeks ' +
+    'the pop transition with the gesture. A BackHandler / PredictiveBackHandler in this tree ' +
+    'consumes the event instead, which costs the in-app preview, and registered at the root it ' +
+    'costs the system back-to-home animation too. See the predictive-back rules in ' +
+    'docs/design/android-fluent2-contract.md.' },
   // Floors, not caps: accessibility must not regress either.
   selectionSemantics: { floor: 15, why: 'selected / role state must be announced, not painted.' },
   focusSemantics: { floor: 16, why: 'Fluent treats focus as a first-class state; these rise as ' +
@@ -184,6 +190,7 @@ function measure() {
     typographyRoleReads: 0,
     hexInTheme: 0,
     offGridSpacing: 0,
+    backHandlerCalls: 0,
     selectionSemantics: 0,
     focusSemantics: 0
   };
@@ -218,6 +225,10 @@ function measure() {
     totals.shapeRoleReads += countInCode(source, /MaterialTheme\.shapes\./g);
     totals.typographyRoleReads += countInCode(source, /MaterialTheme\.typography\./g);
     totals.offGridSpacing += measureSpacing(file, source);
+    totals.backHandlerCalls += countInCode(
+      source,
+      /(?<![A-Za-z0-9_])(?:BackHandler|PredictiveBackHandler)\s*\(/g
+    );
     totals.selectionSemantics += countInCode(
       source,
       /(?:\.selectable|\.toggleable)\(|Role\.(?:Tab|Button|Switch|Checkbox|RadioButton)/g
@@ -272,6 +283,28 @@ function main() {
     const slack = 'cap' in rule ? now < rule.cap : now > rule.floor;
     const flag = violated ? 'FAIL' : slack ? `headroom (tighten to ${now})` : 'at limit';
     console.log(`  ${metric.padEnd(width)}  ${String(now).padStart(4)} ${bound.padStart(6)}  ${flag}`);
+  }
+
+  // The pop grammar in `ui/theme/Motion.kt` is written for the platform's predictive
+  // back gesture, so the opt-in is part of the contract rather than a manifest detail:
+  // Android 14 and 15 still default to the legacy back path (only Android 16+ with
+  // targetSdk > 35 defaults it on), and without it those users never see the preview
+  // or the system animations.  A source metric cannot express this — the manifest is
+  // XML — so it is checked here.
+  if (!fs.existsSync(MANIFEST)) {
+    failures.push(
+      `Android Fluent guard: manifest not found at ${MANIFEST}, so the predictive-back ` +
+        'opt-in could not be checked'
+    );
+  } else {
+    const manifest = fs.readFileSync(MANIFEST, 'utf8');
+    if (!/enableOnBackInvokedCallback\s*=\s*"true"/.test(manifest)) {
+      failures.push(
+        'AndroidManifest.xml: android:enableOnBackInvokedCallback="true" is missing. ' +
+          'Android 14/15 default to the legacy back path, so the predictive-back pop ' +
+          'transitions never run on them.'
+      );
+    }
   }
 
   if (failures.length > 0) {

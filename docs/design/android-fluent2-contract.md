@@ -70,6 +70,20 @@ honours the platform animator scale, so the call sites that need the manual gate
 the ones that bypass it: `infiniteRepeatable` loops and `Animatable.animateTo` inside
 `LaunchedEffect`.
 
+A pop is the platform's back gesture, so the platform owns its grammar. Three rules hold
+together and each is enforced somewhere other than review: `android:enableOnBackInvokedCallback`
+is declared (Android 14/15 still default to the legacy back path, where none of this runs);
+nothing in the tree registers a back handler of its own, because NavHost's is what seeks the
+transition and a second one consumes the gesture instead (`backHandlerCalls` in the boundary
+guard); and the pop is **scale + fade, never a translation**. The pop cannot slide horizontally
+because the system's own back animation is mirrored to the swipe edge (`EDGE_LEFT` moves the
+surface the opposite way from `EDGE_RIGHT`) and Navigation Compose at this toolchain cannot hand
+the edge to a transition — the predictive path reuses `popEnterTransition`/`popExitTransition`,
+which is also why gesture and toolbar back necessarily share one curve, and why a cancel cannot
+disagree with the drag it undoes. The push keeps Fluent's vertical layer grammar: a tap has no
+gesture to follow. Tab switches travel laterally in the *bar's* order, resolved with
+`SlideDirection.Start`/`End` so an RTL locale mirrors the strip (`ui/core/NavMotion.kt`).
+
 ## A refresh frame must not disturb the user
 
 An SSE frame re-emits the composed state every few seconds, so every screen is recomposed
@@ -89,6 +103,12 @@ convention:
   per row (the fleet, the pricing catalogue) with `listGroupShape` for the grouped look —
   composing the whole list inside one `item {}` moves the row the user is on when it
   reorders.
+- **A screen composed mid-gesture must not replay its entrance.** A predictive-back drag
+  composes the destination underneath while the finger is still down (and so does a rotation),
+  so a reveal held in a plain `remember` runs again — the "the data arrived again" illusion
+  *and* a reveal billed to the gesture's frame budget. `animateGrowProgress` remembers "this
+  key already played" in a `rememberSaveable(resetKey)`: the reveal belongs to the mark's *first*
+  appearance, and the key is what says whether this is that occasion.
 
 Charts, the heatmap and the calendar share one week-start value
 (`ui/core/DateRanges.firstDayOfWeek`) — three different "weeks" on one screen is a

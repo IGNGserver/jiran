@@ -4,8 +4,11 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import com.igng.tokenmonitor.android.ui.theme.FluentMotion
 import com.igng.tokenmonitor.android.ui.theme.fluentMotionEnabled
 
@@ -35,8 +38,9 @@ internal fun shareSeriesKey(entries: List<ShareEntry>): String =
  * A mark that leaves and re-enters composition starts at [target] instead of at
  * zero — a LazyColumn recycles rows, and re-growing a bar that was already fully
  * drawn is the "the data restarted" illusion this helper exists to prevent. The
- * first composition starts at the target too: a screen's *entrance* belongs to the
- * list (`FluentRevealOnce`), not to each row, so a row never grows on its own.
+ * first composition starts at the target too: a screen's entrance belongs to the
+ * screen (`OverviewScreen`'s one-shot fade), not to each row, so a row never grows
+ * on its own.
  */
 @Composable
 fun animateGrowFraction(
@@ -59,17 +63,21 @@ fun animateGrowFraction(
 
 /**
  * A full 0→1 sweep, played once per *set identity* and never again — not when the values
- * move, and not when the mark is recycled back into a list.
+ * move, not when the mark is recycled back into a list, and not when the screen holding it
+ * leaves and re-enters composition.
  *
  * [resetKey] must name the identity of the set being drawn (`shareSeriesKey(entries)`, a
  * mode, a window) and never a magnitude: a number in the key means every arriving stats
  * frame snaps the mark to zero and replays the reveal, which is flicker, not motion.
  *
- * An earlier version keyed the `Animatable` on the value and started it at zero, so a
- * LazyColumn row that scrolled out of view and back re-grew — the same "the data
- * restarted" illusion, moved from the frame to the scroll.  The reveal belongs to the
- * mark's first appearance: `entered` is true from the first composition, and only a
- * *set* change (a different key) earns a new sweep for a mark already on screen.
+ * "Already played" is `rememberSaveable(resetKey)`, not just `remember`.  Two ordinary
+ * events re-enter composition with the same key and used to replay the whole sweep:
+ * rotation, and a predictive-back drag — during which the destination underneath is
+ * composed while the finger is still down.  Replaying there reads as the data arriving
+ * again (the illusion this file exists to prevent) *and* spends the gesture's frame budget
+ * on a reveal the user already watched.  The reveal belongs to the mark's *first*
+ * appearance, and the key is what says whether this is that occasion: a different set is a
+ * new occasion, the same set composed again is not.
  */
 @Composable
 fun animateGrowProgress(
@@ -77,16 +85,23 @@ fun animateGrowProgress(
   durationMillis: Int = FluentMotion.slower
 ): Float {
   if (!fluentMotionEnabled()) return 1f
+  // `resetKey` as the input, not the value: a *set* change resets "played" and earns a new
+  // sweep, while the same set returning to composition keeps it and starts at 1f.
+  var played by rememberSaveable(resetKey) { mutableStateOf(false) }
   val animatable = remember { Animatable(1f) }
   LaunchedEffect(resetKey) {
-    // `snapTo(0f)` + `animateTo` runs only when the key changes *after* the first
-    // composition: the initial effect is the reveal, so `Animatable(1f)` skips it, and a
-    // recycled LazyColumn row re-entering with the same key replays nothing.
+    if (played) {
+      // A recycled LazyColumn row or a screen restored from below the top: it is already
+      // at its final value, and re-growing it is the "the data restarted" illusion.
+      animatable.snapTo(1f)
+      return@LaunchedEffect
+    }
     animatable.snapTo(0f)
     animatable.animateTo(
       targetValue = 1f,
       animationSpec = tween(durationMillis, easing = FluentMotion.decelerate)
     )
+    played = true
   }
   return animatable.value
 }

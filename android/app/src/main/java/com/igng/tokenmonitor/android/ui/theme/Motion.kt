@@ -1,5 +1,7 @@
 package com.igng.tokenmonitor.android.ui.theme
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.CubicBezierEasing
@@ -13,9 +15,9 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -23,6 +25,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.TransformOrigin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -34,9 +37,14 @@ import kotlinx.coroutines.flow.StateFlow
 //   1. An arriving element is always slower than a leaving one.  A screen that
 //      exits in 150ms and enters in 250ms reads as settling; symmetric timing
 //      reads as bouncing.
-//   2. Direction encodes hierarchy.  Lateral motion is for siblings (tab
-//      switches), vertical for depth (push/pop), scale for modality.  Reusing
-//      one grammar for both makes a tab switch feel like a drill-in.
+//   2. Direction encodes hierarchy.  Lateral micro-travel is for siblings
+//      (tab switches), vertical travel for a pushed layer, scale for modality.
+//      Reusing one grammar for both makes a tab switch feel like a drill-in.
+//   3. A gesture owns the axis it travels on.  A pop *is* a back gesture, so it
+//      takes the platform's own surface grammar — the leaving layer recedes by
+//      scale and fade — instead of sliding down a vertical axis the finger never
+//      moved along.  See `fluentContentPopExit` for why a pop must not translate
+//      horizontally either.
 
 object FluentMotion {
   const val ultraFast = 50     // durationUltraFast — micro feedback
@@ -63,29 +71,59 @@ object FluentMotion {
   const val pageTravelFraction = 0.22f
   const val microTravelFraction = 0.06f
 
+  // The pop's own two numbers.  Scale, not translation: the leaving layer shrinks
+  // and fades while the layer it uncovers comes forward — see
+  // `fluentContentPopExit` for why a pop must not slide.
+  const val popExitScale = 0.92f
+  const val popEnterScale = 1.04f
+
   const val listItemStagger = 30
   const val listItemMaxStaggered = 8
 }
 
-private fun enterFade(duration: Int) =
-  fadeIn(animationSpec = tween(duration, easing = FluentMotion.decelerate))
+private fun enterFade(duration: Int, easing: Easing = FluentMotion.decelerate) =
+  fadeIn(animationSpec = tween(duration, easing = easing))
 
-private fun exitFade(duration: Int) =
-  fadeOut(animationSpec = tween(duration, easing = FluentMotion.accelerate))
+private fun exitFade(duration: Int, easing: Easing = FluentMotion.accelerate) =
+  fadeOut(animationSpec = tween(duration, easing = easing))
 
-// ─── Siblings: tab switches travel laterally ────────────────────────────────
+// ─── Siblings: tab switches travel laterally, in the order of the bar ───────
+//
+// The strip moves as one piece, so the direction belongs to the *pair* of tabs, not
+// to the transition: switching to a later tab pushes the strip end-ward (the new tab
+// arrives from the end side) and switching back pulls it start-ward.  The client
+// used to slide every switch the same way, which animated "更多 → 总览" as if the
+// user had advanced.  `SlideDirection.Start`/`End` rather than a signed raw offset is
+// deliberate: the transition resolves them against layout direction, so an RTL locale
+// mirrors the strip without a second rule to keep in sync.
 
-fun fluentTabEnter(): EnterTransition = slideInHorizontally(
-  animationSpec = tween(FluentMotion.normal, easing = FluentMotion.decelerate),
-  initialOffsetX = { (it * FluentMotion.microTravelFraction).toInt() }
-) + enterFade(FluentMotion.normal)
+/**
+ * [arrival] is the side the incoming tab arrives from; the outgoing tab leaves toward
+ * the opposite side, because both tabs ride the same strip.
+ */
+fun AnimatedContentTransitionScope<*>.fluentTabEnter(arrival: SlideDirection): EnterTransition =
+  slideIntoContainer(
+    towards = arrival,
+    animationSpec = tween(FluentMotion.normal, easing = FluentMotion.decelerate),
+    initialOffset = { (it * FluentMotion.microTravelFraction).toInt() }
+  ) + enterFade(FluentMotion.normal)
 
-fun fluentTabExit(): ExitTransition = slideOutHorizontally(
-  animationSpec = tween(FluentMotion.fast, easing = FluentMotion.accelerate),
-  targetOffsetX = { (-it * FluentMotion.microTravelFraction).toInt() }
-) + exitFade(FluentMotion.fast)
+fun AnimatedContentTransitionScope<*>.fluentTabExit(arrival: SlideDirection): ExitTransition =
+  slideOutOfContainer(
+    towards = arrival.opposite(),
+    animationSpec = tween(FluentMotion.fast, easing = FluentMotion.accelerate),
+    targetOffset = { (it * FluentMotion.microTravelFraction).toInt() }
+  ) + exitFade(FluentMotion.fast)
 
-// ─── Depth: push and pop travel vertically, asymmetric timing ───────────────
+private fun SlideDirection.opposite(): SlideDirection = when (this) {
+  SlideDirection.Start -> SlideDirection.End
+  SlideDirection.End -> SlideDirection.Start
+  SlideDirection.Left -> SlideDirection.Right
+  SlideDirection.Right -> SlideDirection.Left
+  else -> this
+}
+
+// ─── Depth: a push travels, a pop recedes ───────────────────────────────────
 
 fun fluentContentPushEnter(): EnterTransition = slideInVertically(
   animationSpec = tween(FluentMotion.gentle, easing = FluentMotion.max),
@@ -97,15 +135,38 @@ fun fluentContentPushExit(): ExitTransition = slideOutVertically(
   targetOffsetY = { (-it * FluentMotion.microTravelFraction).toInt() }
 ) + exitFade(FluentMotion.fast)
 
-fun fluentContentPopEnter(): EnterTransition = slideInVertically(
+/**
+ * The pop is the platform's own back gesture, so it takes the platform's own surface
+ * grammar: the leaving layer shrinks and fades, the layer underneath settles back into
+ * place.  It deliberately does *not* translate, for two reasons that are not taste:
+ *
+ *   1. The system's window-level back animation is mirrored to the swipe edge
+ *      (`EDGE_LEFT` moves the surface the other way from `EDGE_RIGHT`), and
+ *      Navigation Compose at this toolchain cannot hand the edge to the transition —
+ *      the predictive path reuses these two lambdas, and a second back callback would
+ *      consume the gesture instead of seeking it.  A fixed horizontal direction is
+ *      therefore wrong for one of the two edges, which is exactly the "the page went
+ *      the wrong way" defect this change exists to remove.  Scale is edge- and
+ *      RTL-agnostic by construction.
+ *   2. Gesture and toolbar back share these specs, so the seek and the cancel replay
+ *      one curve.  A separate gesture-only spec is how a cancel ends up disagreeing
+ *      with the drag it is undoing.
+ *
+ * The exit easing is the decelerating one the platform prescribes for a back preview
+ * (its `PathInterpolator(0, 0, 0, 1)` is this token), not the accelerate curve exits
+ * otherwise use: feedback has to be legible at the *start* of a drag.
+ */
+fun fluentContentPopEnter(): EnterTransition = scaleIn(
   animationSpec = tween(FluentMotion.normal, easing = FluentMotion.decelerate),
-  initialOffsetY = { (-it * FluentMotion.microTravelFraction).toInt() }
+  initialScale = FluentMotion.popEnterScale,
+  transformOrigin = TransformOrigin.Center
 ) + enterFade(FluentMotion.normal)
 
-fun fluentContentPopExit(): ExitTransition = slideOutVertically(
-  animationSpec = tween(FluentMotion.gentle, easing = FluentMotion.accelerate),
-  targetOffsetY = { (it * FluentMotion.pageTravelFraction).toInt() }
-) + exitFade(FluentMotion.gentle)
+fun fluentContentPopExit(): ExitTransition = scaleOut(
+  animationSpec = tween(FluentMotion.gentle, easing = FluentMotion.decelerate),
+  targetScale = FluentMotion.popExitScale,
+  transformOrigin = TransformOrigin.Center
+) + exitFade(FluentMotion.gentle, FluentMotion.decelerate)
 
 // ─── Shared ambient sweep ───────────────────────────────────────────────────
 //

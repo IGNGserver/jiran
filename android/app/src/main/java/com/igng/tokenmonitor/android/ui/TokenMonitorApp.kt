@@ -63,8 +63,11 @@ import com.igng.tokenmonitor.android.ui.more.SessionsScreen
 import com.igng.tokenmonitor.android.ui.more.SettingsScreen
 import com.igng.tokenmonitor.android.ui.more.StatusScreen
 import com.igng.tokenmonitor.android.ui.overview.OverviewScreen
+import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import com.igng.tokenmonitor.android.ui.core.LateralArrival
+import com.igng.tokenmonitor.android.ui.core.NavMotion
 import com.igng.tokenmonitor.android.ui.theme.FluentMotion
 import com.igng.tokenmonitor.android.ui.theme.fluentMotionEnabled
 import com.igng.tokenmonitor.android.ui.theme.FluentTypeRamp
@@ -292,34 +295,60 @@ private fun AppNavHost(
   // Read the flag here: the transition lambdas below are not composable scope,
   // so a CompositionLocal cannot be read from inside them.
   val motion = fluentMotionEnabled()
+  // The bar's order is the direction policy's input, so it is taken from the one
+  // place that declares the bar rather than from a Set whose iteration order is
+  // not part of its contract.
+  val tabRoutes = remember { FluentDestinations.all.map { it.route } }
   NavHost(
     navController = navController,
     startDestination = "overview",
     modifier = modifier,
-    // Tab switches slide laterally; drill-ins rise from the bottom. Splitting
-    // these two grammars is what makes the hierarchy legible — Fluent reserves
-    // vertical motion for "a new layer was pushed".
+    // Tab switches slide laterally, in the bar's own order; drill-ins rise from the
+    // bottom; pops recede.  Splitting these three grammars is what makes the
+    // hierarchy legible — Fluent reserves vertical motion for "a new layer was
+    // pushed", and the pop is the platform's back gesture, whose spec lives in
+    // `Motion.kt` next to the reason it does not translate.
     // Respect the platform animation-scale / reduce-motion setting: the content
     // still swaps correctly, it simply does not travel.
     enterTransition = {
+      val from = initialState.destination.route
+      val to = targetState.destination.route
       if (!motion) EnterTransition.None
-      else if (isTabSwitch(initialState.destination?.route, targetState.destination?.route)) fluentTabEnter()
-      else fluentContentPushEnter()
+      else if (NavMotion.isTabSwitch(from, to, tabRoutes)) {
+        fluentTabEnter(NavMotion.tabArrival(from, to, tabRoutes).toSlideDirection())
+      } else {
+        fluentContentPushEnter()
+      }
     },
     exitTransition = {
+      val from = initialState.destination.route
+      val to = targetState.destination.route
       if (!motion) ExitTransition.None
-      else if (isTabSwitch(initialState.destination?.route, targetState.destination?.route)) fluentTabExit()
-      else fluentContentPushExit()
+      else if (NavMotion.isTabSwitch(from, to, tabRoutes)) {
+        fluentTabExit(NavMotion.tabArrival(from, to, tabRoutes).toSlideDirection())
+      } else {
+        fluentContentPushExit()
+      }
     },
     popEnterTransition = {
+      val from = initialState.destination.route
+      val to = targetState.destination.route
       if (!motion) EnterTransition.None
-      else if (isTabSwitch(initialState.destination?.route, targetState.destination?.route)) fluentTabEnter()
-      else fluentContentPopEnter()
+      else if (NavMotion.isTabSwitch(from, to, tabRoutes)) {
+        fluentTabEnter(NavMotion.tabArrival(from, to, tabRoutes).toSlideDirection())
+      } else {
+        fluentContentPopEnter()
+      }
     },
     popExitTransition = {
+      val from = initialState.destination.route
+      val to = targetState.destination.route
       if (!motion) ExitTransition.None
-      else if (isTabSwitch(initialState.destination?.route, targetState.destination?.route)) fluentTabExit()
-      else fluentContentPopExit()
+      else if (NavMotion.isTabSwitch(from, to, tabRoutes)) {
+        fluentTabExit(NavMotion.tabArrival(from, to, tabRoutes).toSlideDirection())
+      } else {
+        fluentContentPopExit()
+      }
     }
   ) {
     composable("overview") {
@@ -472,9 +501,11 @@ private fun AppNavHost(
 }
 
 /**
- * True when a transition moves between two primary tabs.  Both endpoints must be
- * tab routes: that is exactly the case where the global nav bar stays mounted and
- * the motion should read as lateral rather than depth.
+ * Maps the bar's direction policy onto the transition's own side vocabulary.  The
+ * policy is plain Kotlin (and JVM-tested) in `ui/core/NavMotion.kt`; this is the one
+ * place it becomes a Compose slide direction, so the two cannot drift apart.
  */
-private fun isTabSwitch(from: String?, to: String?): Boolean =
-  from in FluentDestinations.routes && to in FluentDestinations.routes
+private fun LateralArrival.toSlideDirection(): SlideDirection = when (this) {
+  LateralArrival.FromStart -> SlideDirection.Start
+  LateralArrival.FromEnd -> SlideDirection.End
+}
