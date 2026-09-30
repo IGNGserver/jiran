@@ -14,5 +14,5 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Token Monitor Android"
+rootProject.name = "Jiran Android"
 include(":app")

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Launcher name. zh keeps the literary 计然 (史记·货殖列传); every other
+       locale ships the romanized brand. Keep in sync with the brand.name i18n
+       key family in the shared renderer. -->
+  <string name="app_name">Jiran</string>
+</resources>

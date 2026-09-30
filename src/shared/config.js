@@ -90,7 +90,27 @@ function writeJsonAtomic(filePath, value, options = {}) {
 
 function loadDotEnv() {
   require('dotenv').config({ path: path.join(projectRoot(), '.env'), quiet: true });
+  applyEnvAliases();
 }
+
+// 计然 / Jiran rename shim: JIRAN_* is the documented prefix, but the historical
+// TOKEN_MONITOR_* names keep working verbatim — existing .env files, systemd
+// units, launchd plists and compose stacks must not need a second migration.
+// TOKEN_MONITOR_* wins when both are set, so a deployment that never hears about
+// the rename behaves exactly like before. Every internal read stays on the
+// legacy slot; there is deliberately no reverse alias.
+function applyEnvAliases(env = process.env) {
+  for (const key of Object.keys(env)) {
+    if (!key.startsWith('JIRAN_')) continue;
+    const legacy = `TOKEN_MONITOR_${key.slice('JIRAN_'.length)}`;
+    if (env[legacy] === undefined) env[legacy] = env[key];
+  }
+  return env;
+}
+
+// Real environment variables exist before any entry calls loadDotEnv (packaged
+// Electron never does), so fold JIRAN_* once at require time as well.
+applyEnvAliases();
 
 function defaultDeviceId() {
   return os.hostname().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'device';
@@ -176,6 +196,7 @@ function generateHubSecret() {
 
 module.exports = {
   normalizeHubUrl,
+  applyEnvAliases,
   defaultDeviceId,
   generateHubSecret,
   lanIpv4Addresses,
