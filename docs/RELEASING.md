@@ -45,18 +45,26 @@ Android 正式包必须使用长期保存的签名密钥。不要把 keystore �
 5. 如果要创建正式版，进入 GitHub Actions 手动运行 `Release`，填写同一个版本号，并将 `release_type` 选择为 `release`。只有这个明确操作会创建正式版 Release。
 6. GitHub Actions 会构建 Windows 安装包、Linux AppImage、Debian `.deb` 包、Android release APK 和 Hub 镜像。Release 资产文件名中的 `<version>` 会保留完整版本号，例如：
 
-   - `Token-Monitor-Setup-0.47.0.exe`
-   - `Token-Monitor-0.47.0.AppImage`
-   - `Token-Monitor-0.47.0.deb`
-   - `Token-Monitor-Android-0.47.0.apk`
+   - `Jiran-Setup-0.47.0.exe`
+   - `Jiran-0.47.0.AppImage`
+   - `Jiran-0.47.0.deb`
+   - `Jiran-Android-0.47.0.apk`
 
 Android 的 `versionName` 与桌面版本一致；`versionCode` 由同一版本字符串推导（`major*10000 + minor*100 + patch`，再乘以 10000 加上 `rev.N`，无修订号时该位为 0），因此带或不带 `-rev.N` 的发布都能保持单调递增。
 
-已安装的 Debian 版本通过应用内更新使用系统 `dpkg`/`apt` 完成升级，首次安装新版本时会按系统策略请求管理员权限；也可以手动执行 `sudo apt install ./Token-Monitor-<version>.deb`。
+已安装的 Debian 版本通过应用内更新使用系统 `dpkg`/`apt` 完成升级，首次安装新版本时会按系统策略请求管理员权限；也可以手动执行 `sudo apt install ./Jiran-<version>.deb`。
 
 ## Debian App Center / APT 更新
 
-直接打开 GitHub Release 中的 `.deb` 是一次“本地文件安装”，它不会自动把 GitHub Release 当成 APT 软件源。此时 App Center 能显示应用已安装，但没有可比较的仓库候选版本，所以不会显示升级按钮；这不是桌面包的 `Package` 名称问题。包会保持稳定的 `token-monitor` 标识、`com.igng.tokenmonitor` 应用 ID 和标准语义化 Debian 版本。
+直接打开 GitHub Release 中的 `.deb` 是一次“本地文件安装”，它不会自动把 GitHub Release 当成 APT 软件源。此时 App Center 能显示应用已安装，但没有可比较的仓库候选版本，所以不会显示升级按钮；这不是桌面包的 `Package` 名称问题。包保持稳定标识：项目改名后 `Package` 为 `jiran`（AppStream 组件 id 仍保留 `com.igng.tokenmonitor.desktop` 以维持元数据连续性），并使用标准语义化 Debian 版本。
+
+### 改名（计然 / Jiran）迁移面
+
+- **deb**：旧 `token-monitor` 包不会自动跟踪新包，`build-apt-repository.js` 会为每个版本额外构建一个同版本 transitional 桩包（`Depends: jiran`），已安装用户的下一次 `apt upgrade` 即被带到 `jiran`。
+- **Pages 文件名**：`jiran.sources` / `jiran-archive-keyring(.asc|-fingerprint.txt)` 为主名，workflow 同时以 `token-monitor-*` 旧名发布同一份内容，老 `sources.list.d` 条目不断供。
+- **GHCR**：主镜像为 `jiran-hub`，`token-monitor-hub` 在过渡期内仍被推送完全相同的标签；用户改镜像名或保持旧名都可以，过渡窗口结束后才停推旧名。
+- **线协议**：Hub 同时接受 `X-Jiran-Secret` 与历史 `X-Token-Monitor-Secret`；env 同时接受 `JIRAN_*` 与 `TOKEN_MONITOR_*`（后者优先）。
+- **SignPath**：portal 侧的 artifact-configuration 必须与仓内 `.github/signpath/*.xml` 同步（文件名已从 `Token-Monitor-*` 改为 `Jiran-*`），否则 Windows 签名步骤会因找不到 PE 而失败。
 
 要让 App Center 发现后续版本，发布端必须同时提供带签名的 APT 仓库，并在机器上一次性安装该仓库的公钥和 source 配置。仓库索引生成器是：
 
@@ -69,23 +77,23 @@ node scripts/build-apt-repository.js \
   --require-signature
 ```
 
-其中 `dist/` 应只放当前要发布的 `.deb`。生成结果包含 `Packages`、压缩索引、`Release`、`InRelease` 和 `Release.gpg`；没有签名密钥时只能用于本地结构验证，不能作为用户源发布。公钥必须通过 HTTPS 或其他可信渠道安装到 `/usr/share/keyrings/token-monitor-archive-keyring.gpg`，source 配置中的 `Signed-By` 不能改成 `trusted=yes`。
+其中 `dist/` 应只放当前要发布的 `.deb`。生成结果包含 `Packages`、压缩索引、`Release`、`InRelease` 和 `Release.gpg`；没有签名密钥时只能用于本地结构验证，不能作为用户源发布。公钥必须通过 HTTPS 或其他可信渠道安装到 `/usr/share/keyrings/jiran-archive-keyring.gpg`，source 配置中的 `Signed-By` 不能改成 `trusted=yes`。
 
 GitHub Actions 的正式版 APT 部署需要两个 repository secrets：`TOKEN_MONITOR_APT_GPG_PRIVATE_KEY`（ASCII-armored 私钥）和 `TOKEN_MONITOR_APT_GPG_KEY_ID`（发布密钥 ID）。私钥只放在 Actions secret，不提交到仓库；Pages 会公开对应的 ASCII 公钥和指纹文件。
 
 首次配置仓库后应执行：
 
 ```bash
-curl -fsSL https://igngserver.github.io/token-monitor-suite/apt/token-monitor-archive-keyring.asc \
+curl -fsSL https://igngserver.github.io/jiran/apt/jiran-archive-keyring.asc \
   | gpg --dearmor \
-  | sudo tee /usr/share/keyrings/token-monitor-archive-keyring.gpg >/dev/null
-curl -fsSL https://igngserver.github.io/token-monitor-suite/apt/token-monitor.sources \
-  | sudo tee /etc/apt/sources.list.d/token-monitor.sources >/dev/null
+  | sudo tee /usr/share/keyrings/jiran-archive-keyring.gpg >/dev/null
+curl -fsSL https://igngserver.github.io/jiran/apt/jiran.sources \
+  | sudo tee /etc/apt/sources.list.d/jiran.sources >/dev/null
 sudo apt update
-apt-cache policy token-monitor
+apt-cache policy jiran
 ```
 
-安装前应把下载的公钥指纹与同目录的 `token-monitor-archive-keyring-fingerprint.txt` 及正式发布说明进行人工核对。`apt-cache policy` 应同时显示当前安装版本和 `https://igngserver.github.io/token-monitor-suite/apt` 的候选版本；之后 App Center 才能把仓库里的新版本显示为可升级。现有从本地 `.deb` 安装的用户不需要卸载或改包名，配置 source 后执行一次 `sudo apt update` 即可迁移到仓库更新链路。
+安装前应把下载的公钥指纹与同目录的 `jiran-archive-keyring-fingerprint.txt` 及正式发布说明进行人工核对。`apt-cache policy` 应同时显示当前安装版本和 `https://igngserver.github.io/jiran/apt` 的候选版本；之后 App Center 才能把仓库里的新版本显示为可升级。现有从本地 `.deb` 安装的用户不需要卸载或改包名，配置 source 后执行一次 `sudo apt update` 即可迁移到仓库更新链路。
 
 发布验证会检查 `.deb` 的 `Package`、原始 Debian `Version`、架构、桌面入口和 AppStream 元数据；AppStream 元数据用于让 App Center 正确识别应用，APT 源和签名则负责提供升级候选版本。
 
@@ -97,13 +105,13 @@ apt-cache policy token-monitor
 
 推送 `v*` tag 后，Release workflow 会额外：
 
-1. 多架构构建并推送 `ghcr.io/<owner>/token-monitor-hub`（`linux/amd64` + `linux/arm64`）。
+1. 多架构构建并推送 `ghcr.io/<owner>/jiran-hub`（`linux/amd64` + `linux/arm64`）。
 2. 始终打标签：`<version>`、`v<version>`；只有正式版 Release 额外更新 `latest`。
-3. 打包 `Token-Monitor-Hub-Compose-<version>.zip`（最小 compose 部署包）并挂到 Release Assets。
+3. 打包 `Jiran-Hub-Compose-<version>.zip`（最小 compose 部署包）并挂到 Release Assets。
 
-镜像名固定为 **`token-monitor-hub`**。Compose 通过环境变量 `TOKEN_MONITOR_VERSION` 选择标签，默认 `latest`。
+镜像名固定为 **`jiran-hub`**。Compose 通过环境变量 `JIRAN_VERSION` 选择标签，默认 `latest`。
 
-首次在组织/账号下推送 GHCR 包后，如需匿名拉取，请到 GitHub → Packages → `token-monitor-hub` → Package settings 将可见性设为 **Public**。
+首次在组织/账号下推送 GHCR 包后，如需匿名拉取，请到 GitHub → Packages → `jiran-hub` → Package settings 将可见性设为 **Public**。
 
 本地验证 compose 包（不推镜像）：
 

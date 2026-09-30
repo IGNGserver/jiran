@@ -4,7 +4,7 @@ Free code signing provided by [SignPath.io](https://signpath.io/), certificate b
 
 ## Signed artifacts
 
-The current release workflow Authenticode-signs Token Monitor's Windows application executable, installer (`Token-Monitor-Setup-*.exe`), and portable build (`Token-Monitor-*.exe`). The expected publisher is **SignPath Foundation**.
+The current release workflow Authenticode-signs Jiran's Windows application executable, installer (`Jiran-Setup-*.exe`), and portable build (`Jiran-*.exe`). The expected publisher is **SignPath Foundation**.
 
 ## Verify a download
 
@@ -13,12 +13,12 @@ In Windows Explorer, right-click the `.exe`, select **Properties**, then open **
 You can also inspect both downloads in PowerShell:
 
 ```powershell
-Get-AuthenticodeSignature ".\Token-Monitor-Setup-<version>.exe", ".\Token-Monitor-<version>.exe" | Format-List Path, Status, SignerCertificate, TimeStamperCertificate
+Get-AuthenticodeSignature ".\Jiran-Setup-<version>.exe", ".\Jiran-<version>.exe" | Format-List Path, Status, SignerCertificate, TimeStamperCertificate
 ```
 
-A genuine Token Monitor release should show `Valid` status, SignPath Foundation as the signer, and timestamp information.
+A genuine Jiran release should show `Valid` status, SignPath Foundation as the signer, and timestamp information.
 
-After installation, the same check can be run against `Token Monitor.exe` in the application's installation directory.
+After installation, the same check can be run against `Jiran.exe` in the application's installation directory.
 
 ## Signing controls
 
@@ -35,5 +35,5 @@ After installation, the same check can be run against `Token Monitor.exe` in the
 
 ## Privacy
 
-- Privacy policy: [Token Monitor privacy policy](privacy.md)
+- Privacy policy: [Jiran privacy policy](privacy.md)
 

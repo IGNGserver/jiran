@@ -2,8 +2,8 @@
    <strong>EN</strong> | <a href="./README.zh-CN.md">简</a> | <a href="./README.zh-TW.md">繁</a> | <a href="./README.ko.md">KO</a> | <a href="./README.ja.md">JA</a>
 </p>
 <div align="center">
-    <img src=".github/assets/app.png" alt="Token Monitor logo" width="120">
-    <h1>Token Monitor</h1>
+    <img src=".github/assets/app.png" alt="Jiran logo" width="120">
+    <h1>Jiran</h1>
 </div>
 
 <p align="center">
@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/IGNGserver/token-monitor-suite/releases"><img src="https://img.shields.io/github/v/release/IGNGserver/token-monitor-suite?include_prereleases&style=flat-square&label=release&color=22c55e" alt="Latest release" /></a>
-    <a href="https://github.com/IGNGserver/token-monitor-suite/releases"><img src="https://img.shields.io/github/downloads/IGNGserver/token-monitor-suite/total?style=flat-square&color=22c55e" alt="Total downloads" /></a>
+    <a href="https://github.com/IGNGserver/jiran/releases"><img src="https://img.shields.io/github/v/release/IGNGserver/jiran?include_prereleases&style=flat-square&label=release&color=22c55e" alt="Latest release" /></a>
+    <a href="https://github.com/IGNGserver/jiran/releases"><img src="https://img.shields.io/github/downloads/IGNGserver/jiran/total?style=flat-square&color=22c55e" alt="Total downloads" /></a>
     <img src="https://img.shields.io/badge/Windows-10%2B-0078D4?style=flat-square" alt="Windows 10 or later" />
     <img src="https://img.shields.io/badge/macOS-12%2B-0A84FF?style=flat-square&logo=apple&logoColor=white" alt="macOS 12 or later" />
     <img src="https://img.shields.io/badge/Linux-x64-64748b?style=flat-square&logo=linux&logoColor=white" alt="Linux x64" />
@@ -23,13 +23,13 @@
     <img src=".github/assets/demo.gif">
 </div>
 
-## What is Token Monitor?
+## What is Jiran?
 
 A desktop app that shows live token usage and AI Tool Limits across 59+ AI coding tools — Claude Code, Codex, Cursor, GitHub Copilot, and more — with real-time multi-device sync, historical usage trends, and breakdowns by tool, device, model, session, or project.
 
 ## Supported Tools
 
-Token Monitor supports token usage, account-limit checks, and session details separately:
+Jiran supports token usage, account-limit checks, and session details separately:
 
 | Logo | Tool | Data path | Token Usage | AI Tool Limits | Session Details |
 |:---:|------|-----------|:---:|:---:|:---:|
@@ -98,7 +98,7 @@ Token Monitor supports token usage, account-limit checks, and session details se
 
 <br>
 
-- Paths above are the defaults. Token Monitor follows the same environment overrides Tokscale does — `$XDG_DATA_HOME` for the `~/.local/share/` roots, and per-tool variables such as `$CODEX_HOME`, `$GROK_HOME`, `$HERMES_HOME`, `$KIMI_CODE_HOME`, `$REASONIX_STATE_HOME`, `$REASONIX_HOME` and the `$CLINE_*` family.
+- Paths above are the defaults. Jiran follows the same environment overrides Tokscale does — `$XDG_DATA_HOME` for the `~/.local/share/` roots, and per-tool variables such as `$CODEX_HOME`, `$GROK_HOME`, `$HERMES_HOME`, `$KIMI_CODE_HOME`, `$REASONIX_STATE_HOME`, `$REASONIX_HOME` and the `$CLINE_*` family.
 
 - Command Code v3 transcripts persist per-request `usage` (input / output / cache-read / cache-write tokens, plus the provider-reported `costUsd`), so those sessions are exact rather than estimated. Only legacy transcripts written before the `usage` block existed fall back to a text-based estimate, and their model attribution may reflect the currently configured model rather than the model historically used for each request.
 
@@ -108,9 +108,9 @@ Token Monitor supports token usage, account-limit checks, and session details se
 
 Qoder token usage is read from the app's own local files, not an API. The international and China editions are tracked as two separate clients — `qoder` and `qodercn` — because they keep separate profiles, and both are always tracked (there is no per-tool opt-in). Three sources per edition are probed and whichever exist contribute:
 
-- **Transcript tree — the primary source in current builds.** `~/.qoder/projects/**/*.jsonl` (international) or `~/.qoder-cn/projects/**/*.jsonl` (CN), one JSON line per request. It is watched for live updates and needs nothing but the filesystem. Point `TOKEN_MONITOR_QODER_TRANSCRIPTS_DIR` / `TOKEN_MONITOR_QODER_CN_TRANSCRIPTS_DIR` at a different root, or set Qoder CN's own `QODERCN_CONFIG_DIR` when the whole profile is relocated.
-- **Desktop message store.** `com.qoder.app.stable/main.sqlite` (international) or `com.qodercn.app.stable/main.sqlite` (CN) under the platform application-support directory; override with `TOKEN_MONITOR_QODER_MAIN_DB_PATH` / `TOKEN_MONITOR_QODER_CN_MAIN_DB_PATH`. Qoder CN 0.1.x used the international spelling, so both candidates are tried for the CN site.
-- **Legacy cache database.** `<platform-app-data>/Qoder/SharedClientCache/cache/db/local.db` (international) or the same path under `QoderCN/` (CN) — macOS `~/Library/Application Support/`, Windows `%APPDATA%\`, Linux `~/.config/`; override with `TOKEN_MONITOR_QODER_DB_PATH` / `TOKEN_MONITOR_QODER_CN_DB_PATH`.
+- **Transcript tree — the primary source in current builds.** `~/.qoder/projects/**/*.jsonl` (international) or `~/.qoder-cn/projects/**/*.jsonl` (CN), one JSON line per request. It is watched for live updates and needs nothing but the filesystem. Point `JIRAN_QODER_TRANSCRIPTS_DIR` / `JIRAN_QODER_CN_TRANSCRIPTS_DIR` at a different root, or set Qoder CN's own `QODERCN_CONFIG_DIR` when the whole profile is relocated.
+- **Desktop message store.** `com.qoder.app.stable/main.sqlite` (international) or `com.qodercn.app.stable/main.sqlite` (CN) under the platform application-support directory; override with `JIRAN_QODER_MAIN_DB_PATH` / `JIRAN_QODER_CN_MAIN_DB_PATH`. Qoder CN 0.1.x used the international spelling, so both candidates are tried for the CN site.
+- **Legacy cache database.** `<platform-app-data>/Qoder/SharedClientCache/cache/db/local.db` (international) or the same path under `QoderCN/` (CN) — macOS `~/Library/Application Support/`, Windows `%APPDATA%\`, Linux `~/.config/`; override with `JIRAN_QODER_DB_PATH` / `JIRAN_QODER_CN_DB_PATH`.
 
 `com.qoder.app.stable` is claimed by both editions, so a site reads it only when that site's own footprint (app-support or profile directory) is also present: an international-only machine is never billed to `qodercn`, and a CN 0.1.x-only machine is never billed to `qoder`. Which sources actually exist varies by edition and install — on the Linux machine this was verified against (2026-09-26, Qoder CN 0.4.2) the CN site had transcripts and `com.qodercn.app.stable/main.sqlite` but no legacy cache database, while the international CLI-only install had transcripts alone.
 
@@ -147,9 +147,9 @@ One figure in that record is not an estimate. Qoder bills in credits rather than
 </tr>
 </table>
 
-## Why Token Monitor?
+## Why Jiran?
 
-Most usage monitors are useful on the machine they run on. Token Monitor is built for multi-device work: each device watches its own local logs, sends summary updates to your hub, and every connected client sees token changes almost immediately.
+Most usage monitors are useful on the machine they run on. Jiran is built for multi-device work: each device watches its own local logs, sends summary updates to your hub, and every connected client sees token changes almost immediately.
 
 ## Features
 
@@ -165,7 +165,7 @@ Most usage monitors are useful on the machine they run on. Token Monitor is buil
 
 - **AI Tool Limits detection** — provider-specific session, weekly, billing, and credits windows for Claude Code, Codex, Cursor, OpenRouter, third-party APIs, GLM, Kimi, and 26+ providers, including multiple OpenRouter/third-party profiles and DeepSeek prepaid balance/spend
 - **Hub-managed account quotas** — add multiple provider accounts manually, keep their credentials in the Hub, refresh quotas centrally, and distribute the results to every connected device
-- **Preserve deleted session usage** — many tools prune old sessions (Claude Code drops transcripts after 30 days by default), losing that history. Token Monitor always archives observed daily tool/model usage locally, so the heatmap and trends survive even after the source files are gone (see [Session data retention](#session-data-retention) below)
+- **Preserve deleted session usage** — many tools prune old sessions (Claude Code drops transcripts after 30 days by default), losing that history. Jiran always archives observed daily tool/model usage locally, so the heatmap and trends survive even after the source files are gone (see [Session data retention](#session-data-retention) below)
 - **Usage Trends** — a home-screen activity heatmap and trend chart, plus the Trends view with streaks and stacked per-tool/per-model history (bar and K-line views) across all your devices
 - **Subscription records** — record by hand what each AI account actually costs; the plan label's tooltip then reports the price, the next renewal or end date, time subscribed, and the month's usage cost as a multiple of what the plan costs, for recurring plans and top-up ledgers alike
 
@@ -186,23 +186,23 @@ Most usage monitors are useful on the machine they run on. Token Monitor is buil
 
 ## Installation
 
-Download from [GitHub Releases](https://github.com/IGNGserver/token-monitor-suite/releases).
+Download from [GitHub Releases](https://github.com/IGNGserver/jiran/releases).
 
 - **macOS (Apple Silicon)** — `.dmg`, signed and notarized
 - **macOS (Intel)** — x64 `.dmg`, signed and notarized
 - **Windows 10/11** — setup and portable `.exe`, [code-signed](docs/code-signing.md)
 - **Linux x64** — `.AppImage`, or the `.deb` package
-- **Linux x64, kept up to date** — add the APT repository so the package manager upgrades the app (verify the key fingerprint against `token-monitor-archive-keyring-fingerprint.txt` next to it):
+- **Linux x64, kept up to date** — add the APT repository so the package manager upgrades the app (verify the key fingerprint against `jiran-archive-keyring-fingerprint.txt` next to it):
   ```bash
-  curl -fsSL https://igngserver.github.io/token-monitor-suite/apt/token-monitor-archive-keyring.asc \
+  curl -fsSL https://igngserver.github.io/jiran/apt/jiran-archive-keyring.asc \
     | gpg --dearmor \
-    | sudo tee /usr/share/keyrings/token-monitor-archive-keyring.gpg >/dev/null
-  curl -fsSL https://igngserver.github.io/token-monitor-suite/apt/token-monitor.sources \
-    | sudo tee /etc/apt/sources.list.d/token-monitor.sources >/dev/null
+    | sudo tee /usr/share/keyrings/jiran-archive-keyring.gpg >/dev/null
+  curl -fsSL https://igngserver.github.io/jiran/apt/jiran.sources \
+    | sudo tee /etc/apt/sources.list.d/jiran.sources >/dev/null
   sudo apt update && sudo apt install token-monitor
   ```
-- **Android** — `Token-Monitor-Android-<version>.apk`, a read-only client for a Docker Compose Hub
-- **No-GUI/server** — `Token-Monitor-Headless-<version>.tar.gz`; install with Node.js 22.13+ and `npm ci --omit=dev`
+- **Android** — `Jiran-Android-<version>.apk`, a read-only client for a Docker Compose Hub
+- **No-GUI/server** — `Jiran-Headless-<version>.tar.gz`; install with Node.js 22.13+ and `npm ci --omit=dev`
 
 Packaged builds check GitHub Releases automatically. When an update is available, the app shows an update indicator; supported platforms can also install from Management → Startup & updates.
 
@@ -212,9 +212,9 @@ Local mode is the default: launch the app and it starts tracking this device. No
 
 ## Multi-device sync
 
-When you want multi-device sync, connect all devices (and any headless agents) to the same Docker Compose Hub. On each device, open the app and choose **Connect to a hub** under Management → Hub connection. The app contributes this device's usage automatically; run `npm run agent` only on machines without the app. For a no-GUI install, use the [headless agent guide](docs/headless-agent.md) and the `Token-Monitor-Headless-<version>.tar.gz` release asset.
+When you want multi-device sync, connect all devices (and any headless agents) to the same Docker Compose Hub. On each device, open the app and choose **Connect to a hub** under Management → Hub connection. The app contributes this device's usage automatically; run `npm run agent` only on machines without the app. For a no-GUI install, use the [headless agent guide](docs/headless-agent.md) and the `Jiran-Headless-<version>.tar.gz` release asset.
 
-For this single-user project, `TOKEN_MONITOR_SECRET` is the one Hub owner key used by every client and it covers read, ingest, and administrative operations, including manually managed quota accounts. Devices identify data sources, not separate users. Remote connections require HTTPS by default; desktop/agent HTTP needs an explicit trusted-LAN opt-in, while Android release builds always require HTTPS.
+For this single-user project, `JIRAN_SECRET` is the one Hub owner key used by every client and it covers read, ingest, and administrative operations, including manually managed quota accounts. Devices identify data sources, not separate users. Remote connections require HTTPS by default; desktop/agent HTTP needs an explicit trusted-LAN opt-in, while Android release builds always require HTTPS.
 
 An older profile that points to a non-loopback `http://` Hub is not silently weakened during upgrade: local collection continues, while Hub read/upload/stream remain blocked until HTTPS is configured or the user explicitly enables the trusted-LAN option. The sync settings panel reports those channels separately and can recover them in the same process after the setting changes.
 
@@ -228,7 +228,7 @@ Deploy the root `docker-compose.yml` on an always-on machine:
 
 ```bash
 cp .env.example .env
-# set TOKEN_MONITOR_SECRET and the MySQL passwords in .env
+# set JIRAN_SECRET and the MySQL passwords in .env
 docker compose up -d
 ```
 
@@ -242,9 +242,9 @@ App state lives in the OS user-data dir — delete it along with the app to full
 
 | Platform | Path |
 |----------|------|
-| macOS | `~/Library/Application Support/Token Monitor/` |
-| Windows | `%APPDATA%/Token Monitor/` |
-| Linux | `~/.config/Token Monitor/` |
+| macOS | `~/Library/Application Support/Jiran/` |
+| Windows | `%APPDATA%/Jiran/` |
+| Linux | `~/.config/Jiran/` |
 
 ## Build from source
 
@@ -277,7 +277,7 @@ The desktop app chooses local vs sync mode based on Management → Hub connectio
 
 ## Session data retention
 
-Token Monitor always archives observed daily tool/model usage locally with no time limit — so even after a source tool prunes its own sessions, the heatmap and trends are unaffected.
+Jiran always archives observed daily tool/model usage locally with no time limit — so even after a source tool prunes its own sessions, the heatmap and trends are unaffected.
 
 <details>
 <summary><strong>Advanced: extend the source tool's own retention</strong></summary>
@@ -294,13 +294,13 @@ The heatmap and sync payload use a rolling 370-day window (older observations re
 
 A larger value keeps more, at the cost of transcripts living on disk for as long as you set. tokscale's [Session Data Retention](https://github.com/junhoyeo/tokscale#session-data-retention) table covers the other tools' defaults and config paths.
 
-This archive only covers days Token Monitor has already observed; data deleted before it started tracking cannot be recovered.
+This archive only covers days Jiran has already observed; data deleted before it started tracking cannot be recovered.
 
 </details>
 
 ## Settings
 
-There are two places to configure Token Monitor; day-to-day use only needs the first:
+There are two places to configure Jiran; day-to-day use only needs the first:
 
 - **Desktop app (GUI)** — open Settings from the sidebar or the app menu. It covers language, window surface and motion, startup and tray behaviour, updates, and the Hub connection; collection cadence and the other device-local keys live in `.env` / `settings.json`, and every supported tool is always tracked. Quota accounts, subscriptions, and pricing are managed on the Hub (see the Accounts and Management views).
 - **Headless agent & hub** — no UI; configured with a `.env` file at the project root (copy from `.env.example`), precedence CLI flag → env var → built-in default.
@@ -309,7 +309,7 @@ See the [configuration reference](docs/configuration.md) for every setting and a
 
 ## Tested Environments & Platform Compatibility
 
-Token Monitor is developed and tested primarily in the environments below. **Platforms and setups outside this list have not been fully verified and may encounter unexpected issues.** Feedback and PRs are welcome:
+Jiran is developed and tested primarily in the environments below. **Platforms and setups outside this list have not been fully verified and may encounter unexpected issues.** Feedback and PRs are welcome:
 
 - **Docker Compose Hub**: Verified for multi-device sync, aggregation, and SSE streaming.
 - **Windows 11**: Primary development and testing platform.
@@ -319,7 +319,7 @@ Token Monitor is developed and tested primarily in the environments below. **Pla
 
 ## Privacy
 
-Token Monitor processes usage logs locally and sends no analytics or telemetry to the project maintainer. Network access occurs only for documented or user-enabled features. See the [privacy policy](docs/privacy.md) for the data used by updates, provider integrations, and optional multi-device sync.
+Jiran processes usage logs locally and sends no analytics or telemetry to the project maintainer. Network access occurs only for documented or user-enabled features. See the [privacy policy](docs/privacy.md) for the data used by updates, provider integrations, and optional multi-device sync.
 
 ## Contributing
 
@@ -329,7 +329,7 @@ Issues and PRs are welcome. Project conventions, architecture notes, and the com
 
 - [tokscale](https://github.com/junhoyeo/tokscale) for log parsing and token accounting.
 - [CodexBar](https://github.com/steipete/CodexBar) for AI Tool Limits research.
-- [Token Monitor](https://github.com/Javis603/token-monitor) by [@Javis](https://github.com/Javis603) for the initial desktop architecture and inspiration.
+- [Jiran](https://github.com/Javis603/token-monitor) by [@Javis](https://github.com/Javis603) for the initial desktop architecture and inspiration.
 - **[Code signing policy](docs/code-signing.md):** Free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
 ## One codebase, four surfaces

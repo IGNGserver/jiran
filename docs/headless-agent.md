@@ -1,4 +1,4 @@
-# Token Monitor Headless Agent
+# Jiran Headless Agent
 
 The headless agent collects the same local usage snapshot as the Electron
 desktop app's **Connect to a hub** mode and sends the same normalized payload to the
@@ -8,12 +8,12 @@ account probing.
 ## Install
 
 Use Node.js 22.13.0 or newer on the machine that owns the tool data. Extract
-the `Token-Monitor-Headless-<version>.tar.gz` release asset, then install only
+the `Jiran-Headless-<version>.tar.gz` release asset, then install only
 production dependencies:
 
 ```bash
-tar -xzf Token-Monitor-Headless-<version>.tar.gz
-cd token-monitor-headless-<version>
+tar -xzf Jiran-Headless-<version>.tar.gz
+cd jiran-headless-<version>
 npm ci --omit=dev
 cp .env.example .env
 ```
@@ -22,16 +22,20 @@ cp .env.example .env
 is not installed for the headless runtime. The target platform's tokscale
 package is installed by npm on that machine.
 
+The bundle exposes the agent as the `jiran-agent` bin (formerly
+`token-monitor-agent`); cron/systemd entries referencing the old name must be
+updated once, on the user's schedule — the collector itself behaves identically.
+
 Set at least these values in `.env`:
 
 ```env
-TOKEN_MONITOR_HUB_URL=https://hub.example.com
-TOKEN_MONITOR_SECRET=YOUR_HUB_SECRET
-TOKEN_MONITOR_DEVICE_ID=server-agent
+JIRAN_HUB_URL=https://hub.example.com
+JIRAN_SECRET=YOUR_HUB_SECRET
+JIRAN_DEVICE_ID=server-agent
 ```
 
 For a trusted LAN/VPN without HTTPS, also set
-`TOKEN_MONITOR_ALLOW_INSECURE_HTTP=1`. The device ID should be unique per
+`JIRAN_ALLOW_INSECURE_HTTP=1`. The device ID should be unique per
 installation. If it changes later, the agent attempts the same Hub-side
 baseline migration as the desktop app before posting the next snapshot.
 
@@ -65,7 +69,7 @@ tokscale budget, and `--once` / `--dry-run`.
 
 `--clients`, `--collectionMode`, `--interval`, `--watch`, `--watchDebounceMs`,
 `--history`, `--projects`, `--sessionArchive`, `--wslScan`, `--since`,
-`--syncUploadInterval` and their `TOKEN_MONITOR_*` environment equivalents are
+`--syncUploadInterval` and their `JIRAN_*` environment equivalents are
 gone: the agent warns and ignores them so an existing systemd/launchd/cron unit
 keeps running through the upgrade instead of failing on an unknown flag.
 

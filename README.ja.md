@@ -2,8 +2,8 @@
    <a href="./README.md">EN</a> | <a href="./README.zh-CN.md">简</a> | <a href="./README.zh-TW.md">繁</a> | <a href="./README.ko.md">KO</a> | <strong>JA</strong>
 </p>
 <div align="center">
-    <img src=".github/assets/app.png" alt="Token Monitor logo" width="120">
-    <h1>Token Monitor</h1>
+    <img src=".github/assets/app.png" alt="Jiran logo" width="120">
+    <h1>Jiran</h1>
 </div>
 
 <p align="center">
@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/IGNGserver/token-monitor-suite/releases"><img src="https://img.shields.io/github/v/release/IGNGserver/token-monitor-suite?include_prereleases&style=flat-square&label=release&color=22c55e" alt="最新リリース" /></a>
-    <a href="https://github.com/IGNGserver/token-monitor-suite/releases"><img src="https://img.shields.io/github/downloads/IGNGserver/token-monitor-suite/total?style=flat-square&color=22c55e" alt="総ダウンロード数" /></a>
+    <a href="https://github.com/IGNGserver/jiran/releases"><img src="https://img.shields.io/github/v/release/IGNGserver/jiran?include_prereleases&style=flat-square&label=release&color=22c55e" alt="最新リリース" /></a>
+    <a href="https://github.com/IGNGserver/jiran/releases"><img src="https://img.shields.io/github/downloads/IGNGserver/jiran/total?style=flat-square&color=22c55e" alt="総ダウンロード数" /></a>
     <img src="https://img.shields.io/badge/Windows-10%2B-0078D4?style=flat-square" alt="Windows 10 以降" />
     <img src="https://img.shields.io/badge/macOS-12%2B-0A84FF?style=flat-square&logo=apple&logoColor=white" alt="macOS 12 以降" />
     <img src="https://img.shields.io/badge/Linux-x64-64748b?style=flat-square&logo=linux&logoColor=white" alt="Linux x64" />
@@ -23,13 +23,13 @@
     <img src=".github/assets/demo.gif">
 </div>
 
-## Token Monitor とは
+## Jiran とは
 
 Claude Code、Codex、Cursor、GitHub Copilot など 59+ 種類の AI コーディングツールのリアルタイムトークン使用量と AI ツール制限を表示するデスクトップアプリです。複数デバイス間のリアルタイム同期、使用履歴トレンド、ツール・デバイス・モデル・セッション・プロジェクト別の内訳表示に対応しています。
 
 ## 対応ツール
 
-Token Monitor は **トークン使用量**、**アカウント制限**、**セッション詳細** を個別にサポートします。
+Jiran は **トークン使用量**、**アカウント制限**、**セッション詳細** を個別にサポートします。
 
 | Logo | ツール | データパス | トークン使用量 | AI ツール制限 | セッション詳細 |
 |:---:|------|-----------|:---:|:---:|:---:|
@@ -98,7 +98,7 @@ Token Monitor は **トークン使用量**、**アカウント制限**、**セ�
 
 <br>
 
-- 上記はデフォルトのパスです。Token Monitor は Tokscale と同じ環境変数の上書きに従います。`~/.local/share/` 配下は `$XDG_DATA_HOME`、ツール個別では `$CODEX_HOME`、`$GROK_HOME`、`$HERMES_HOME`、`$KIMI_CODE_HOME`、`$REASONIX_STATE_HOME`、`$REASONIX_HOME`、`$CLINE_*` などです。
+- 上記はデフォルトのパスです。Jiran は Tokscale と同じ環境変数の上書きに従います。`~/.local/share/` 配下は `$XDG_DATA_HOME`、ツール個別では `$CODEX_HOME`、`$GROK_HOME`、`$HERMES_HOME`、`$KIMI_CODE_HOME`、`$REASONIX_STATE_HOME`、`$REASONIX_HOME`、`$CLINE_*` などです。
 
 - Command Code の transcript には実際のトークン数やメッセージごとのモデル情報が含まれません。トークン使用量は transcript テキストから推定され、モデルの帰属と推定コストには各リクエストで過去に使用したモデルではなく、現在設定されているモデルが反映される場合があります。
 
@@ -108,9 +108,9 @@ Token Monitor は **トークン使用量**、**アカウント制限**、**セ�
 
 Qoder のトークン使用量は API ではなくアプリ自身のローカルファイルから読み取ります。国際版と中国版はプロファイルが分かれているため、`qoder` と `qodercn` の2つの独立したクライアントとして追跡します。どちらも自動的に追跡されます（ツール単位のオプトインはありません）。各エディションで3つのソースを調べ、実在するものが寄与します：
 
-- **Transcript ディレクトリ — 現在のビルドでの主要ソース。** `~/.qoder/projects/**/*.jsonl`（国際版）または `~/.qoder-cn/projects/**/*.jsonl`（中国版）、リクエストごとに JSON 1行。ライブ更新のため監視され、必要なのはファイルシステムだけです。別のルートを指すには `TOKEN_MONITOR_QODER_TRANSCRIPTS_DIR` / `TOKEN_MONITOR_QODER_CN_TRANSCRIPTS_DIR` を、プロファイル全体を移動している場合は Qoder CN 自身の `QODERCN_CONFIG_DIR` を設定してください。
-- **デスクトップのメッセージストア。** プラットフォームのアプリケーションサポートディレクトリ下の `com.qoder.app.stable/main.sqlite`（国際版）または `com.qodercn.app.stable/main.sqlite`（中国版）。`TOKEN_MONITOR_QODER_MAIN_DB_PATH` / `TOKEN_MONITOR_QODER_CN_MAIN_DB_PATH` で上書きできます。Qoder CN 0.1.x は国際版の表記を使っていたため、中国版は両方の候補を順に試します。
-- **旧キャッシュデータベース。** `<platform-app-data>/Qoder/SharedClientCache/cache/db/local.db`（国際版）、中国版は `QoderCN/` 下の同じパス — macOS `~/Library/Application Support/`、Windows `%APPDATA%\`、Linux `~/.config/`。`TOKEN_MONITOR_QODER_DB_PATH` / `TOKEN_MONITOR_QODER_CN_DB_PATH` で上書きできます。
+- **Transcript ディレクトリ — 現在のビルドでの主要ソース。** `~/.qoder/projects/**/*.jsonl`（国際版）または `~/.qoder-cn/projects/**/*.jsonl`（中国版）、リクエストごとに JSON 1行。ライブ更新のため監視され、必要なのはファイルシステムだけです。別のルートを指すには `JIRAN_QODER_TRANSCRIPTS_DIR` / `JIRAN_QODER_CN_TRANSCRIPTS_DIR` を、プロファイル全体を移動している場合は Qoder CN 自身の `QODERCN_CONFIG_DIR` を設定してください。
+- **デスクトップのメッセージストア。** プラットフォームのアプリケーションサポートディレクトリ下の `com.qoder.app.stable/main.sqlite`（国際版）または `com.qodercn.app.stable/main.sqlite`（中国版）。`JIRAN_QODER_MAIN_DB_PATH` / `JIRAN_QODER_CN_MAIN_DB_PATH` で上書きできます。Qoder CN 0.1.x は国際版の表記を使っていたため、中国版は両方の候補を順に試します。
+- **旧キャッシュデータベース。** `<platform-app-data>/Qoder/SharedClientCache/cache/db/local.db`（国際版）、中国版は `QoderCN/` 下の同じパス — macOS `~/Library/Application Support/`、Windows `%APPDATA%\`、Linux `~/.config/`。`JIRAN_QODER_DB_PATH` / `JIRAN_QODER_CN_DB_PATH` で上書きできます。
 
 `com.qoder.app.stable` は両エディションが主張するため、あるエディションは自分自身の痕跡（アプリケーションサポートディレクトリまたはプロファイルディレクトリ）も実在する場合にのみ読み取ります：国際版だけのマシンが `qodercn` に計上されることはなく、Qoder CN 0.1.x だけのマシンが `qoder` に計上されることもありません。どのソースが実在するかはエディションとインストール形態によって異なります — 本記述を確認した Linux マシン（2026-09-26、Qoder CN 0.4.2）では、中国版は transcript と `com.qodercn.app.stable/main.sqlite` を持ち旧キャッシュデータベースはなく、国際版は CLI のみのインストールで transcript だけでした。
 
@@ -147,9 +147,9 @@ Qoder のトークン使用量は API ではなくアプリ自身のローカル
 </tr>
 </table>
 
-## Token Monitor を使う理由
+## Jiran を使う理由
 
-多くの使用量モニターは、実行しているマシン上でのみ役立ちます。Token Monitor はマルチデバイス作業のために設計されています。各デバイスがローカルログを監視し、hub にサマリーを送信すると、接続されたすべてのクライアントがトークンの変化をほぼリアルタイムで確認できます。
+多くの使用量モニターは、実行しているマシン上でのみ役立ちます。Jiran はマルチデバイス作業のために設計されています。各デバイスがローカルログを監視し、hub にサマリーを送信すると、接続されたすべてのクライアントがトークンの変化をほぼリアルタイムで確認できます。
 
 ## 機能
 
@@ -165,7 +165,7 @@ Qoder のトークン使用量は API ではなくアプリ自身のローカル
 
 - **AI ツール制限検出** — Claude Code、Codex、Cursor、OpenRouter、サードパーティAPI、GLM、Kimi など 26+ プロバイダーの session/weekly/billing/credits、複数の OpenRouter／サードパーティプロファイル、DeepSeek プリペイド残高と使用額
 - **Hub 管理のアカウント制限** — プロバイダーごとに複数アカウントを手動追加し、認証情報を Hub だけに保存。Hub が制限を更新し、接続中のすべてのデバイスへ配布
-- **削除されたセッション使用量を保持** — 多くのツールは古いセッションを削除します（Claude Code はデフォルトで 30 日後にトランスクリプトを削除）。Token Monitor は観測済みの日別ツール/モデル使用量を常にローカルにアーカイブし、元ファイルが消えてもヒートマップとトレンドを維持します（下記 [セッションデータの保持期間](#セッションデータの保持期間) を参照）
+- **削除されたセッション使用量を保持** — 多くのツールは古いセッションを削除します（Claude Code はデフォルトで 30 日後にトランスクリプトを削除）。Jiran は観測済みの日別ツール/モデル使用量を常にローカルにアーカイブし、元ファイルが消えてもヒートマップとトレンドを維持します（下記 [セッションデータの保持期間](#セッションデータの保持期間) を参照）
 - **使用トレンド** — ホーム画面のアクティビティヒートマップ・トレンドチャート、およびトレンドビューの連続日数と全デバイス横断のツール/モデル別累積使用（棒・K 線）
 - **サブスクリプション記録** — 各 AI アカウントの実際の費用を手動で記録します。プランラベルのツールチップに料金、次回更新日または終了日、利用期間、当月の使用量コストが支払額の何倍かが表示され、定期プランとチャージ履歴のどちらにも対応
 
@@ -186,23 +186,23 @@ Qoder のトークン使用量は API ではなくアプリ自身のローカル
 
 ## インストール
 
-[GitHub Releases](https://github.com/IGNGserver/token-monitor-suite/releases) からダウンロードできます。
+[GitHub Releases](https://github.com/IGNGserver/jiran/releases) からダウンロードできます。
 
 - **macOS (Apple Silicon)** — `.dmg`、署名および notarize 済み
 - **macOS (Intel)** — x64 `.dmg`、署名および notarize 済み
 - **Windows 10/11** — インストーラー版とポータブル版の `.exe`、[署名済み](docs/code-signing.md)
 - **Linux x64** — `.AppImage`、または `.deb` パッケージ
-- **Linux x64（自動アップデート）** — APT リポジトリを追加するとパッケージマネージャーがアップデートを担当します（インストール前に同じディレクトリの `token-monitor-archive-keyring-fingerprint.txt` で鍵の指紋を照合してください）：
+- **Linux x64（自動アップデート）** — APT リポジトリを追加するとパッケージマネージャーがアップデートを担当します（インストール前に同じディレクトリの `jiran-archive-keyring-fingerprint.txt` で鍵の指紋を照合してください）：
   ```bash
-  curl -fsSL https://igngserver.github.io/token-monitor-suite/apt/token-monitor-archive-keyring.asc \
+  curl -fsSL https://igngserver.github.io/jiran/apt/jiran-archive-keyring.asc \
     | gpg --dearmor \
-    | sudo tee /usr/share/keyrings/token-monitor-archive-keyring.gpg >/dev/null
-  curl -fsSL https://igngserver.github.io/token-monitor-suite/apt/token-monitor.sources \
-    | sudo tee /etc/apt/sources.list.d/token-monitor.sources >/dev/null
+    | sudo tee /usr/share/keyrings/jiran-archive-keyring.gpg >/dev/null
+  curl -fsSL https://igngserver.github.io/jiran/apt/jiran.sources \
+    | sudo tee /etc/apt/sources.list.d/jiran.sources >/dev/null
   sudo apt update && sudo apt install token-monitor
   ```
-- **Android** — `Token-Monitor-Android-<version>.apk`。Docker Compose Hub のデータを表示する読み取り専用クライアント
-- **GUI なし／サーバー** — `Token-Monitor-Headless-<version>.tar.gz`。Node.js 22.13+ と `npm ci --omit=dev` でインストール
+- **Android** — `Jiran-Android-<version>.apk`。Docker Compose Hub のデータを表示する読み取り専用クライアント
+- **GUI なし／サーバー** — `Jiran-Headless-<version>.tar.gz`。Node.js 22.13+ と `npm ci --omit=dev` でインストール
 
 パッケージ版は GitHub Releases を自動確認します。新しいバージョンがある場合は画面に更新インジケーターが表示され、対応プラットフォームでは 管理 → 起動と更新 からもインストールできます。
 
@@ -212,9 +212,9 @@ Qoder のトークン使用量は API ではなくアプリ自身のローカル
 
 ## マルチデバイス同期
 
-マルチデバイス同期を使う場合は、すべてのデバイス（アプリを入れていない headless agent を含む）を同じ Docker Compose Hub に接続します。各デバイスでアプリを開き、管理 → ハブ接続 で **ハブに接続** を選びます。アプリを入れていないマシンだけで `npm run agent` を実行してください。GUI なしの環境では [Headless Agent ガイド](docs/headless-agent.md) と `Token-Monitor-Headless-<version>.tar.gz` を利用できます。
+マルチデバイス同期を使う場合は、すべてのデバイス（アプリを入れていない headless agent を含む）を同じ Docker Compose Hub に接続します。各デバイスでアプリを開き、管理 → ハブ接続 で **ハブに接続** を選びます。アプリを入れていないマシンだけで `npm run agent` を実行してください。GUI なしの環境では [Headless Agent ガイド](docs/headless-agent.md) と `Jiran-Headless-<version>.tar.gz` を利用できます。
 
-この一人用プロジェクトでは、`TOKEN_MONITOR_SECRET` が全デバイスで使う唯一の Hub キーです。読み取り、ingest、管理操作（手動追加した quota アカウントを含む）をすべて許可します。デバイスは別ユーザーではなく、データソースを識別します。リモート接続はデフォルトで HTTPS が必要です。デスクトップ/agent の HTTP は信頼できる LAN を明示的に許可した場合だけ、Android リリースビルドは常に HTTPS を使います。
+この一人用プロジェクトでは、`JIRAN_SECRET` が全デバイスで使う唯一の Hub キーです。読み取り、ingest、管理操作（手動追加した quota アカウントを含む）をすべて許可します。デバイスは別ユーザーではなく、データソースを識別します。リモート接続はデフォルトで HTTPS が必要です。デスクトップ/agent の HTTP は信頼できる LAN を明示的に許可した場合だけ、Android リリースビルドは常に HTTPS を使います。
 
 古い設定がループバック以外の `http://` Hub を指していても、アップグレード時に安全性を下げることはありません。ローカル収集は継続しますが、HTTPS に変更するか信頼できる LAN オプションを明示的に有効にするまで、Hub の読み取り・アップロード・ストリームはブロックされます。
 
@@ -228,7 +228,7 @@ Qoder のトークン使用量は API ではなくアプリ自身のローカル
 
 ```bash
 cp .env.example .env
-# .env に TOKEN_MONITOR_SECRET と MySQL パスワードを設定
+# .env に JIRAN_SECRET と MySQL パスワードを設定
 docker compose up -d
 ```
 
@@ -242,9 +242,9 @@ docker compose up -d
 
 | プラットフォーム | パス |
 |--------|------|
-| macOS | `~/Library/Application Support/Token Monitor/` |
-| Windows | `%APPDATA%/Token Monitor/` |
-| Linux | `~/.config/Token Monitor/` |
+| macOS | `~/Library/Application Support/Jiran/` |
+| Windows | `%APPDATA%/Jiran/` |
+| Linux | `~/.config/Jiran/` |
 
 ## ソースからビルド
 
@@ -277,7 +277,7 @@ npm run pack         # インストーラーなしのアプリディレクトリ
 
 ## セッションデータの保持期間
 
-Token Monitor は観測済みの日別ツール/モデル使用量を常に期限なしでローカルにアーカイブします。元のツールが後からセッションを削除しても、ヒートマップとトレンドは影響を受けません。
+Jiran は観測済みの日別ツール/モデル使用量を常に期限なしでローカルにアーカイブします。元のツールが後からセッションを削除しても、ヒートマップとトレンドは影響を受けません。
 
 <details>
 <summary><strong>詳細: 元ツール自体の保持期間を延長する</strong></summary>
@@ -294,13 +294,13 @@ Token Monitor は観測済みの日別ツール/モデル使用量を常に期�
 
 値を大きくすればより多く残せますが、その分トランスクリプトがディスク上に残り続けます。他のツールのデフォルト値と設定ファイルのパスは、tokscale の [Session Data Retention](https://github.com/junhoyeo/tokscale#session-data-retention) の表を参照してください。
 
-このアーカイブは Token Monitor が既に観測した日のみを対象とします。追跡を開始する前に削除されたデータは復元できません。
+このアーカイブは Jiran が既に観測した日のみを対象とします。追跡を開始する前に削除されたデータは復元できません。
 
 </details>
 
 ## 設定
 
-Token Monitor の設定は 2 か所にあります。日常利用に必要なのは前者だけです。
+Jiran の設定は 2 か所にあります。日常利用に必要なのは前者だけです。
 
 - **デスクトップアプリ (GUI)** — サイドバーまたはアプリメニューから設定を開きます。言語、ウィンドウ素材とモーション、起動とトレイ動作、アップデート、ハブ接続を扱います。収集間隔などのデバイスローカル設定は `.env` / `settings.json` のままです。すべての対応ツールは常に収集されます。クォータアカウント、サブスクリプション、価格設定はハブで管理します（「アカウント」と「管理」ビューを参照）。
 - **Headless agent と hub** — UI なし。プロジェクトルートの `.env`（`.env.example` をコピー）で設定します。優先順位は CLI フラグ → 環境変数 → 既定値。
@@ -309,7 +309,7 @@ Token Monitor の設定は 2 か所にあります。日常利用に必要なの
 
 ## プライバシー
 
-Token Monitor は使用ログをローカルで処理し、プロジェクトのメンテナーに分析データやテレメトリを送信しません。ネットワークアクセスは、文書化された機能またはユーザーが有効にした機能に限られます。アップデート、プロバイダー連携、任意のマルチデバイス同期で使用されるデータについては、[プライバシーポリシー](docs/privacy.md)を参照してください。
+Jiran は使用ログをローカルで処理し、プロジェクトのメンテナーに分析データやテレメトリを送信しません。ネットワークアクセスは、文書化された機能またはユーザーが有効にした機能に限られます。アップデート、プロバイダー連携、任意のマルチデバイス同期で使用されるデータについては、[プライバシーポリシー](docs/privacy.md)を参照してください。
 
 ## コントリビュート
 
@@ -319,7 +319,7 @@ Issue や PR を歓迎します。プロジェクトの規約、アーキテク�
 
 - [tokscale](https://github.com/junhoyeo/tokscale) — ログ解析とトークン集計
 - [CodexBar](https://github.com/steipete/CodexBar) — AI ツール制限の調査
-- [Token Monitor](https://github.com/Javis603/token-monitor) by [@Javis](https://github.com/Javis603) — 元プロジェクトのデスクトップ構造とインスピレーション
+- [Jiran](https://github.com/Javis603/token-monitor) by [@Javis](https://github.com/Javis603) — 元プロジェクトのデスクトップ構造とインスピレーション
 - **[コード署名ポリシー](docs/code-signing.md)：** 無償のコード署名は [SignPath.io](https://signpath.io/) が提供し、証明書は [SignPath Foundation](https://signpath.org/) が提供します。
 
 ## ライセンス

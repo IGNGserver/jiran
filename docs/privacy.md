@@ -1,10 +1,10 @@
 # Privacy Policy
 
-Token Monitor is local-first. It processes AI-tool usage logs on the device and does not send analytics or telemetry to the project maintainer. The project does not operate a hosted data-collection service.
+Jiran is local-first. It processes AI-tool usage logs on the device and does not send analytics or telemetry to the project maintainer. The project does not operate a hosted data-collection service.
 
 ## Network features
 
-Token Monitor makes network requests only for documented or user-enabled features:
+Jiran makes network requests only for documented or user-enabled features:
 
 - Packaged builds check GitHub Releases for updates.
 - The exchange-rate lookup fetches its public data source.
@@ -15,7 +15,7 @@ These requests are processed under the privacy policy of the service receiving t
 
 ## Multi-device sync
 
-Multi-device sync is optional and has no Token Monitor-operated default server. The operator chooses and controls a Docker Compose Hub deployment and its infrastructure.
+Multi-device sync is optional and has no Jiran-operated default server. The operator chooses and controls a Docker Compose Hub deployment and its infrastructure.
 
 When enabled, sync can send device identifiers and metadata; aggregate token and cost totals; client, model, session, and project attribution; and retained usage history. Project attribution can include an opaque project identifier and workspace-folder label, but never an absolute workspace path. Devices do not upload provider quota: the Hub refreshes the accounts you added there — keeping a hashed account identifier, account email, and plan label so it can distinguish accounts — and pushes the normalized limit status back down to connected clients.
 

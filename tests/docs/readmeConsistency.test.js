@@ -199,13 +199,13 @@ const countClaims = {
 test('configuration reference env keys all exist in .env.example', () => {
   const envKeys = (text) => {
     const block = text.match(/```env\n([\s\S]*?)```/)?.[1] || '';
-    return [...block.matchAll(/^(TOKEN_MONITOR_[A-Z0-9_]+)=/gm)].map((match) => match[1]);
+    return [...block.matchAll(/^(JIRAN_[A-Z0-9_]+)=/gm)].map((match) => match[1]);
   };
   const docKeys = envKeys(read('docs/configuration.md'));
   assert.ok(docKeys.length > 0, 'docs/configuration.md should list env keys');
 
   const exampleKeys = new Set(
-    [...read('.env.example').matchAll(/^(TOKEN_MONITOR_[A-Z0-9_]+)=/gm)].map((match) => match[1])
+    [...read('.env.example').matchAll(/^(JIRAN_[A-Z0-9_]+)=/gm)].map((match) => match[1])
   );
   for (const key of docKeys) assert.ok(exampleKeys.has(key), `${key} missing from .env.example`);
 });
@@ -324,7 +324,7 @@ test('localized README env summaries stay aligned', () => {
   const files = localizedReadmes;
   const envKeys = (file) => {
     const block = read(file).match(/```env\n([\s\S]*?)```/)?.[1] || '';
-    return [...block.matchAll(/^(TOKEN_MONITOR_[A-Z0-9_]+)=/gm)].map((match) => match[1]);
+    return [...block.matchAll(/^(JIRAN_[A-Z0-9_]+)=/gm)].map((match) => match[1]);
   };
   const expected = envKeys(files[0]);
   for (const file of files.slice(1)) assert.deepEqual(envKeys(file), expected, file);

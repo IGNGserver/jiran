@@ -1,6 +1,6 @@
 # Configuration
 
-Token Monitor has two configuration surfaces:
+Jiran has two configuration surfaces:
 
 - **Desktop app (GUI)** — display, behaviour, and Hub connection, configured from Settings.
 - **`.env` / `settings.json`** — the device identity, the Hub connection, currency
@@ -18,7 +18,7 @@ precedence **CLI flag → env var (real or `.env`) → built-in default**.
 
 **Every supported tool is always tracked.** There is no client-selection setting
 on any surface: the desktop app and the agent both collect the full wired list,
-so a persisted or `TOKEN_MONITOR_CLIENTS`-style subset is ignored and removed.
+so a persisted or `JIRAN_CLIENTS`-style subset is ignored and removed.
 
 ---
 
@@ -73,8 +73,8 @@ The first version using this model intentionally invalidates old device-local
 provider credentials and removes the legacy local credential files/settings.
 There is no automatic secret migration: every account must be logged in again
 manually in the Hub after upgrading. In the single-key deployment, configure
-only `TOKEN_MONITOR_SECRET`; the Hub uses it for authentication and derives the
-account-encryption key from it. `TOKEN_MONITOR_HUB_CREDENTIAL_KEY` remains an
+only `JIRAN_SECRET`; the Hub uses it for authentication and derives the
+account-encryption key from it. `JIRAN_HUB_CREDENTIAL_KEY` remains an
 optional legacy override. Changing the effective encryption key requires
 re-adding the affected accounts.
 
@@ -92,21 +92,21 @@ the public installed-app client secret that Google requires for this client;
 The agent and Docker Compose Hub have no UI. Configure them with a `.env` file in the project root (copy it from `.env.example`):
 
 ```env
-TOKEN_MONITOR_HUB_URL=               # required in sync mode — HTTPS Docker Compose Hub URL
-TOKEN_MONITOR_SECRET=                # the single Hub key; use the same value on every device
-TOKEN_MONITOR_DEVICE_ID=             # optional — defaults to the hostname
-TOKEN_MONITOR_LIMITS_ENABLED=        # legacy compatibility; device quota probing is removed
-TOKEN_MONITOR_LIMIT_PROVIDERS=       # legacy compatibility; Hub accounts select providers
-TOKEN_MONITOR_HUB_CREDENTIAL_KEY=    # optional legacy account-encryption override; normally leave empty
-TOKEN_MONITOR_QODER_TRANSCRIPTS_DIR=    # optional direct override for the international Qoder JSONL transcripts
-TOKEN_MONITOR_QODER_MAIN_DB_PATH=       # optional direct override for the international Qoder main.sqlite store
+JIRAN_HUB_URL=               # required in sync mode — HTTPS Docker Compose Hub URL
+JIRAN_SECRET=                # the single Hub key; use the same value on every device
+JIRAN_DEVICE_ID=             # optional — defaults to the hostname
+JIRAN_LIMITS_ENABLED=        # legacy compatibility; device quota probing is removed
+JIRAN_LIMIT_PROVIDERS=       # legacy compatibility; Hub accounts select providers
+JIRAN_HUB_CREDENTIAL_KEY=    # optional legacy account-encryption override; normally leave empty
+JIRAN_QODER_TRANSCRIPTS_DIR=    # optional direct override for the international Qoder JSONL transcripts
+JIRAN_QODER_MAIN_DB_PATH=       # optional direct override for the international Qoder main.sqlite store
 QODERCN_CONFIG_DIR=                   # Qoder CN's optional config root; transcript default is $QODERCN_CONFIG_DIR/projects
-TOKEN_MONITOR_QODER_CN_TRANSCRIPTS_DIR= # optional direct override for Qoder CN JSONL transcripts
-TOKEN_MONITOR_QODER_CN_MAIN_DB_PATH=    # optional direct override for the Qoder CN main.sqlite store
+JIRAN_QODER_CN_TRANSCRIPTS_DIR= # optional direct override for Qoder CN JSONL transcripts
+JIRAN_QODER_CN_MAIN_DB_PATH=    # optional direct override for the Qoder CN main.sqlite store
 ```
 
 For a trusted LAN/VPN Hub that still uses `http://<lan-ip>:17321`, also set
-`TOKEN_MONITOR_ALLOW_INSECURE_HTTP=1` on the connecting agent. Remote HTTP is
+`JIRAN_ALLOW_INSECURE_HTTP=1` on the connecting agent. Remote HTTP is
 rejected by default; prefer HTTPS whenever possible. In the single-user mode,
 all devices intentionally use the same Hub owner key. Separate legacy
 credentials are not part of the supported configuration.
@@ -138,11 +138,11 @@ the transcript tree under its profile (`~/.qoder/projects`, or
 primary source in current builds; the desktop `com.qoder.app.stable/main.sqlite`
 (or `com.qodercn.app.stable/main.sqlite`) conversation store, auto-detected under
 the platform application-support directory and overridable with
-`TOKEN_MONITOR_QODER_MAIN_DB_PATH` / `TOKEN_MONITOR_QODER_CN_MAIN_DB_PATH`; and
+`JIRAN_QODER_MAIN_DB_PATH` / `JIRAN_QODER_CN_MAIN_DB_PATH`; and
 the legacy `Qoder/SharedClientCache/cache/db/local.db` (or the same path under
-`QoderCN/`) cache database, overridable with `TOKEN_MONITOR_QODER_DB_PATH` /
-`TOKEN_MONITOR_QODER_CN_DB_PATH`. `TOKEN_MONITOR_QODER_TRANSCRIPTS_DIR` and
-`TOKEN_MONITOR_QODER_CN_TRANSCRIPTS_DIR` override each transcript tree directly.
+`QoderCN/`) cache database, overridable with `JIRAN_QODER_DB_PATH` /
+`JIRAN_QODER_CN_DB_PATH`. `JIRAN_QODER_TRANSCRIPTS_DIR` and
+`JIRAN_QODER_CN_TRANSCRIPTS_DIR` override each transcript tree directly.
 `com.qoder.app.stable` is claimed by both sites, so one reads it only when that
 site's own footprint is also present — an international-only machine is never
 billed to `qodercn`, and a Qoder CN 0.1.x-only machine is never billed to
@@ -156,7 +156,7 @@ billing fields, system-prompt, or tool-schema overhead.
 
 For a target-machine Qoder CN check, run `npm run evidence:qodercn -- --version-file ~/.qoder-cn/.qoder-app-status.json --require-version --require-data`, or pass `QODERCN_VERSION=<installed version>` instead of `--version-file`. The command prints only platform/version, source presence, bounded read diagnostics, row counts, model names, and period totals; it never prints source paths, transcript content, cookies, account IDs, or session IDs. A result of `NOT RUN` means the machine has no readable source or no non-zero usage yet; a result of `FAIL` requires investigation before claiming the real-environment acceptance as complete.
 
-For a trusted LAN/VPN Hub that still uses non-loopback HTTP, keep the default blocked state until the user explicitly enables the trusted-LAN option in the app (or sets `TOKEN_MONITOR_ALLOW_INSECURE_HTTP=1` for the agent). Upgrading an old HTTP profile does not silently enable cleartext transport; the app continues local collection while Hub read/write/stream status reports the blocked transport.
+For a trusted LAN/VPN Hub that still uses non-loopback HTTP, keep the default blocked state until the user explicitly enables the trusted-LAN option in the app (or sets `JIRAN_ALLOW_INSECURE_HTTP=1` for the agent). Upgrading an old HTTP profile does not silently enable cleartext transport; the app continues local collection while Hub read/write/stream status reports the blocked transport.
 
 The desktop app reads these as first-run defaults; the agent and Docker Compose Hub take a CLI flag over an env var over the built-in default.
 
@@ -166,7 +166,7 @@ One-shot run (collect once and exit — useful for cron / launchd):
 npm run agent -- --once
 ```
 
-Every supported tool is collected; `--clients` and `TOKEN_MONITOR_CLIENTS` were
+Every supported tool is collected; `--clients` and `JIRAN_CLIENTS` were
 removed and are ignored with a warning.
 
 ---

@@ -2,19 +2,19 @@
 
 ## 问题背景
 
-在 Windows 上使用 Token Monitor 时，能否检测到 AI 工具取决于数据的存放位置：
+在 Windows 上使用 Jiran 时，能否检测到 AI 工具取决于数据的存放位置：
 
-| 工具 | 数据位置 | Token Monitor 检测方式 | 状态 |
+| 工具 | 数据位置 | Jiran 检测方式 | 状态 |
 |:---|:---|:---|:---:|
 | **Codex（Windows 原生）** | `C:\Users\用户名\.codex\sessions\` | 本地文件扫描 | ✅ 正常工作 |
 | **Codex（WSL）** | `~/.codex/sessions/` | WSL 文件系统扫描 | ✅ 正常工作 |
 | **Hermes Agent（WSL）** | `~/.hermes/state.db` | WSL 文件系统扫描 | ⚠️ 需额外配置 |
 
-Hermes Agent 运行在 WSL 中，其会话数据存储在 `~/.hermes/state.db`（SQLite 数据库）。Token Monitor 通过 `tokscale` 工具读取该数据库，但由于 Windows 侧通过 `\\wsl$` UNC 路径访问 WSL 内的 SQLite 文件存在兼容性问题（字节范围锁定、路径混合斜杠等），导致直接扫描无法读取数据。
+Hermes Agent 运行在 WSL 中，其会话数据存储在 `~/.hermes/state.db`（SQLite 数据库）。Jiran 通过 `tokscale` 工具读取该数据库，但由于 Windows 侧通过 `\\wsl$` UNC 路径访问 WSL 内的 SQLite 文件存在兼容性问题（字节范围锁定、路径混合斜杠等），导致直接扫描无法读取数据。
 
 ## 解决方案
 
-采用 Token Monitor 的多设备架构：**WSL 内运行 headless agent → Windows 端 Docker Compose Hub 接收数据**。
+采用 Jiran 的多设备架构：**WSL 内运行 headless agent → Windows 端 Docker Compose Hub 接收数据**。
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -50,19 +50,19 @@ Hermes Agent 运行在 WSL 中，其会话数据存储在 `~/.hermes/state.db`�
 ### 第一步：在 Windows 部署 Docker Compose Hub
 
 1. 在 Windows 长期开机的机器上准备仓库根目录的 `.env`
-2. 设置 `TOKEN_MONITOR_SECRET`、MySQL 密码和 `MYSQL_ROOT_PASSWORD`
+2. 设置 `JIRAN_SECRET`、MySQL 密码和 `MYSQL_ROOT_PASSWORD`
 3. 运行 `docker compose up -d`，并用 `curl http://127.0.0.1:17321/api/health` 检查 Hub
 4. 记录 **Hub URL**（如 `http://192.168.x.x:17321`）和统一 Hub 密钥
 
-### 第二步：在 WSL 安装 Token Monitor
+### 第二步：在 WSL 安装 Jiran
 
-如果你已通过安装包在 Windows 安装了 Token Monitor，WSL 端只需安装 headless agent 所需的依赖：
+如果你已通过安装包在 Windows 安装了 Jiran，WSL 端只需安装 headless agent 所需的依赖：
 
 ```bash
 # 在 WSL 中执行
 cd ~
-git clone https://github.com/IGNGserver/token-monitor-suite.git
-cd token-monitor-suite
+git clone https://github.com/IGNGserver/jiran.git
+cd jiran
 npm ci --omit=dev
 ```
 
@@ -72,17 +72,17 @@ npm ci --omit=dev
 
 ```bash
 # Hub 地址（Windows 端的 IP 和端口）
-TOKEN_MONITOR_HUB_URL=http://192.168.x.x:17321
+JIRAN_HUB_URL=http://192.168.x.x:17321
 
 # 与 Windows Hub 相同的统一密钥
-TOKEN_MONITOR_SECRET=与_Hub_相同的密钥
+JIRAN_SECRET=与_Hub_相同的密钥
 
 # 仅限可信 LAN/VPN 中暂时使用明文 HTTP；能用 HTTPS 时应删除
-TOKEN_MONITOR_ALLOW_INSECURE_HTTP=1
+JIRAN_ALLOW_INSECURE_HTTP=1
 
 # 设备 ID —— 必须与 Windows 桌面端不同！
 # 如果两台设备 ID 相同，后推送的数据会覆盖前者
-TOKEN_MONITOR_DEVICE_ID=hermes-wsl
+JIRAN_DEVICE_ID=hermes-wsl
 ```
 
 > **💡 提示：** Windows 端和 WSL 端的设备 ID 不能相同。
@@ -94,7 +94,7 @@ TOKEN_MONITOR_DEVICE_ID=hermes-wsl
 首次运行使用 `--once` 模式做一次性推送测试：
 
 ```bash
-cd ~/token-monitor-suite
+cd ~/jiran
 
 # 注意：如果 WSL 配置了 HTTP_PROXY 代理，
 # 需要确保 hub 地址不被代理拦截
@@ -106,7 +106,7 @@ npm run agent -- --once
 验证输出应显示类似内容：
 
 ```
-Token Monitor agent device=hermes-wsl hub=http://192.168.x.x:17321
+Jiran agent device=hermes-wsl hub=http://192.168.x.x:17321
 [timestamp] posted hermes-wsl: today=226683020 month=793322720 allTime=793322720
 ```
 
@@ -121,21 +121,21 @@ crontab -e
 添加以下行（每 30 分钟运行一次）：
 
 ```cron
-*/30 * * * * cd /home/用户名/token-monitor-suite && no_proxy=192.168.x.x NO_PROXY=192.168.x.x npm run agent -- --once >> /tmp/token-monitor-agent.log 2>&1
+*/30 * * * * cd /home/用户名/jiran && no_proxy=192.168.x.x NO_PROXY=192.168.x.x npm run agent -- --once >> /tmp/jiran-agent.log 2>&1
 ```
 
 #### 方式 B：Systemd 用户服务
 
-创建 `~/.config/systemd/user/token-monitor-agent.service`：
+创建 `~/.config/systemd/user/jiran-agent.service`：
 
 ```ini
 [Unit]
-Description=Token Monitor Headless Agent (WSL)
+Description=Jiran Headless Agent (WSL)
 
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/npm run agent -- --once
-WorkingDirectory=/home/用户名/token-monitor-suite
+WorkingDirectory=/home/用户名/jiran
 Environment=NO_PROXY=192.168.x.x,172.25.0.0/16
 
 [Install]
@@ -146,7 +146,7 @@ WantedBy=default.target
 
 ```ini
 [Unit]
-Description=Token Monitor Agent Timer
+Description=Jiran Agent Timer
 
 [Timer]
 OnCalendar=*:0/30
@@ -158,7 +158,7 @@ WantedBy=timers.target
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user enable --now token-monitor-agent.timer
+systemctl --user enable --now jiran-agent.timer
 ```
 
 ## 注意事项
@@ -167,7 +167,7 @@ systemctl --user enable --now token-monitor-agent.timer
 
 WSL agent 和 Windows 桌面端默认使用相同的主机名作为设备 ID。如果两者相同：
 - **后推送的数据会覆盖前者**，导致数据丢失
-- 务必在 `.env` 中设置 `TOKEN_MONITOR_DEVICE_ID=hermes-wsl` 或其他不重复的 ID
+- 务必在 `.env` 中设置 `JIRAN_DEVICE_ID=hermes-wsl` 或其他不重复的 ID
 
 ### 2. HTTP 代理拦截
 
@@ -180,7 +180,7 @@ WSL agent 和 Windows 桌面端默认使用相同的主机名作为设备 ID。�
 
 Windows 桌面端内建的 WSL 扫描本来就会隔着 `\\wsl$` 读到 WSL 里走 JSONL 的工具（Codex、Claude 等）。如果 WSL agent 又上报同样的工具，由于用的是不同 deviceId，hub 会把两份相加（不去重），导致这些工具被算两次。Hermes 不受影响——它是 SQLite，隔着 `\\wsl$` 读不到，只有 WSL 内的 agent 读得到。
 
-**建议**：不要让 Windows 侧和 WSL agent 同时采集同一个 WSL home。现在两个采集器都会采集全部受支持工具，无法再按客户端缩小范围；请二选一：让 WSL agent 负责 WSL 用量，并在 Windows 桌面端设置 `TOKEN_MONITOR_WSL_SCAN=0` 关闭内建 WSL 扫描；或者不运行 agent，只保留 Windows 侧扫描（此时 Hermes 等 SQLite 工具读不到）。
+**建议**：不要让 Windows 侧和 WSL agent 同时采集同一个 WSL home。现在两个采集器都会采集全部受支持工具，无法再按客户端缩小范围；请二选一：让 WSL agent 负责 WSL 用量，并在 Windows 桌面端设置 `JIRAN_WSL_SCAN=0` 关闭内建 WSL 扫描；或者不运行 agent，只保留 Windows 侧扫描（此时 Hermes 等 SQLite 工具读不到）。
 
 ### 4. Windows 防火墙
 
@@ -207,6 +207,6 @@ WSL agent 运行时：
 | 现象 | 原因 | 解决 |
 |:---|:---|:---|
 | agent 报 `ConnectTimeoutError` | HTTP 代理拦截 | 设置 `NO_PROXY` 或取消代理变量 |
-| hub 有多个设备但 Codex 数据丢失 | 设备 ID 冲突 | 给 WSL agent 设置不同的 `TOKEN_MONITOR_DEVICE_ID` |
+| hub 有多个设备但 Codex 数据丢失 | 设备 ID 冲突 | 给 WSL agent 设置不同的 `JIRAN_DEVICE_ID` |
 | agent 可以推送但桌面端没更新 | 第一次推送还没触发 | 等 5 分钟让桌面端的 collector 跑一次，或在设置里手动刷新 |
 | `\\wsl$` 路径无法访问 | WSL 发行版未运行 | 确保 WSL 发行版在运行（`wsl -l -v`） |

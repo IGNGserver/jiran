@@ -13,6 +13,8 @@ Worktree: `~/项目/.wt/token记录系统/<slug>`
 
 # AGENTS.md
 
+The product is **计然 / Jiran** (renamed from Token Monitor in 2026-09; zh locales render 计然, en/ja/ko render Jiran, `brand.name` in the shared i18n catalog is the display surface). The rename is a compatibility event, not a reset: `TOKEN_MONITOR_*` env names fold into `JIRAN_*` (legacy wins), `X-Token-Monitor-Secret` stays accepted beside `X-Jiran-Secret`, the desktop copies the legacy `Token Monitor` userData folder before first read (`src/electron/userDataMigration.js`), apt publishes a `token-monitor` transitional stub beside the renamed `jiran` package, and releases dual-push both GHCR image names until the transition window closes. Identity surfaces deliberately did NOT move: `appId com.igng.tokenmonitor`, Android `applicationId com.igng.tokenmonitor.android`, the MySQL default database/user, the shared data dir name, SignPath `project-slug`, and GitHub Actions secret names.
+
 This is the single source of project guidance, shared by every coding agent (Claude Code, Codex, Cursor, …). `CLAUDE.md` is a Claude Code compatibility shim that just imports this file — edit **this** file, not `CLAUDE.md`.
 
 ## Commands

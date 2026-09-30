@@ -1,4 +1,4 @@
-# Token Monitor Hub — canonical Docker Compose deployment
+# Jiran Hub — canonical Docker Compose deployment
 
 This is the only supported Hub deployment. Pull the published Hub image from GitHub Container Registry and run it with MySQL.
 
@@ -11,8 +11,8 @@ This is the only supported Hub deployment. Pull the published Hub image from Git
 
 ```bash
 cp .env.example .env
-# edit .env: TOKEN_MONITOR_SECRET, MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD
-# optional: TOKEN_MONITOR_VERSION=0.47.0  (default: latest)
+# edit .env: JIRAN_SECRET, MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD
+# optional: JIRAN_VERSION=0.47.0  (default: latest)
 
 docker compose pull
 docker compose up -d
@@ -30,7 +30,10 @@ Open `http://<server>:17321` for the web dashboard (same port as the API).
 | `0.47.0` | Pin a specific release (recommended for production) |
 | `v0.47.0` | Same image, tag with `v` prefix |
 
-Image: `ghcr.io/igngserver/token-monitor-hub`
+Image: `ghcr.io/igngserver/jiran-hub`
+
+> 项目已从 Token Monitor 改名为 计然 / Jiran。过渡期内 `ghcr.io/igngserver/token-monitor-hub`
+> 仍会被推送完全相同的标签，现有部署不改镜像名也能继续升级；建议尽快改成 `jiran-hub`。
 
 ## Upgrade
 
@@ -40,8 +43,8 @@ docker compose pull
 docker compose up -d
 
 # or pin
-# TOKEN_MONITOR_VERSION=0.47.0 docker compose pull
-# TOKEN_MONITOR_VERSION=0.47.0 docker compose up -d
+# JIRAN_VERSION=0.47.0 docker compose pull
+# JIRAN_VERSION=0.47.0 docker compose up -d
 ```
 
 Do **not** run `docker compose down -v` — that deletes the MySQL data volume.
@@ -71,5 +74,5 @@ failing ambiguously.
 ## First GHCR pull note
 
 If the package is private on a fresh org, set the package visibility to **Public** under
-GitHub → Packages → `token-monitor-hub` → Package settings.
+GitHub → Packages → `jiran-hub` → Package settings.
 Public repos usually expose public packages after the first release push.

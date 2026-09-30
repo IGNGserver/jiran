@@ -2,8 +2,8 @@
    <a href="./README.md">EN</a> | <a href="./README.zh-CN.md">简</a> | <strong>繁</strong> | <a href="./README.ko.md">KO</a> | <a href="./README.ja.md">JA</a>
 </p>
 <div align="center">
-    <img src=".github/assets/app.png" alt="Token Monitor logo" width="120">
-    <h1>Token Monitor</h1>
+    <img src=".github/assets/app.png" alt="计然 logo" width="120">
+    <h1>计然</h1>
 </div>
 
 <p align="center">
@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/IGNGserver/token-monitor-suite/releases"><img src="https://img.shields.io/github/v/release/IGNGserver/token-monitor-suite?include_prereleases&style=flat-square&label=release&color=22c55e" alt="最新發布" /></a>
-    <a href="https://github.com/IGNGserver/token-monitor-suite/releases"><img src="https://img.shields.io/github/downloads/IGNGserver/token-monitor-suite/total?style=flat-square&color=22c55e" alt="總下載量" /></a>
+    <a href="https://github.com/IGNGserver/jiran/releases"><img src="https://img.shields.io/github/v/release/IGNGserver/jiran?include_prereleases&style=flat-square&label=release&color=22c55e" alt="最新發布" /></a>
+    <a href="https://github.com/IGNGserver/jiran/releases"><img src="https://img.shields.io/github/downloads/IGNGserver/jiran/total?style=flat-square&color=22c55e" alt="總下載量" /></a>
     <img src="https://img.shields.io/badge/Windows-10%2B-0078D4?style=flat-square" alt="Windows 10 或更新" />
     <img src="https://img.shields.io/badge/macOS-12%2B-0A84FF?style=flat-square&logo=apple&logoColor=white" alt="macOS 12 或更新" />
     <img src="https://img.shields.io/badge/Linux-x64-64748b?style=flat-square&logo=linux&logoColor=white" alt="Linux x64" />
@@ -23,13 +23,11 @@
     <img src=".github/assets/demo.gif">
 </div>
 
-## 什麼是 Token Monitor？
+## 什麼是计然？
 
 一款桌面應用程式，即時顯示 Claude Code、Codex、Cursor、GitHub Copilot 等 59+ 種 AI 編程工具的 Token 用量與 AI 工具額度，具備即時多裝置同步與歷史使用趨勢功能，並支援依工具、裝置、模型、session 或專案分項顯示。
 
-## 支援的工具
-
-Token Monitor 對 Token 用量、帳戶額度與 session 明細分別支援：
+## 支援的工具计然對 Token 用量、帳戶額度與 session 明細分別支援：
 
 | Logo | 工具 | 資料路徑 | Token 用量 | AI 工具額度 | session 明細 |
 |:---:|------|-----------|:---:|:---:|:---:|
@@ -98,7 +96,7 @@ Token Monitor 對 Token 用量、帳戶額度與 session 明細分別支援：
 
 <br>
 
-- 上表為預設路徑。Token Monitor 與 Tokscale 遵循相同的環境變數覆寫：`~/.local/share/` 下的路徑跟隨 `$XDG_DATA_HOME`，各工具另有 `$CODEX_HOME`、`$GROK_HOME`、`$HERMES_HOME`、`$KIMI_CODE_HOME`、`$REASONIX_STATE_HOME`、`$REASONIX_HOME` 以及 `$CLINE_*` 系列。
+- 上表為預設路徑。计然與 Tokscale 遵循相同的環境變數覆寫：`~/.local/share/` 下的路徑跟隨 `$XDG_DATA_HOME`，各工具另有 `$CODEX_HOME`、`$GROK_HOME`、`$HERMES_HOME`、`$KIMI_CODE_HOME`、`$REASONIX_STATE_HOME`、`$REASONIX_HOME` 以及 `$CLINE_*` 系列。
 
 - Command Code v3 transcript 會持久化每次請求的 `usage`（輸入 / 輸出 / 快取讀 / 快取寫 Token，以及服務端回報的 `costUsd`），因此這些工作階段是精確值而非估算。只有在 `usage` 欄位出現之前寫入的舊版 transcript 才回退為以文字為基礎的估算，其模型歸屬也可能反映目前設定的模型，而非每次請求當時實際使用的模型。
 
@@ -108,9 +106,9 @@ Token Monitor 對 Token 用量、帳戶額度與 session 明細分別支援：
 
 Qoder 的 Token 用量來自應用程式自身的本機檔案，而非 API。國際版與中國版以兩個獨立客戶端追蹤 —— `qoder` 與 `qodercn`，因為兩者使用各自獨立的設定目錄；兩者都會被自動追蹤（沒有逐工具的開關）。每個版本偵測三個來源，實際存在的那些都會貢獻資料：
 
-- **Transcript 目錄 —— 目前版本的主要來源。** `~/.qoder/projects/**/*.jsonl`（國際版）或 `~/.qoder-cn/projects/**/*.jsonl`（中國版），每個請求一行 JSON。它會被監看以即時更新，且只需要檔案系統。可用 `TOKEN_MONITOR_QODER_TRANSCRIPTS_DIR` / `TOKEN_MONITOR_QODER_CN_TRANSCRIPTS_DIR` 指向其他目錄；若整個設定目錄被搬移，則設定 Qoder CN 自帶的 `QODERCN_CONFIG_DIR`。
-- **桌面訊息庫。** 平台應用程式支援目錄下的 `com.qoder.app.stable/main.sqlite`（國際版）或 `com.qodercn.app.stable/main.sqlite`（中國版），可用 `TOKEN_MONITOR_QODER_MAIN_DB_PATH` / `TOKEN_MONITOR_QODER_CN_MAIN_DB_PATH` 覆寫。Qoder CN 0.1.x 使用國際版的拼法，因此中國版會依序嘗試兩個候選。
-- **舊版快取資料庫。** `<platform-app-data>/Qoder/SharedClientCache/cache/db/local.db`（國際版），中國版為同一路徑但位於 `QoderCN/` 之下 —— macOS `~/Library/Application Support/`、Windows `%APPDATA%\`、Linux `~/.config/`；可用 `TOKEN_MONITOR_QODER_DB_PATH` / `TOKEN_MONITOR_QODER_CN_DB_PATH` 覆寫。
+- **Transcript 目錄 —— 目前版本的主要來源。** `~/.qoder/projects/**/*.jsonl`（國際版）或 `~/.qoder-cn/projects/**/*.jsonl`（中國版），每個請求一行 JSON。它會被監看以即時更新，且只需要檔案系統。可用 `JIRAN_QODER_TRANSCRIPTS_DIR` / `JIRAN_QODER_CN_TRANSCRIPTS_DIR` 指向其他目錄；若整個設定目錄被搬移，則設定 Qoder CN 自帶的 `QODERCN_CONFIG_DIR`。
+- **桌面訊息庫。** 平台應用程式支援目錄下的 `com.qoder.app.stable/main.sqlite`（國際版）或 `com.qodercn.app.stable/main.sqlite`（中國版），可用 `JIRAN_QODER_MAIN_DB_PATH` / `JIRAN_QODER_CN_MAIN_DB_PATH` 覆寫。Qoder CN 0.1.x 使用國際版的拼法，因此中國版會依序嘗試兩個候選。
+- **舊版快取資料庫。** `<platform-app-data>/Qoder/SharedClientCache/cache/db/local.db`（國際版），中國版為同一路徑但位於 `QoderCN/` 之下 —— macOS `~/Library/Application Support/`、Windows `%APPDATA%\`、Linux `~/.config/`；可用 `JIRAN_QODER_DB_PATH` / `JIRAN_QODER_CN_DB_PATH` 覆寫。
 
 `com.qoder.app.stable` 由兩個版本共同宣告，因此只有當某版本自身的足跡（應用程式支援目錄或設定目錄）也存在時，該版本才會讀取它：只裝國際版的機器不會被計入 `qodercn`，只裝 Qoder CN 0.1.x 的機器也不會被計入 `qoder`。實際存在哪些來源隨版本與安裝方式而異 —— 在核實本文的 Linux 機器上（2026-09-26，Qoder CN 0.4.2），中國版有 transcript 與 `com.qodercn.app.stable/main.sqlite`，但沒有舊版快取資料庫；國際版只安裝了 CLI，僅有 transcript。
 
@@ -147,9 +145,9 @@ Qoder 的 Token 用量來自應用程式自身的本機檔案，而非 API。國
 </tr>
 </table>
 
-## 為什麼要用 Token Monitor？
+## 為什麼要用计然？
 
-大多數用量監控工具只在它執行的那台機器上有用。Token Monitor 是為多裝置工作流而設計的：每台裝置監看自己的本機紀錄、把摘要更新送到你的 hub，每個連線中的用戶端幾乎都能即時看到 Token 變化。
+大多數用量監控工具只在它執行的那台機器上有用。计然是為多裝置工作流而設計的：每台裝置監看自己的本機紀錄、把摘要更新送到你的 hub，每個連線中的用戶端幾乎都能即時看到 Token 變化。
 
 ## 功能特色
 
@@ -165,7 +163,7 @@ Qoder 的 Token 用量來自應用程式自身的本機檔案，而非 API。國
 
 - **AI 工具額度偵測**：涵蓋 Claude Code、Codex、Cursor、OpenRouter、第三方 API、GLM、Kimi 等 26+ 家供應商的 session、每週、帳單與 credits 視窗，支援多個 OpenRouter／第三方 profile，以及 DeepSeek 預付餘額與消費
 - **Hub 統一管理額度帳號**：同一供應商可手動加入多個帳號；憑證只保存在 Hub，由 Hub 統一重新整理額度並同步到所有連線裝置
-- **保留已刪除會話用量**：許多工具會定期清除舊 session（Claude Code 預設清 30 天前的 transcript），一刪就再也算不到。Token Monitor 一律在本機不設期限地封存已觀測到的每日工具／模型用量，讓熱力圖與趨勢即使在來源檔案被清掉後仍然完整（詳見下方[〈會話資料保留期〉](#會話資料保留期)）
+- **保留已刪除會話用量**：許多工具會定期清除舊 session（Claude Code 預設清 30 天前的 transcript），一刪就再也算不到。计然一律在本機不設期限地封存已觀測到的每日工具／模型用量，讓熱力圖與趨勢即使在來源檔案被清掉後仍然完整（詳見下方[〈會話資料保留期〉](#會話資料保留期)）
 - **使用趨勢**：主頁的活躍熱力圖與趨勢圖，加上趨勢檢視中的連續天數，以及跨所有裝置、依工具／依模型堆疊的歷史（柱狀圖與 K 線兩種檢視）
 - **訂閱資料**：手動記錄每個 AI 帳號的實際費用；方案標籤的 tooltip 會顯示費用、下次續費或到期日、已訂閱時間，以及本月用量成本相對訂閱費的回本倍數，定期方案與儲值紀錄皆適用
 
@@ -186,23 +184,23 @@ Qoder 的 Token 用量來自應用程式自身的本機檔案，而非 API。國
 
 ## 安裝
 
-從 [GitHub Releases](https://github.com/IGNGserver/token-monitor-suite/releases) 下載。
+從 [GitHub Releases](https://github.com/IGNGserver/jiran/releases) 下載。
 
 - **macOS（Apple Silicon）** — `.dmg`，已簽章並 notarize
 - **macOS（Intel）** — x64 `.dmg`，已簽章並 notarize
 - **Windows 10/11** — 安裝版與可攜版 `.exe`，均[已簽章](docs/code-signing.md)
 - **Linux x64** — `.AppImage`，或 `.deb` 套件
-- **Linux x64（可自動升級）** — 新增 APT 軟體源，讓套件管理器負責升級（安裝前請對照同目錄的 `token-monitor-archive-keyring-fingerprint.txt` 核對公鑰指紋）：
+- **Linux x64（可自動升級）** — 新增 APT 軟體源，讓套件管理器負責升級（安裝前請對照同目錄的 `jiran-archive-keyring-fingerprint.txt` 核對公鑰指紋）：
   ```bash
-  curl -fsSL https://igngserver.github.io/token-monitor-suite/apt/token-monitor-archive-keyring.asc \
+  curl -fsSL https://igngserver.github.io/jiran/apt/jiran-archive-keyring.asc \
     | gpg --dearmor \
-    | sudo tee /usr/share/keyrings/token-monitor-archive-keyring.gpg >/dev/null
-  curl -fsSL https://igngserver.github.io/token-monitor-suite/apt/token-monitor.sources \
-    | sudo tee /etc/apt/sources.list.d/token-monitor.sources >/dev/null
+    | sudo tee /usr/share/keyrings/jiran-archive-keyring.gpg >/dev/null
+  curl -fsSL https://igngserver.github.io/jiran/apt/jiran.sources \
+    | sudo tee /etc/apt/sources.list.d/jiran.sources >/dev/null
   sudo apt update && sudo apt install token-monitor
   ```
-- **Android** — `Token-Monitor-Android-<version>.apk`，用於檢視 Docker Compose Hub 同步資料的唯讀用戶端
-- **無 GUI／伺服器** — `Token-Monitor-Headless-<version>.tar.gz`；使用 Node.js 22.13+ 與 `npm ci --omit=dev` 安裝
+- **Android** — `Jiran-Android-<version>.apk`，用於檢視 Docker Compose Hub 同步資料的唯讀用戶端
+- **無 GUI／伺服器** — `Jiran-Headless-<version>.tar.gz`；使用 Node.js 22.13+ 與 `npm ci --omit=dev` 安裝
 
 打包版會自動檢查 GitHub Releases。有新版本時，介面會顯示更新提示；支援的平台也可在 管理 → 啟動與更新 中安裝更新。
 
@@ -212,9 +210,9 @@ Qoder 的 Token 用量來自應用程式自身的本機檔案，而非 API。國
 
 ## 多裝置同步
 
-如果需要多裝置同步，請把所有裝置（以及沒有安裝應用程式的無頭代理）連線到同一個 Docker Compose Hub。在每台裝置上開啟應用程式，前往 管理 → 中樞連線 並選擇 **連線中樞**；只有沒有安裝應用程式的機器才需要執行 `npm run agent`。無 GUI 安裝請參閱 [Headless Agent 指南](docs/headless-agent.md)，並下載 `Token-Monitor-Headless-<version>.tar.gz`。
+如果需要多裝置同步，請把所有裝置（以及沒有安裝應用程式的無頭代理）連線到同一個 Docker Compose Hub。在每台裝置上開啟應用程式，前往 管理 → 中樞連線 並選擇 **連線中樞**；只有沒有安裝應用程式的機器才需要執行 `npm run agent`。無 GUI 安裝請參閱 [Headless Agent 指南](docs/headless-agent.md)，並下載 `Jiran-Headless-<version>.tar.gz`。
 
-這個單人專案使用 `TOKEN_MONITOR_SECRET` 作為所有裝置共用的唯一 Hub 密鑰，涵蓋讀取、上報與管理操作，包括手動加入的額度帳號。舊版分離的 admin/viewer/裝置憑證僅保留作為相容模式。遠端連線預設必須使用 HTTPS；桌面端／agent 需明確啟用可信任 LAN HTTP，Android 發行版始終要求 HTTPS。
+這個單人專案使用 `JIRAN_SECRET` 作為所有裝置共用的唯一 Hub 密鑰，涵蓋讀取、上報與管理操作，包括手動加入的額度帳號。舊版分離的 admin/viewer/裝置憑證僅保留作為相容模式。遠端連線預設必須使用 HTTPS；桌面端／agent 需明確啟用可信任 LAN HTTP，Android 發行版始終要求 HTTPS。
 
 升級舊設定時，如果 Hub 是非本機的 `http://` 位址，不會靜默降低安全性：本機採集會繼續執行，但 Hub 讀取／上報／即時串流會保持 blocked，直到改用 HTTPS 或使用者明確啟用可信任 LAN 選項。同步設定會分別顯示這些通道，並在設定變更後於同一個程序中恢復。
 
@@ -228,7 +226,7 @@ Qoder 的 Token 用量來自應用程式自身的本機檔案，而非 API。國
 
 ```bash
 cp .env.example .env
-# 在 .env 只需設定 TOKEN_MONITOR_SECRET 與 MySQL 密碼
+# 在 .env 只需設定 JIRAN_SECRET 與 MySQL 密碼
 docker compose up -d
 ```
 
@@ -242,9 +240,9 @@ App 狀態存在 OS 使用者資料目錄——解除安裝時一併刪除該資
 
 | 平台 | 路徑 |
 |------|------|
-| macOS | `~/Library/Application Support/Token Monitor/` |
-| Windows | `%APPDATA%/Token Monitor/` |
-| Linux | `~/.config/Token Monitor/` |
+| macOS | `~/Library/Application Support/计然/` |
+| Windows | `%APPDATA%/计然/` |
+| Linux | `~/.config/计然/` |
 
 ## 從原始碼建置
 
@@ -275,9 +273,7 @@ npm run pack         # 未封裝的 app 目錄（無安裝檔），方便本機�
 
 桌面應用程式會根據 管理 → 中樞連線 決定走本機或同步模式。Docker Compose Hub 會接收每台裝置的標準化摘要，並透過 Server-Sent Events 將彙總統計推送給已連線的用戶端，因此一台裝置的更新會在數秒內出現在其他裝置上。
 
-## 會話資料保留期
-
-Token Monitor 一律在本機不設期限地封存已觀測到的每日工具／模型用量——即使來源工具日後清掉 session，熱力圖與趨勢也不受影響。
+## 會話資料保留期计然一律在本機不設期限地封存已觀測到的每日工具／模型用量——即使來源工具日後清掉 session，熱力圖與趨勢也不受影響。
 
 <details>
 <summary><strong>進階：延長來源工具本身的保留期</strong></summary>
@@ -294,7 +290,7 @@ Token Monitor 一律在本機不設期限地封存已觀測到的每日工具／
 
 設更大能留更多，代價是 transcript 會依你設定的期限一直留在磁碟上。其他工具的預設值與設定檔路徑，請見 tokscale 的 [Session Data Retention](https://github.com/junhoyeo/tokscale#session-data-retention) 表。
 
-這份封存只涵蓋 Token Monitor 已觀測過的日期；在它開始追蹤之前就被刪除的資料無法補回。
+這份封存只涵蓋计然已觀測過的日期；在它開始追蹤之前就被刪除的資料無法補回。
 
 </details>
 
@@ -317,9 +313,7 @@ Token Monitor 一律在本機不設期限地封存已觀測到的每日工具／
   - 簡單測試開發工具：**Antigravity**、**Claude Desktop**。
 - **Ubuntu**：僅測試了 Headless Agent 的**資料回報**流程，尚未完整測試各開發軟體在該平台下能否正常操作與完整採集。
 
-## 隱私
-
-Token Monitor 會在本機處理使用紀錄，不會向專案維護者傳送分析或遙測資料。網路存取僅用於文件中說明或由使用者啟用的功能；更新、供應商整合與可選多裝置同步所使用的資料，請參閱[隱私權政策](docs/privacy.md)。
+## 隱私计然會在本機處理使用紀錄，不會向專案維護者傳送分析或遙測資料。網路存取僅用於文件中說明或由使用者啟用的功能；更新、供應商整合與可選多裝置同步所使用的資料，請參閱[隱私權政策](docs/privacy.md)。
 
 ## 參與貢獻
 
@@ -329,7 +323,7 @@ Token Monitor 會在本機處理使用紀錄，不會向專案維護者傳送分
 
 - [tokscale](https://github.com/junhoyeo/tokscale) 提供紀錄解析與 Token 計算。
 - [CodexBar](https://github.com/steipete/CodexBar) 提供 AI 工具額度的研究參考。
-- [Token Monitor](https://github.com/Javis603/token-monitor) by [@Javis](https://github.com/Javis603) 提供原專案桌面端原型與靈感。
+- [计然](https://github.com/Javis603/token-monitor) by [@Javis](https://github.com/Javis603) 提供原專案桌面端原型與靈感。
 - **[程式碼簽章政策](docs/code-signing.md)：** 免費程式碼簽章由 [SignPath.io](https://signpath.io/) 提供，憑證由 [SignPath Foundation](https://signpath.org/) 提供。
 
 ## 授權

@@ -1,6 +1,6 @@
 # API
 
-The hub exposes a JSON HTTP API and serves a same-origin web dashboard (PWA) from the hub root (`/`). Static UI assets and `/api/health` are public; private API routes require the single owner's credential. Remote connections use HTTPS by default. Docker Compose Hub/agent/desktop require `TOKEN_MONITOR_ALLOW_INSECURE_HTTP=1` for an intentional non-loopback HTTP deployment. The Android client supports the same intentional LAN/VPN plain-HTTP Hub behind an explicit opt-in: the platform permits cleartext (so the OS does not silently contradict the in-app switch), while `HubApiFactory` rejects a non-HTTPS URL unless that switch is on. User-installed CAs are trusted in debug builds only.
+The hub exposes a JSON HTTP API and serves a same-origin web dashboard (PWA) from the hub root (`/`). Static UI assets and `/api/health` are public; private API routes require the single owner's credential. Remote connections use HTTPS by default. Docker Compose Hub/agent/desktop require `JIRAN_ALLOW_INSECURE_HTTP=1` for an intentional non-loopback HTTP deployment. The Android client supports the same intentional LAN/VPN plain-HTTP Hub behind an explicit opt-in: the platform permits cleartext (so the OS does not silently contradict the in-app switch), while `HubApiFactory` rejects a non-HTTPS URL unless that switch is on. User-installed CAs are trusted in debug builds only.
 
 
 For pricing refreshes, the Hub invokes `tokscale pricing <model> --json` first. If tokscale cannot complete its upstream catalog request, the Hub retries against the configured `TOKSCALE_PRICING_CATALOG_URL` (default `https://models.dev/api.json`), which is a public catalog tokscale also uses. The catalog is cached in the Hub process for six hours; the resulting `model_pricing` row remains durable.
@@ -9,10 +9,10 @@ For pricing refreshes, the Hub invokes `tokscale pricing <model> --json` first. 
 
 For the single-user deployment, configure one key:
 
-- `TOKEN_MONITOR_SECRET`: shared by the Hub and every desktop app / agent. It grants read, ingest, and every administrative mutation, including manually managed Hub accounts.
+- `JIRAN_SECRET`: shared by the Hub and every desktop app / agent. It grants read, ingest, and every administrative mutation, including manually managed Hub accounts.
 
-Old split admin/viewer/device variables are not accepted as alternate users. Existing deployments must migrate to `TOKEN_MONITOR_SECRET`; a configured owner key always has every product capability.
-`TOKEN_MONITOR_HUB_CREDENTIAL_KEY` remains an optional override for encrypting manually added Hub account credentials at rest.
+Old split admin/viewer/device variables are not accepted as alternate users. Existing deployments must migrate to `JIRAN_SECRET`; a configured owner key always has every product capability.
+`JIRAN_HUB_CREDENTIAL_KEY` remains an optional override for encrypting manually added Hub account credentials at rest.
 
 An unconfigured Docker Compose Hub is restricted to loopback. A remote Hub refuses all private routes until at least one unified or split credential is configured.
 
@@ -28,7 +28,7 @@ or:
 X-Jiran-Secret: <secret>
 ```
 
-The historical `X-Token-Monitor-Secret` header is still accepted so devices that predate the 计然 / Jiran rename keep working against a renamed Hub.
+The historical `X-Jiran-Secret` header is still accepted so devices that predate the 计然 / Jiran rename keep working against a renamed Hub.
 
 Credentials in query strings are rejected. Secrets can appear in browser, proxy, CDN, or diagnostic logs, so clients must send the owner key in a header.
 
@@ -202,7 +202,7 @@ Example payload:
     "clientCredits": {},
     "projects": {
       "token monitor": {
-        "label": "Token Monitor",
+        "label": "Jiran",
         "tokens": 8901,
         "costUsd": 0.08,
         "clients": { "codex": 8901 }
@@ -370,7 +370,7 @@ every change, so a client never polls to stay live.
 
 The response sets `x-accel-buffering: no` and `no-cache, no-transform` so
 proxies do not coalesce frames. Behind a reverse proxy, buffer-free delivery
-also requires the proxy not to buffer responses (see `TOKEN_MONITOR_TRUST_PROXY`
+also requires the proxy not to buffer responses (see `JIRAN_TRUST_PROXY`
 in [hub-compose.md](hub-compose.md)).
 
 ## `GET /api/history`
