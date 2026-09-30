@@ -61,7 +61,7 @@ Android 的 `versionName` 与桌面版本一致；`versionCode` 由同一版本�
 ### 改名（计然 / Jiran）迁移面
 
 - **deb**：旧 `token-monitor` 包不会自动跟踪新包，`build-apt-repository.js` 会为每个版本额外构建一个同版本 transitional 桩包（`Depends: jiran`），已安装用户的下一次 `apt upgrade` 即被带到 `jiran`。
-- **Pages 文件名**：`jiran.sources` / `jiran-archive-keyring(.asc|-fingerprint.txt)` 为主名，workflow 同时以 `token-monitor-*` 旧名发布同一份内容，老 `sources.list.d` 条目不断供。
+- **Pages 文件名**：`jiran.sources` / `jiran-archive-keyring(.asc|-fingerprint.txt)` 为主名，workflow 同时以 `token-monitor-*` 旧名发布同一份内容。**注意：GitHub Pages 的 URL 不随仓库改名重定向**，已装机的 `sources.list.d` 指向 `…/token-monitor-suite/apt` 会 404，需要用户执行一次 `curl … | sudo tee /etc/apt/sources.list.d/jiran.sources`；release notes（`0.47.0-rev.36`）已带迁移命令。
 - **GHCR**：主镜像为 `jiran-hub`，`token-monitor-hub` 在过渡期内仍被推送完全相同的标签；用户改镜像名或保持旧名都可以，过渡窗口结束后才停推旧名。
 - **线协议**：Hub 同时接受 `X-Jiran-Secret` 与历史 `X-Token-Monitor-Secret`；env 同时接受 `JIRAN_*` 与 `TOKEN_MONITOR_*`（后者优先）。
 - **SignPath**：portal 侧的 artifact-configuration 必须与仓内 `.github/signpath/*.xml` 同步（文件名已从 `Token-Monitor-*` 改为 `Jiran-*`），否则 Windows 签名步骤会因找不到 PE 而失败。
