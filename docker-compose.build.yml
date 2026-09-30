@@ -1,5 +1,5 @@
 # Local / contributor override: build the Hub image from this repo instead of
-# pulling ghcr.io/igngserver/token-monitor-hub.
+# pulling ghcr.io/igngserver/jiran-hub.
 #
 #   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 #
@@ -8,4 +8,4 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ghcr.io/igngserver/token-monitor-hub:${TOKEN_MONITOR_VERSION:-latest}
+    image: ghcr.io/igngserver/jiran-hub:${TOKEN_MONITOR_VERSION:-${JIRAN_VERSION:-latest}}

@@ -498,7 +498,7 @@ test('the global site ignores an ambient QODER_CONFIG_DIR but honours its own ov
     [path.join(path.resolve('/home/test/.qoder-cn'), 'projects')]
   );
 
-  // Token-Monitor-namespaced overrides work for both sites and stay separate.
+  // TOKEN_MONITOR-namespaced overrides work for both sites and stay separate.
   const overridden = qoderDataPaths({
     site: 'global',
     homeDir: '/home/test',

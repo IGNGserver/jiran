@@ -116,6 +116,12 @@ if (!app.isPackaged) loadDotEnv();
 configureLinuxDisplayBackend({ app, platform: process.platform, env: process.env, argv: process.argv });
 
 const APP_NAME = 'Jiran';
+// Release pages for the current repo plus the pre-rename `token-monitor-suite`,
+// so cached updater metadata and in-app links keep working across the 计然 migration.
+const RELEASE_URL_PREFIXES = [
+  'https://github.com/IGNGserver/jiran/releases/',
+  'https://github.com/IGNGserver/token-monitor-suite/releases/'
+];
 const WIN_ICON_PATH = path.join(__dirname, '..', '..', 'build', 'icons', 'icon.ico');
 const PNG_ICON_PATH = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 const APP_ICON_PATH = process.platform === 'win32' && fs.existsSync(WIN_ICON_PATH)
@@ -466,7 +472,9 @@ function ensureSettingsLoaded() {
     }
   }
   // Discard cached release metadata from older builds that queried upstream.
-  if (settings.appUpdate?.lastKnownLatest?.htmlUrl && !settings.appUpdate.lastKnownLatest.htmlUrl.startsWith('https://github.com/IGNGserver/token-monitor-suite/releases/')) {
+  // The pre-rename repo stays valid: GitHub 301-redirects it, and cached records
+  // were written with the old htmlUrl before IGNGserver/jiran existed.
+  if (settings.appUpdate?.lastKnownLatest?.htmlUrl && !RELEASE_URL_PREFIXES.some((prefix) => settings.appUpdate.lastKnownLatest.htmlUrl.startsWith(prefix))) {
     settings.appUpdate = { ...settings.appUpdate, lastKnownLatest: null, lastCheckedAt: null, dismissedVersion: null };
     saveSettings();
   }
@@ -2661,7 +2669,7 @@ function isAllowedExternalUrl(value) {
   if (isAllowedCodexLoginUrl(value)) return true;
   if (parsed.hostname === 'github.com' && parsed.pathname.startsWith('/junhoyeo/tokscale')) return true;
   if (parsed.hostname === 'www.npmjs.com' && parsed.pathname.startsWith('/package/@tokscale/')) return true;
-  if (parsed.hostname === 'github.com' && parsed.pathname.startsWith('/IGNGserver/token-monitor-suite')) return true;
+  if (parsed.hostname === 'github.com' && (parsed.pathname.startsWith('/IGNGserver/jiran') || parsed.pathname.startsWith('/IGNGserver/token-monitor-suite'))) return true;
   if ((parsed.hostname === 'cursor.com' || parsed.hostname === 'www.cursor.com') && parsed.pathname.startsWith('/settings')) return true;
   if (parsed.hostname === 'opencode.ai' || parsed.hostname === 'www.opencode.ai') return true;
   if (parsed.hostname === 'openrouter.ai' && parsed.pathname.startsWith('/settings/keys')) return true;

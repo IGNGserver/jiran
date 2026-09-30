@@ -181,7 +181,7 @@ function corsHeaders(extraHeaders = {}) {
   return {
     'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    'access-control-allow-headers': 'authorization,content-type,prefer,x-token-monitor-secret',
+    'access-control-allow-headers': 'authorization,content-type,prefer,x-jiran-secret,x-token-monitor-secret',
     ...extraHeaders
   };
 }

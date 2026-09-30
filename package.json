@@ -1,6 +1,6 @@
 {
-  "name": "token-monitor",
-  "productName": "Token Monitor",
+  "name": "jiran",
+  "productName": "Jiran",
   "version": "0.47.0-rev.36",
   "description": "Live token & cost widget for Claude Code, Codex & Hermes — local-first, optional multi-device sync.",
   "main": "src/electron/main.js",
@@ -40,7 +40,7 @@
   },
   "build": {
     "appId": "com.igng.tokenmonitor",
-    "productName": "Token Monitor",
+    "productName": "Jiran",
     "directories": {
       "output": "dist"
     },
@@ -73,7 +73,7 @@
       "node_modules/koffi/**/*"
     ],
     "mac": {
-      "artifactName": "Token-Monitor-${version}-${arch}.${ext}",
+      "artifactName": "Jiran-${version}-${arch}.${ext}",
       "target": [
         "dmg",
         "zip"
@@ -105,7 +105,7 @@
       }
     },
     "linux": {
-      "artifactName": "Token-Monitor-${version}.${ext}",
+      "artifactName": "Jiran-${version}.${ext}",
       "target": [
         {
           "target": "AppImage",
@@ -127,18 +127,18 @@
       "description": "Real-time token, cost, and AI limits widget with multi-device sync for Claude Code, Codex, OpenCode and more."
     },
     "nsis": {
-      "artifactName": "Token-Monitor-Setup-${version}.${ext}",
+      "artifactName": "Jiran-Setup-${version}.${ext}",
       "oneClick": true,
       "perMachine": false
     },
     "portable": {
-      "artifactName": "Token-Monitor-${version}.${ext}"
+      "artifactName": "Jiran-${version}.${ext}"
     },
     "publish": [
       {
         "provider": "github",
         "owner": "IGNGserver",
-        "repo": "token-monitor-suite"
+        "repo": "jiran"
       }
     ]
   },
@@ -147,7 +147,7 @@
     "claude-code",
     "codex",
     "hermes",
-    "token-monitor",
+    "jiran",
     "token-usage",
     "cost-tracking",
     "llm",

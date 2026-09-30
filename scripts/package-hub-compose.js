@@ -2,18 +2,18 @@
 'use strict';
 
 // Build a minimal deploy zip for GitHub Release assets:
-//   Token-Monitor-Hub-Compose-<version>.zip
+//   Jiran-Hub-Compose-<version>.zip
 
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const root = path.resolve(__dirname, '..');
-const versionArg = process.argv[2] || process.env.TOKEN_MONITOR_VERSION || 'latest';
+const versionArg = process.argv[2] || process.env.JIRAN_VERSION || process.env.TOKEN_MONITOR_VERSION || 'latest';
 const version = String(versionArg).replace(/^v/, '');
 const outDir = path.join(root, 'dist-hub-compose');
-const stageDir = path.join(outDir, `token-monitor-hub-compose-${version}`);
-const zipName = `Token-Monitor-Hub-Compose-${version}.zip`;
+const stageDir = path.join(outDir, `jiran-hub-compose-${version}`);
+const zipName = `Jiran-Hub-Compose-${version}.zip`;
 const zipPath = path.join(outDir, zipName);
 
 fs.rmSync(outDir, { recursive: true, force: true });

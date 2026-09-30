@@ -18,8 +18,8 @@ services:
 
   hub:
     # Published with Windows/Android on each GitHub Release (GHCR).
-    # Pin a version with TOKEN_MONITOR_VERSION=0.34.2 (or v0.34.2); default is latest.
-    image: ghcr.io/igngserver/token-monitor-hub:${TOKEN_MONITOR_VERSION:-latest}
+    # Pin a version with JIRAN_VERSION=0.34.2 (or v0.34.2); TOKEN_MONITOR_VERSION still works.
+    image: ghcr.io/igngserver/jiran-hub:${TOKEN_MONITOR_VERSION:-${JIRAN_VERSION:-latest}}
     # Optional local build for contributors (git clone + Dockerfile present):
     #   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
     restart: unless-stopped
@@ -29,21 +29,21 @@ services:
     environment:
       TOKEN_MONITOR_PORT: 17321
       TOKEN_MONITOR_HOST: 0.0.0.0
-      TOKEN_MONITOR_SECRET: ${TOKEN_MONITOR_SECRET}
-      TOKEN_MONITOR_ALLOW_INSECURE_HTTP: ${TOKEN_MONITOR_ALLOW_INSECURE_HTTP:-0}
-      TOKEN_MONITOR_STALE_AFTER_MS: ${TOKEN_MONITOR_STALE_AFTER_MS:-600000}
+      TOKEN_MONITOR_SECRET: ${TOKEN_MONITOR_SECRET:-${JIRAN_SECRET:-}}
+      TOKEN_MONITOR_ALLOW_INSECURE_HTTP: ${TOKEN_MONITOR_ALLOW_INSECURE_HTTP:-${JIRAN_ALLOW_INSECURE_HTTP:-0}}
+      TOKEN_MONITOR_STALE_AFTER_MS: ${TOKEN_MONITOR_STALE_AFTER_MS:-${JIRAN_STALE_AFTER_MS:-600000}}
       # Proxy-aware client IPs for the auth-failure limiter. Leave unset unless a
       # trusted reverse proxy sets X-Forwarded-For; Cloudflare's
       # cf-connecting-ip header is only honoured when this is enabled.
-      TOKEN_MONITOR_TRUST_PROXY: ${TOKEN_MONITOR_TRUST_PROXY:-0}
+      TOKEN_MONITOR_TRUST_PROXY: ${TOKEN_MONITOR_TRUST_PROXY:-${JIRAN_TRUST_PROXY:-0}}
       # Account refresh cadence and the hard ceiling for one provider probe.
       # The probe deadline is what keeps a provider that never answers from
       # holding the refresh latch and silently stopping all limit refreshes.
-      TOKEN_MONITOR_HUB_REFRESH_MS: ${TOKEN_MONITOR_HUB_REFRESH_MS:-300000}
-      TOKEN_MONITOR_HUB_ACCOUNT_CONCURRENCY: ${TOKEN_MONITOR_HUB_ACCOUNT_CONCURRENCY:-4}
-      TOKEN_MONITOR_HUB_PROBE_DEADLINE_MS: ${TOKEN_MONITOR_HUB_PROBE_DEADLINE_MS:-60000}
+      TOKEN_MONITOR_HUB_REFRESH_MS: ${TOKEN_MONITOR_HUB_REFRESH_MS:-${JIRAN_HUB_REFRESH_MS:-300000}}
+      TOKEN_MONITOR_HUB_ACCOUNT_CONCURRENCY: ${TOKEN_MONITOR_HUB_ACCOUNT_CONCURRENCY:-${JIRAN_HUB_ACCOUNT_CONCURRENCY:-4}}
+      TOKEN_MONITOR_HUB_PROBE_DEADLINE_MS: ${TOKEN_MONITOR_HUB_PROBE_DEADLINE_MS:-${JIRAN_HUB_PROBE_DEADLINE_MS:-60000}}
       # Coalescing window for the fleet stats aggregation (ms).
-      TOKEN_MONITOR_HUB_STATS_TTL_MS: ${TOKEN_MONITOR_HUB_STATS_TTL_MS:-1000}
+      TOKEN_MONITOR_HUB_STATS_TTL_MS: ${TOKEN_MONITOR_HUB_STATS_TTL_MS:-${JIRAN_HUB_STATS_TTL_MS:-1000}}
       # Legacy credential-encryption override and the Google OAuth client secret
       # used by the Antigravity account adapter.
       TOKEN_MONITOR_HUB_CREDENTIAL_KEY: ${TOKEN_MONITOR_HUB_CREDENTIAL_KEY:-}
@@ -67,7 +67,7 @@ services:
     # volumes:
     #   - ./certs:/certs:ro
     ports:
-      - "${TOKEN_MONITOR_PORT:-17321}:17321"
+      - "${TOKEN_MONITOR_PORT:-${JIRAN_PORT:-17321}}:17321"
     # Give the container a real health signal. Without one a Hub that is bound to
     # loopback inside the container (no TOKEN_MONITOR_SECRET) or wedged on a stuck
     # query still reports "running", so `docker compose ps` looks healthy while

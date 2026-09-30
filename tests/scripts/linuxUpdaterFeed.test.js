@@ -16,8 +16,8 @@ const {
   verifyUpdaterArtifactNames
 } = require('../../scripts/verify-updater-artifact-names');
 
-const APPIMAGE = 'Token-Monitor-0.45.0-rev.40.AppImage';
-const DEB = 'Token-Monitor-0.45.0-rev.40.deb';
+const APPIMAGE = 'Jiran-0.45.0-rev.40.AppImage';
+const DEB = 'Jiran-0.45.0-rev.40.deb';
 
 function makeDist(files) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'updater-feed-'));
@@ -70,8 +70,8 @@ test('rejects a feed referencing an AppImage that is not on disk', () => {
 
 test('is a no-op when the linux feed is not part of the build', () => {
   const dir = makeDist({
-    'latest.yml': 'version: 0.45.0-rev.40\nfiles:\n  - url: Token-Monitor-Setup-0.45.0-rev.40.exe\n    sha512: x\npath: Token-Monitor-Setup-0.45.0-rev.40.exe\n',
-    'Token-Monitor-Setup-0.45.0-rev.40.exe': 'installer'
+    'latest.yml': 'version: 0.45.0-rev.40\nfiles:\n  - url: Jiran-Setup-0.45.0-rev.40.exe\n    sha512: x\npath: Jiran-Setup-0.45.0-rev.40.exe\n',
+    'Jiran-Setup-0.45.0-rev.40.exe': 'installer'
   });
   assert.deepEqual(verifyLinuxAppImageUpdaterFeed(dir), { skipped: true });
 });

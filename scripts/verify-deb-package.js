@@ -35,7 +35,7 @@ function compareDebianVersions(left, operator, right) {
 }
 
 function verifyDebPackage(debPath, {
-  expectedPackage = 'token-monitor',
+  expectedPackage = 'jiran',
   expectedVersion = '',
   expectedArchitecture = 'amd64',
   previousVersion = ''
@@ -53,8 +53,8 @@ function verifyDebPackage(debPath, {
     failures.push(`Architecture=${control.Architecture || '(missing)'} (expected ${expectedArchitecture})`);
   }
   for (const requiredFile of [
-    './usr/share/applications/token-monitor.desktop',
-    './usr/share/metainfo/token-monitor.metainfo.xml'
+    './usr/share/applications/jiran.desktop',
+    './usr/share/metainfo/jiran.metainfo.xml'
   ]) {
     if (!files.has(requiredFile)) failures.push(`missing ${requiredFile}`);
   }

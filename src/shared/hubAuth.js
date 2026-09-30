@@ -1,6 +1,6 @@
 'use strict';
 
-// Token Monitor has one operator. `AUTHENTICATED_SCOPE` is an internal route
+// 计然 / Jiran has one operator. `AUTHENTICATED_SCOPE` is an internal route
 // guard, not a user role or a permission level.
 const AUTHENTICATED_SCOPE = 'authenticated';
 
@@ -33,7 +33,9 @@ function requestCredential(request) {
   if (authorization.toLowerCase().startsWith('bearer ')) {
     return { secret: authorization.slice(7).trim(), source: 'authorization' };
   }
-  const explicit = normalizedSecret(header('x-token-monitor-secret'));
+  // x-jiran-secret is canonical; the historical x-token-monitor-secret stays accepted so
+  // devices that predate the 计然 / Jiran rename keep authenticating against a renamed Hub.
+  const explicit = normalizedSecret(header('x-jiran-secret') || header('x-token-monitor-secret'));
   if (explicit) return { secret: explicit, source: 'header' };
   try {
     const query = new URL(String(request?.url || ''), 'http://localhost').searchParams.get('secret');
@@ -50,7 +52,7 @@ function ingestCredentialEntries(value) {
   let parsed = value;
   if (typeof value === 'string') {
     try { parsed = JSON.parse(value); } catch (error) {
-      const wrapped = new Error(`TOKEN_MONITOR_INGEST_CREDENTIALS must be valid JSON: ${error.message}`);
+      const wrapped = new Error(`JIRAN_INGEST_CREDENTIALS (or TOKEN_MONITOR_INGEST_CREDENTIALS) must be valid JSON: ${error.message}`);
       wrapped.code = 'invalid_ingest_credentials';
       throw wrapped;
     }
@@ -72,7 +74,7 @@ function createHubAuthPolicy(options = {}) {
   const deprecatedIngestCredentials = ingestCredentialEntries(options.ingestCredentials);
   const configured = Boolean(ownerSecret);
   if (!ownerSecret && (deprecatedViewerSecret || deprecatedIngestCredentials.length)) {
-    const error = new Error('TOKEN_MONITOR_SECRET is required; viewer/device credentials are no longer supported');
+    const error = new Error('JIRAN_SECRET (or legacy TOKEN_MONITOR_SECRET) is required; viewer/device credentials are no longer supported');
     error.code = 'owner_secret_required';
     throw error;
   }

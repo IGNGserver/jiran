@@ -9,7 +9,7 @@
 
 const { Menu, app, shell } = require('electron');
 
-const REPOSITORY_URL = 'https://github.com/IGNGserver/token-monitor-suite';
+const REPOSITORY_URL = 'https://github.com/IGNGserver/jiran';
 
 // The shared UI's navigable views, in sidebar order, with the label key each one
 // already uses. Written as literals on purpose: `tests/electron/i18n.test.js`

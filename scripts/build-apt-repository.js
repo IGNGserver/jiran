@@ -2,9 +2,12 @@
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { gzipSync } = require('node:zlib');
+
+const { compareDebianVersions } = require('./verify-deb-package.js');
 
 function parseArgs(argv) {
   const options = {
@@ -78,14 +81,14 @@ function renderReleaseFile({ suite, component, architecture, releaseDate, files 
     .map((file) => ` ${file[algorithm]} ${file.size} ${file.relativePath}`)
     .join('\n');
   return [
-    'Origin: Token Monitor',
-    'Label: Token Monitor',
+    'Origin: Jiran',
+    'Label: Jiran',
     `Suite: ${suite}`,
     `Codename: ${suite}`,
     `Date: ${date}`,
     `Architectures: ${architecture}`,
     `Components: ${component}`,
-    'Description: Token Monitor Debian packages',
+    'Description: Jiran Debian packages',
     'MD5Sum:',
     rows('md5'),
     'SHA256:',
@@ -100,6 +103,59 @@ function runDpkgScanpackages(repositoryRoot, poolPath) {
     [poolPath, '/dev/null'],
     { cwd: repositoryRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
   );
+}
+
+function readDebField(debPath, field) {
+  return execFileSync('dpkg-deb', ['-f', debPath, field], { encoding: 'utf8' }).trim();
+}
+
+function pickLatestDebianPackage(paths) {
+  let best = '';
+  let bestVersion = '';
+  for (const debPath of paths) {
+    const version = readDebField(debPath, 'Version');
+    if (!best || compareDebianVersions(version, 'gt', bestVersion)) {
+      best = debPath;
+      bestVersion = version;
+    }
+  }
+  return { debPath: best, version: bestVersion };
+}
+
+// The 计然 / Jiran rename changes the deb Package name from token-monitor to
+// jiran, and APT never follows renames: installed users would simply stop
+// receiving updates. Publish a `token-monitor` stub at the current version that
+// depends on `jiran`, so the ordinary `apt upgrade` carries them over.
+function publishTransitionalPackage({ packages, poolPath }) {
+  const { debPath, version } = pickLatestDebianPackage(packages);
+  const architecture = readDebField(debPath, 'Architecture');
+  const maintainer = readDebField(debPath, 'Maintainer');
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'jiran-transitional-'));
+  try {
+    fs.mkdirSync(path.join(stage, 'DEBIAN'));
+    fs.writeFileSync(path.join(stage, 'DEBIAN', 'control'), [
+      'Package: token-monitor',
+      `Version: ${version}`,
+      `Architecture: ${architecture}`,
+      `Maintainer: ${maintainer}`,
+      `Depends: jiran (>= ${version})`,
+      'Priority: oldlibs',
+      'Section: misc',
+      'Homepage: https://github.com/IGNGserver/jiran',
+      'Description: transitional package for Jiran (计然)',
+      ' The token-monitor package was renamed to jiran. Installing this',
+      ' transitional stub pulls in the renamed package; it can be removed',
+      ' afterwards.',
+      ''
+    ].join('\n'));
+    const built = path.join(stage, `token-monitor_${version}_${architecture}.deb`);
+    execFileSync('dpkg-deb', ['--build', '--root-owner-group', stage, built], { stdio: 'inherit' });
+    const destination = path.join(poolPath, path.basename(built));
+    fs.copyFileSync(built, destination);
+    return destination;
+  } finally {
+    fs.rmSync(stage, { recursive: true, force: true });
+  }
 }
 
 function compressPackages(packagesPath) {
@@ -134,15 +190,20 @@ function buildAptRepository({
   if (requireSignature && !signingKey) throw new Error('APT repository signing is required but --signing-key is missing');
 
   const repositoryRoot = path.resolve(outputDir);
-  const poolRelativePath = path.posix.join('pool', component, 't', 'token-monitor');
-  const poolPath = path.join(repositoryRoot, ...poolRelativePath.split('/'));
+  const poolRootRelativePath = path.posix.join('pool', component);
+  const packagePoolRelativePath = path.posix.join(poolRootRelativePath, 'j', 'jiran');
+  const transitionalPoolRelativePath = path.posix.join(poolRootRelativePath, 't', 'token-monitor');
+  const packagePoolPath = path.join(repositoryRoot, ...packagePoolRelativePath.split('/'));
+  const transitionalPoolPath = path.join(repositoryRoot, ...transitionalPoolRelativePath.split('/'));
   const releaseRoot = path.join(repositoryRoot, 'dists', suite);
   const binaryRoot = path.join(releaseRoot, component, `binary-${architecture}`);
-  fs.mkdirSync(poolPath, { recursive: true });
+  fs.mkdirSync(packagePoolPath, { recursive: true });
+  fs.mkdirSync(transitionalPoolPath, { recursive: true });
   fs.mkdirSync(binaryRoot, { recursive: true });
 
-  for (const packagePath of packages) fs.copyFileSync(packagePath, path.join(poolPath, path.basename(packagePath)));
-  const packagesText = runDpkgScanpackages(repositoryRoot, poolRelativePath);
+  for (const packagePath of packages) fs.copyFileSync(packagePath, path.join(packagePoolPath, path.basename(packagePath)));
+  const transitionalPath = publishTransitionalPackage({ packages, poolPath: transitionalPoolPath });
+  const packagesText = runDpkgScanpackages(repositoryRoot, poolRootRelativePath);
   const packagesPath = path.join(binaryRoot, 'Packages');
   writeFile(packagesPath, packagesText);
   compressPackages(packagesPath);
@@ -160,7 +221,7 @@ function buildAptRepository({
       try { fs.unlinkSync(filePath); } catch (_) {}
     }
   }
-  return { packagePaths: packages, releasePath, inReleasePath, releaseGpgPath, packagesPath };
+  return { packagePaths: packages, transitionalPath, releasePath, inReleasePath, releaseGpgPath, packagesPath };
 }
 
 if (require.main === module) {

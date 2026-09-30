@@ -20,10 +20,10 @@ COPY src/shared ./src/shared
 # Hub boots and the API works, but every page asset 404s.
 COPY src/shared-ui ./src/shared-ui
 COPY assets/icon.png ./assets/icon.png
-COPY docker-entrypoint.sh /usr/local/bin/token-monitor-hub
+COPY docker-entrypoint.sh /usr/local/bin/jiran-hub
 
-RUN chmod +x /usr/local/bin/token-monitor-hub
+RUN chmod +x /usr/local/bin/jiran-hub
 
 EXPOSE 17321
-ENTRYPOINT ["/usr/local/bin/token-monitor-hub"]
+ENTRYPOINT ["/usr/local/bin/jiran-hub"]
 

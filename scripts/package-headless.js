@@ -2,7 +2,7 @@
 'use strict';
 
 // Build the platform-neutral source bundle for machines without a desktop GUI:
-//   Token-Monitor-Headless-<version>.tar.gz
+//   Jiran-Headless-<version>.tar.gz
 //
 // Dependencies are intentionally installed by the operator with
 // `npm ci --omit=dev` on the target machine. That keeps Electron out of the
@@ -17,7 +17,7 @@ const tar = require('tar');
 const { parseProjectVersion } = require('../src/shared/versioning');
 
 const root = path.resolve(__dirname, '..');
-const requestedVersion = process.argv[2] || process.env.TOKEN_MONITOR_VERSION || '';
+const requestedVersion = process.argv[2] || process.env.JIRAN_VERSION || process.env.TOKEN_MONITOR_VERSION || '';
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const version = String(requestedVersion || packageJson.version).replace(/^v/, '');
 // Validated through the shared parser rather than a `-rev.N` regex: AGENTS.md
@@ -28,9 +28,9 @@ if (!parseProjectVersion(version)) {
 }
 
 const outDir = path.join(root, 'dist-headless');
-const stageName = `token-monitor-headless-${version}`;
+const stageName = `jiran-headless-${version}`;
 const stageDir = path.join(outDir, stageName);
-const archivePath = path.join(outDir, `Token-Monitor-Headless-${version}.tar.gz`);
+const archivePath = path.join(outDir, `Jiran-Headless-${version}.tar.gz`);
 const files = [
   ['src/agent', 'src/agent'],
   ['src/shared', 'src/shared'],
@@ -55,12 +55,12 @@ function headlessPackageJson() {
     dependencies[name] = range;
   }
   return {
-    name: 'token-monitor-headless',
+    name: 'jiran-headless',
     version,
     private: true,
-    description: 'Headless Token Monitor collector: scans local AI tool usage and posts it to a Docker Compose Hub.',
+    description: 'Headless Jiran collector: scans local AI tool usage and posts it to a Docker Compose Hub.',
     main: 'src/agent/agent.js',
-    bin: { 'token-monitor-agent': 'src/agent/agent.js' },
+    bin: { 'jiran-agent': 'src/agent/agent.js' },
     scripts: { start: 'node src/agent/agent.js', once: 'node src/agent/agent.js --once' },
     dependencies,
     engines: packageJson.engines

@@ -3,7 +3,7 @@
 const semver = require('semver');
 const { compareProjectVersions, parseProjectVersion } = require('./versioning');
 
-const GITHUB_REPO = 'IGNGserver/token-monitor-suite';
+const GITHUB_REPO = 'IGNGserver/jiran';
 const RELEASES_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=100`;
 const RELEASES_LATEST_URL = RELEASES_URL;
 const RELEASE_HTML_PREFIX = `https://github.com/${GITHUB_REPO}/releases/`;

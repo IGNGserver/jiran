@@ -48,8 +48,8 @@ async function requestJson(url, apiKey, deps = {}) {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       Accept: 'application/json',
-      'HTTP-Referer': 'https://github.com/IGNGserver/token-monitor-suite',
-      'X-OpenRouter-Title': 'Token Monitor'
+      'HTTP-Referer': 'https://github.com/IGNGserver/jiran',
+      'X-OpenRouter-Title': 'Jiran'
     },
     signal: deps.signal
   });

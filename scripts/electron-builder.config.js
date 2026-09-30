@@ -44,7 +44,7 @@ config.deb = config.deb || {};
 config.deb.fpm = [
   '--version',
   packageJson.version,
-  `${metainfoPath}=/usr/share/metainfo/token-monitor.metainfo.xml`
+  `${metainfoPath}=/usr/share/metainfo/jiran.metainfo.xml`
 ];
 
 // Keep only the Chromium locale packs the UI can actually select (renderer

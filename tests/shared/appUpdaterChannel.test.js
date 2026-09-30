@@ -19,7 +19,7 @@ function releasePayload(tag, prerelease) {
     tag_name: tag,
     prerelease,
     name: tag,
-    html_url: `https://github.com/IGNGserver/token-monitor-suite/releases/tag/${tag}`,
+    html_url: `https://github.com/IGNGserver/jiran/releases/tag/${tag}`,
     published_at: '2026-09-25T00:00:00Z'
   };
 }

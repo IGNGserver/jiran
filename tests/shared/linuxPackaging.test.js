@@ -16,10 +16,10 @@ const {
 } = require('../../scripts/build-apt-repository');
 
 test('Linux AppStream metadata renders the package version and release date', (t) => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'token-monitor-metainfo-'));
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'jiran-metainfo-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const templatePath = path.join(directory, 'template.xml');
-  const outputPath = path.join(directory, 'nested', 'token-monitor.metainfo.xml');
+  const outputPath = path.join(directory, 'nested', 'jiran.metainfo.xml');
   fs.writeFileSync(templatePath, '<component><release version="__VERSION__" date="__RELEASE_DATE__" /></component>\n');
 
   const result = prepareLinuxPackageMetadata({
@@ -37,12 +37,12 @@ test('Linux AppStream metadata renders the package version and release date', (t
 });
 
 test('Linux AppStream template declares an App Center launchable', () => {
-  const templatePath = path.join(__dirname, '..', '..', 'packaging', 'linux', 'token-monitor.metainfo.xml.in');
+  const templatePath = path.join(__dirname, '..', '..', 'packaging', 'linux', 'jiran.metainfo.xml.in');
   const template = fs.readFileSync(templatePath, 'utf8');
   assert.match(template, /<id>com\.igng\.tokenmonitor\.desktop<\/id>/);
-  assert.match(template, /<launchable type="desktop-id">token-monitor\.desktop<\/launchable>/);
+  assert.match(template, /<launchable type="desktop-id">jiran\.desktop<\/launchable>/);
   assert.match(template, /<category>Development<\/category>/);
-  assert.match(template, /<provides>\s*<binary>token-monitor<\/binary>/);
+  assert.match(template, /<provides>\s*<binary>jiran<\/binary>/);
 });
 
 test('Linux package metadata rejects malformed release dates', () => {
@@ -104,11 +104,11 @@ test('Linux release workflow verifies the built Debian package', () => {
 });
 
 test('APT source configuration uses a local keyring and the stable suite', () => {
-  const sourcePath = path.join(__dirname, '..', '..', 'packaging', 'linux', 'token-monitor.sources');
+  const sourcePath = path.join(__dirname, '..', '..', 'packaging', 'linux', 'jiran.sources');
   const source = fs.readFileSync(sourcePath, 'utf8');
-  assert.match(source, /URIs: https:\/\/igngserver\.github\.io\/token-monitor-suite\/apt/);
+  assert.match(source, /URIs: https:\/\/igngserver\.github\.io\/jiran\/apt/);
   assert.match(source, /Suites: stable/);
-  assert.match(source, /Signed-By: \/usr\/share\/keyrings\/token-monitor-archive-keyring\.gpg/);
+  assert.match(source, /Signed-By: \/usr\/share\/keyrings\/jiran-archive-keyring\.gpg/);
   assert.doesNotMatch(source, /trusted=yes/);
 });
 

@@ -25,8 +25,10 @@ Authorization: Bearer <secret>
 or:
 
 ```http
-X-Token-Monitor-Secret: <secret>
+X-Jiran-Secret: <secret>
 ```
+
+The historical `X-Token-Monitor-Secret` header is still accepted so devices that predate the 计然 / Jiran rename keep working against a renamed Hub.
 
 Credentials in query strings are rejected. Secrets can appear in browser, proxy, CDN, or diagnostic logs, so clients must send the owner key in a header.
 

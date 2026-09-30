@@ -4,8 +4,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const TEMPLATE_PATH = path.join(PROJECT_ROOT, 'packaging', 'linux', 'token-monitor.metainfo.xml.in');
-const DEFAULT_OUTPUT_PATH = path.join(PROJECT_ROOT, 'build', 'linux', 'token-monitor.metainfo.xml');
+const TEMPLATE_PATH = path.join(PROJECT_ROOT, 'packaging', 'linux', 'jiran.metainfo.xml.in');
+const DEFAULT_OUTPUT_PATH = path.join(PROJECT_ROOT, 'build', 'linux', 'jiran.metainfo.xml');
 
 function normalizeReleaseDate(value) {
   const date = String(value || '').trim();

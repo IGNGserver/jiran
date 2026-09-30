@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <!-- The component id intentionally keeps the pre-rename value so AppStream
+       clients that already indexed the app keep matching it across the 计然 /
+       Jiran rename (the desktop/binary/package names below did change). -->
+  <id>com.igng.tokenmonitor.desktop</id>
+  <name>Jiran</name>
+  <summary>Live token usage and cost monitor for AI coding agents</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="com.igng.tokenmonitor">
+    <name>IGNGserver</name>
+  </developer>
+  <description>
+    <p>Jiran tallies local AI coding-tool usage, estimates costs and limits, and can synchronize summaries across devices.</p>
+  </description>
+  <categories>
+    <category>Development</category>
+  </categories>
+  <content_rating type="oars-1.1" />
+  <url type="homepage">https://github.com/IGNGserver/jiran</url>
+  <url type="bugtracker">https://github.com/IGNGserver/jiran/issues</url>
+  <launchable type="desktop-id">jiran.desktop</launchable>
+  <icon type="stock">jiran</icon>
+  <provides>
+    <binary>jiran</binary>
+  </provides>
+  <releases>
+    <release version="__VERSION__" date="__RELEASE_DATE__" />
+  </releases>
+</component>

@@ -151,7 +151,7 @@ function verifyProductScope() {
   const ci = read('.github/workflows/ci.yml');
   const release = read('.github/workflows/release.yml');
   expect(release.includes('package:headless'), 'release workflow must package the headless agent');
-  expect(release.includes('Token-Monitor-Headless-*.tar.gz'), 'release workflow must publish the headless agent artifact');
+  expect(release.includes('Jiran-Headless-*.tar.gz'), 'release workflow must publish the headless agent artifact');
   for (const [name, text] of [['CI', ci], ['release workflow', release]]) {
     expect(!text.includes('sync:worker'), `${name} must not invoke the removed secondary Hub sync path`);
     expect(!text.includes('worker/src'), `${name} must not verify a removed secondary Hub source tree`);

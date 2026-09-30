@@ -24,7 +24,7 @@ const notesDir = path.join(root, '.github', 'release-notes');
 const rootPackage = require('../../package.json');
 
 const template = [
-  '# Token Monitor {{tag}}',
+  '# Jiran {{tag}}',
   '',
   '## 本次更新',
   '',
@@ -34,7 +34,7 @@ const template = [
   '',
   '<!-- release-downloads -->',
   '',
-  '签名说明见 [README]({{repositoryUrl}}#readme)，包名 `Token-Monitor-{{version}}.deb`。',
+  '签名说明见 [README]({{repositoryUrl}}#readme)，包名 `Jiran-{{version}}.deb`。',
   '',
   '<!-- release-hub-image -->',
   ''
@@ -55,9 +55,9 @@ function render(overrides = {}) {
 test('release body renders one Chinese section with version injected everywhere', () => {
   const body = render();
 
-  assert.match(body, /^# Token Monitor v0\.47\.0$/m);
+  assert.match(body, /^# Jiran v0\.47\.0$/m);
   assert.match(body, /<!-- app-update-notes:zh:start -->\n### 修复\n- 本版说明。\n<!-- app-update-notes:zh:end -->/);
-  assert.match(body, /Token-Monitor-0\.47\.0\.deb/);
+  assert.match(body, /Jiran-0\.47\.0\.deb/);
   assert.match(body, /https:\/\/github\.com\/IGNGserver\/token-monitor-suite#readme/);
   assert.doesNotMatch(body, /\{\{|\}\}/);
 });
@@ -82,23 +82,23 @@ test('download list is built from the artifact table and covers every published 
   const lines = releaseDownloadLines({ version: '1.2.3', repository: 'acme/repo' }).split('\n');
   assert.equal(lines.length, RELEASE_ARTIFACTS.length);
   for (const line of lines) assert.match(line, /^- \*\*.+\*\* — \[.+\]\(https:\/\/github\.com\/acme\/repo\/releases\/download\/v1\.2\.3\/.+\)(（[^）]+）)?$/);
-  assert.ok(lines.some((line) => line.includes('Token-Monitor-Android-1.2.3.apk')), 'Android APK must never be missing from the list');
-  assert.ok(lines.some((line) => line.includes('Token-Monitor-1.2.3.deb')), 'The .deb must be listed for App Center / APT users');
-  assert.ok(lines.some((line) => line.includes('Token-Monitor-Setup-1.2.3.exe')));
-  assert.ok(lines.some((line) => line.includes('Token-Monitor-1.2.3-arm64.dmg')));
-  assert.ok(lines.some((line) => line.includes('Token-Monitor-1.2.3.AppImage')));
+  assert.ok(lines.some((line) => line.includes('Jiran-Android-1.2.3.apk')), 'Android APK must never be missing from the list');
+  assert.ok(lines.some((line) => line.includes('Jiran-1.2.3.deb')), 'The .deb must be listed for App Center / APT users');
+  assert.ok(lines.some((line) => line.includes('Jiran-Setup-1.2.3.exe')));
+  assert.ok(lines.some((line) => line.includes('Jiran-1.2.3-arm64.dmg')));
+  assert.ok(lines.some((line) => line.includes('Jiran-1.2.3.AppImage')));
   const labels = RELEASE_ARTIFACTS.map((artifact) => `- **${artifact.label}**`);
   assert.deepEqual(lines.map((line) => line.match(/^- \*\*.+?\*\*/)?.[0] ?? ''), labels);
 });
 
 test('hub section follows the release channel', () => {
   const pre = hubDeploymentSection({ version: '1.2.3-rev.4', repositoryOwner: 'Acme', releaseType: 'prerelease' });
-  assert.match(pre, /docker pull ghcr\.io\/acme\/token-monitor-hub:1\.2\.3-rev\.4\n```/);
+  assert.match(pre, /docker pull ghcr\.io\/acme\/jiran-hub:1\.2\.3-rev\.4\n```/);
   assert.doesNotMatch(pre, /:latest/);
   assert.match(pre, /不会移动 `latest` 标签/);
 
   const formal = hubDeploymentSection({ version: '1.2.3', repositoryOwner: 'Acme', releaseType: 'release' });
-  assert.match(formal, /docker pull ghcr\.io\/acme\/token-monitor-hub:latest/);
+  assert.match(formal, /docker pull ghcr\.io\/acme\/jiran-hub:latest/);
   assert.doesNotMatch(formal, /不会移动/);
 });
 
@@ -178,7 +178,7 @@ test('every archived notes file is a valid single-version block', () => {
     assert.ok(parsed.zh.length > 0, `${name} has no release-note groups`);
     assert.ok(parsed.zh.every((group) => group.items.length > 0), `${name} has an empty release-note group`);
     assert.ok(!content.includes('{{'), `${name} must not carry template placeholders`);
-    assert.ok(!content.includes('# Token Monitor'), `${name} holds only the 本次更新 block, not a whole body`);
+    assert.ok(!content.includes('# Jiran'), `${name} holds only the 本次更新 block, not a whole body`);
   }
 });
 

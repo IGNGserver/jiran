@@ -54,11 +54,15 @@ jobs:
             --suite stable \
             --signing-key "$APT_REPOSITORY_GPG_KEY_ID" \
             --require-signature
-          cp packaging/linux/token-monitor.sources _site/apt/token-monitor.sources
-          gpg --armor --export "$APT_REPOSITORY_GPG_KEY_ID" > _site/apt/token-monitor-archive-keyring.asc
+          cp packaging/linux/jiran.sources _site/apt/jiran.sources
+          # legacy filename kept in sync: existing installs reference token-monitor.sources
+          cp packaging/linux/jiran.sources _site/apt/token-monitor.sources
+          gpg --armor --export "$APT_REPOSITORY_GPG_KEY_ID" > _site/apt/jiran-archive-keyring.asc
+          cp _site/apt/jiran-archive-keyring.asc _site/apt/token-monitor-archive-keyring.asc
           fingerprint="$(gpg --with-colons --fingerprint "$APT_REPOSITORY_GPG_KEY_ID" | awk -F: '$1 == "fpr" { print $10; exit }')"
           test -n "$fingerprint"
-          printf '%s\n' "$fingerprint" > _site/apt/token-monitor-archive-keyring-fingerprint.txt
+          printf '%s\n' "$fingerprint" > _site/apt/jiran-archive-keyring-fingerprint.txt
+          cp _site/apt/jiran-archive-keyring-fingerprint.txt _site/apt/token-monitor-archive-keyring-fingerprint.txt
           echo "Published APT archive key fingerprint: $fingerprint"
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v5

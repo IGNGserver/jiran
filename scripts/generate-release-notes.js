@@ -7,7 +7,7 @@ const DEFAULT_REPOSITORY = 'IGNGserver/token-monitor-suite';
 const DEFAULT_TEMPLATE = '.github/RELEASE_TEMPLATE.md';
 const DEFAULT_NOTES_DIR = '.github/release-notes';
 const DEFAULT_OUTPUT = 'release-body.md';
-const HUB_IMAGE_NAME = 'token-monitor-hub';
+const HUB_IMAGE_NAME = 'jiran-hub';
 
 const NOTES_START_MARKER = '<!-- app-update-notes:zh:start -->';
 const NOTES_END_MARKER = '<!-- app-update-notes:zh:end -->';
@@ -23,13 +23,13 @@ const HUB_MARKER = '<!-- release-hub-image -->';
  * that is how the Android APK stayed off every release body.
  */
 const RELEASE_ARTIFACTS = Object.freeze([
-  { label: 'macOS Apple Silicon', file: 'Token-Monitor-{version}-arm64.dmg', note: '' },
-  { label: 'macOS Intel', file: 'Token-Monitor-{version}-x64.dmg', note: '' },
-  { label: 'Windows 安装版', file: 'Token-Monitor-Setup-{version}.exe', note: '推荐' },
-  { label: 'Windows 便携版', file: 'Token-Monitor-{version}.exe', note: '免安装' },
-  { label: 'Linux x64 AppImage', file: 'Token-Monitor-{version}.AppImage', note: '应用内自动更新用这个' },
-  { label: 'Linux x64 Debian 包', file: 'Token-Monitor-{version}.deb', note: 'App Center / APT 更新链路用这个' },
-  { label: 'Android 手机端', file: 'Token-Monitor-Android-{version}.apk', note: 'Hub 的读端，已用长期签名密钥签名' }
+  { label: 'macOS Apple Silicon', file: 'Jiran-{version}-arm64.dmg', note: '' },
+  { label: 'macOS Intel', file: 'Jiran-{version}-x64.dmg', note: '' },
+  { label: 'Windows 安装版', file: 'Jiran-Setup-{version}.exe', note: '推荐' },
+  { label: 'Windows 便携版', file: 'Jiran-{version}.exe', note: '免安装' },
+  { label: 'Linux x64 AppImage', file: 'Jiran-{version}.AppImage', note: '应用内自动更新用这个' },
+  { label: 'Linux x64 Debian 包', file: 'Jiran-{version}.deb', note: 'App Center / APT 更新链路用这个' },
+  { label: 'Android 手机端', file: 'Jiran-Android-{version}.apk', note: 'Hub 的读端，已用长期签名密钥签名' }
 ]);
 
 function projectVersion(version) {
@@ -97,14 +97,15 @@ function hubDeploymentSection({ version, repositoryOwner, releaseType }) {
   ];
   if (releaseType === 'release') lines.push(`docker pull ${image}:latest`);
   lines.push('```', '');
+  lines.push('> Hub 镜像已随项目改名迁移到 `jiran-hub`；`token-monitor-hub` 在过渡期内仍推送完全相同的标签，建议尽快更新 compose 中的镜像名。deb 包同样改名为 `jiran`，旧 `token-monitor` 包将作为过渡依赖包把已安装用户自动带过去。');
   if (releaseType === 'release') {
-    lines.push(`Compose：在 \`.env\` 里设 \`TOKEN_MONITOR_VERSION=${version}\`（或 \`latest\`），然后 \`docker compose pull && docker compose up -d\`。`);
+    lines.push(`Compose：在 \`.env\` 里设 \`JIRAN_VERSION=${version}\`（或 \`latest\`），然后 \`docker compose pull && docker compose up -d\`。`);
   } else {
-    lines.push(`Compose：在 \`.env\` 里设 \`TOKEN_MONITOR_VERSION=${version}\`，然后 \`docker compose pull && docker compose up -d\`。本次是 prerelease，不会移动 \`latest\` 标签。`);
+    lines.push(`Compose：在 \`.env\` 里设 \`JIRAN_VERSION=${version}\`，然后 \`docker compose pull && docker compose up -d\`。本次是 prerelease，不会移动 \`latest\` 标签。`);
   }
   lines.push(
     '',
-    `最小部署包是 Assets 里的 \`Token-Monitor-Hub-Compose-${version}.zip\`；不带图形界面的采集器用 \`Token-Monitor-Headless-${version}.tar.gz\`，解压后执行 \`npm ci --omit=dev\`。`
+    `最小部署包是 Assets 里的 \`Jiran-Hub-Compose-${version}.zip\`；不带图形界面的采集器用 \`Jiran-Headless-${version}.tar.gz\`，解压后执行 \`npm ci --omit=dev\`。`
   );
   return lines.join('\n');
 }

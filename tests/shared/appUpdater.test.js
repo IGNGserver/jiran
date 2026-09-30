@@ -43,7 +43,7 @@ test('appUpdateInstallSupport only enables packaged auto-updatable targets', () 
   assert.deepEqual(appUpdateInstallSupport({
     isPackaged: true,
     platform: 'win32',
-    env: { PORTABLE_EXECUTABLE_FILE: 'C:\\Downloads\\Token-Monitor.exe' }
+    env: { PORTABLE_EXECUTABLE_FILE: 'C:\\Downloads\\Jiran.exe' }
   }), { supported: false, reason: 'windows-portable' });
   assert.deepEqual(appUpdateInstallSupport({ isPackaged: true, platform: 'linux', env: {} }), { supported: false, reason: 'linux-not-appimage' });
   assert.deepEqual(appUpdateInstallSupport({ isPackaged: true, platform: 'linux', env: { APPIMAGE: '/tmp/Token Monitor.AppImage' } }), { supported: true, reason: '' });
@@ -297,7 +297,7 @@ test('parseLatestReleasePayload returns normalized object for valid payload', ()
   const result = parseLatestReleasePayload({
     tag_name: 'v0.1.3',
     name: 'Token Monitor 0.1.3',
-    html_url: 'https://github.com/IGNGserver/token-monitor-suite/releases/tag/v0.1.3',
+    html_url: 'https://github.com/IGNGserver/jiran/releases/tag/v0.1.3',
     published_at: '2026-05-26T12:00:00Z',
     body: `
 ## What's changed
@@ -314,7 +314,7 @@ test('parseLatestReleasePayload returns normalized object for valid payload', ()
     // The payload omits the flag and 0.1.3 carries no -rev.N suffix, so this is formal.
     prerelease: false,
     name: 'Token Monitor 0.1.3',
-    htmlUrl: 'https://github.com/IGNGserver/token-monitor-suite/releases/tag/v0.1.3',
+    htmlUrl: 'https://github.com/IGNGserver/jiran/releases/tag/v0.1.3',
     publishedAt: '2026-05-26T12:00:00Z',
     releaseNotes: {
       en: [{ title: 'Added', items: ['Release summaries in the app.'] }]
@@ -325,7 +325,7 @@ test('parseLatestReleasePayload returns normalized object for valid payload', ()
 test('parseLatestReleasePayload falls back to tag when name is missing', () => {
   const result = parseLatestReleasePayload({
     tag_name: 'v0.1.3',
-    html_url: 'https://github.com/IGNGserver/token-monitor-suite/releases/tag/v0.1.3'
+    html_url: 'https://github.com/IGNGserver/jiran/releases/tag/v0.1.3'
   });
   assert.equal(result.name, 'v0.1.3');
   assert.equal(result.publishedAt, '');
@@ -352,7 +352,7 @@ test('parseLatestReleasePayload rejects payloads without an https html_url', () 
 test('parseReleaseListPayload selects the newest project revision and ignores other release forms', () => {
   const release = (tag, extra = {}) => ({
     tag_name: tag,
-    html_url: `https://github.com/IGNGserver/token-monitor-suite/releases/tag/${tag}`,
+    html_url: `https://github.com/IGNGserver/jiran/releases/tag/${tag}`,
     ...extra
   });
   const releases = parseReleaseListPayload([
