@@ -133,7 +133,7 @@ export function formatLimitBadge(card) {
     // but only one is fixed by re-pasting. `region:'retired'` is set by the
     // Gemini adapter when Google reports the tier as no longer served.
     const retired = String(card.region || '').toLowerCase() === 'retired';
-    return `<span class="badge warn">${escapeHtml(tr(retired ? 'limits.statusRetired' : 'limits.statusNeedsCredentials'))}</span>`;
+    return `<span class="badge warn bad">${escapeHtml(tr(retired ? 'limits.statusRetired' : 'limits.statusNeedsCredentials'))}</span>`;
   }
   if (status === 'notconfigured') {
     return `<span class="badge">${escapeHtml(tr('limits.statusNotConfigured'))}</span>`;

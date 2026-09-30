@@ -1243,6 +1243,32 @@ html[data-theme="dark"] .heat.heat-cost.lvl-4 { fill: rgba(251, 191, 36, 0.92); 
   width: 100%;
   min-width: 0;
 }
+.home-limit-trail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.home-limit-trail .badge {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+.home-limit-card.has-attention {
+  border-color: color-mix(in srgb, var(--warn) 35%, var(--line));
+}
+.home-limit-card.attention-critical {
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+}
+.home-limit-sub.home-limit-sub-hint {
+  color: var(--warn);
+}
+.home-limit-card.attention-critical .home-limit-sub.home-limit-sub-hint {
+  color: var(--bad);
+}
+.home-limit-bar.meter-stale > span {
+  opacity: 0.6;
+  filter: grayscale(0.5);
+}
 .home-limit-identity {
   display: flex;
   align-items: center;

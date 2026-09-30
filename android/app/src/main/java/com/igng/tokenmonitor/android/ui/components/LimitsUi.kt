@@ -148,6 +148,21 @@ internal fun limitRowIdentity(provider: LimitProviderDto, index: Int): String {
 
 fun findUrgentLimit(limits: LimitsDto?): Pair<LimitProviderDto, Double>? {
   val providers = limits?.providers.orEmpty()
+  // First priority: check for abnormal account/credential statuses
+  for (provider in providers) {
+    val status = provider.status?.trim()?.lowercase(Locale.US)
+    if (status == "unauthorized") {
+      return Pair(provider, -1.0)
+    }
+  }
+  for (provider in providers) {
+    val status = provider.status?.trim()?.lowercase(Locale.US)
+    if (status == "unavailable" || status == "error" || status == "ratelimited" || status == "sourceratelimited") {
+      return Pair(provider, -2.0)
+    }
+  }
+
+  // Second priority: check for low/exhausted quota
   var mostUrgent: Pair<LimitProviderDto, Double>? = null
   for (provider in providers) {
     val meterWindows = provider.windows.filter { it.showMeter && windowUsedPercent(it) != null }
@@ -170,13 +185,24 @@ fun UrgentLimitAlertBar(
   modifier: Modifier = Modifier
 ) {
   val colors = LocalFluentColors.current
-  val isExhausted = remainingPercent <= 0.0
-  val bg = if (isExhausted) colors.errorBackground else colors.warningBackground
-  val fg = if (isExhausted) colors.errorForeground else colors.warningForeground
-  val text = if (isExhausted) {
-    "${providerDisplayName(provider.provider)} 额度已用尽"
-  } else {
-    "${providerDisplayName(provider.provider)} 额度告急，仅剩 ${String.format(Locale.US, "%.0f%%", remainingPercent)}"
+  val isUnauthorized = remainingPercent == -1.0
+  val isFetchError = remainingPercent == -2.0
+  val isExhausted = remainingPercent == 0.0
+  val isDanger = isUnauthorized || isExhausted
+  val bg = if (isDanger) colors.errorBackground else colors.warningBackground
+  val fg = if (isDanger) colors.errorForeground else colors.warningForeground
+  val text = when {
+    isUnauthorized -> "${providerDisplayName(provider.provider)} 凭证已过期，无法获取额度"
+    isFetchError -> {
+      val status = provider.status?.trim()?.lowercase(Locale.US)
+      if (status == "ratelimited" || status == "sourceratelimited") {
+        "${providerDisplayName(provider.provider)} 服务商正在限流"
+      } else {
+        "${providerDisplayName(provider.provider)} 额度获取失败，无法连接服务商"
+      }
+    }
+    isExhausted -> "${providerDisplayName(provider.provider)} 额度已用尽"
+    else -> "${providerDisplayName(provider.provider)} 额度告急，仅剩 ${String.format(Locale.US, "%.0f%%", remainingPercent)}"
   }
 
   Row(
@@ -339,7 +365,7 @@ private fun LimitAccountRow(
   val unavailableWindows = provider.windows.filter { it.showMeter && windowUsedPercent(it) == null }
   val headlineUsed = meterWindows.mapNotNull { windowUsedPercent(it) }.maxOrNull()
   val headlineRemaining = headlineUsed?.let { (100.0 - it).coerceIn(0.0, 100.0) }
-  val status = limitStatus(headlineRemaining)
+  val status = limitStatus(headlineRemaining, provider.status)
   val balanceLines = limitBalanceLines(provider)
 
   Column(Modifier.fillMaxWidth()) {
@@ -570,8 +596,37 @@ private fun QuotaBar(
  * red meaningful in a list that is otherwise red/green for good/bad.
  */
 @Composable
-private fun limitStatus(remainingPercent: Double?): LimitStatus {
+private fun limitStatus(remainingPercent: Double?, providerStatus: String? = null): LimitStatus {
   val colors = LocalFluentColors.current
+  val normalizedStatus = providerStatus?.trim()?.lowercase(Locale.US)
+  if (normalizedStatus == "unauthorized") {
+    return LimitStatus(
+      label = "凭证失效",
+      accent = colors.errorForeground,
+      tint = colors.errorBackground
+    )
+  }
+  if (normalizedStatus == "ratelimited" || normalizedStatus == "sourceratelimited") {
+    return LimitStatus(
+      label = "限流中",
+      accent = colors.warningForeground,
+      tint = colors.warningBackground
+    )
+  }
+  if (normalizedStatus == "unavailable" || normalizedStatus == "error") {
+    return LimitStatus(
+      label = "获取失败",
+      accent = colors.warningForeground,
+      tint = colors.warningBackground
+    )
+  }
+  if (normalizedStatus == "notconfigured") {
+    return LimitStatus(
+      label = "未配置",
+      accent = colors.neutralForeground3,
+      tint = colors.neutralForeground3.copy(alpha = 0.18f)
+    )
+  }
   return when (limitRemainingTone(remainingPercent)) {
     LimitRemainingTone.Unknown -> LimitStatus(
       label = "未知",

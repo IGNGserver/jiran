@@ -360,6 +360,18 @@ export function limitRemainingTone(remaining) {
   return 'ok';
 }
 
+export function limitAttentionLevel(card) {
+  if (!card) return 'none';
+  if (card.stale) return 'stale';
+  const status = String(card.status || '').toLowerCase();
+  if (status === 'ok' || status === 'disabled') return 'none';
+  if (status === 'unauthorized') return 'critical';
+  if (status === 'notconfigured') return 'warn';
+  if (status === 'sourceratelimited' || status === 'ratelimited') return 'warn';
+  if (status === 'unavailable' || status === 'error') return 'warn';
+  return 'warn';
+}
+
 export function clampHomeLimitAccountCount(value, fallback = 3) {
   const n = Number(value);
   if (!Number.isFinite(n)) return Math.max(1, Math.min(12, Math.floor(Number(fallback)) || 3));

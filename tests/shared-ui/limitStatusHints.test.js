@@ -77,6 +77,21 @@ test('a stale card explains that the values are the last known ones', () => {
   assert.match(formatLimitHint({ status: 'ok', stale: true }), /last known/);
 });
 
+const { limitAttentionLevel } = require('../../src/shared-ui/core/data.js');
+
+test('limitAttentionLevel identifies critical, warning, stale and healthy statuses', () => {
+  assert.equal(limitAttentionLevel(null), 'none');
+  assert.equal(limitAttentionLevel({ status: 'ok' }), 'none');
+  assert.equal(limitAttentionLevel({ status: 'disabled' }), 'none');
+  assert.equal(limitAttentionLevel({ status: 'unauthorized' }), 'critical');
+  assert.equal(limitAttentionLevel({ status: 'unavailable' }), 'warn');
+  assert.equal(limitAttentionLevel({ status: 'error' }), 'warn');
+  assert.equal(limitAttentionLevel({ status: 'rateLimited' }), 'warn');
+  assert.equal(limitAttentionLevel({ status: 'sourceRateLimited' }), 'warn');
+  assert.equal(limitAttentionLevel({ status: 'notConfigured' }), 'warn');
+  assert.equal(limitAttentionLevel({ status: 'ok', stale: true }), 'stale');
+});
+
 test('an unknown status falls back to no hint rather than inventing one', () => {
   assert.equal(formatLimitHint({ status: 'something-new' }), '');
   assert.equal(formatLimitHint({}), '');

@@ -17,6 +17,7 @@ import {
   devicePlatformLabel,
   deviceRows,
   historyDaily,
+  limitAttentionLevel,
   limitCards,
   limitRemainingTone,
   modelRows,
@@ -24,6 +25,7 @@ import {
 } from '../core/data.js';
 import { tr, escapeHtml, appState, toolIconHtml, viewHelper } from '../core/viewContext.js';
 import { historySource, renderSparkline, renderHeatmap, renderHistoryScopeNotice } from './trends.js';
+import { formatLimitBadge, formatLimitHint } from './limits.js';
 
 const emptyHtml = (key) => viewHelper('emptyHtml')(key);
 const panel = (...args) => viewHelper('panel')(...args);
@@ -141,25 +143,35 @@ export function renderHome() {
   // Limits: graphical cards with progress bars and remaining tone
   const limitsBody = limits.length
     ? `<div class="home-limits-grid">${limits.map((card) => {
+        const attention = limitAttentionLevel(card);
+        const isAbnormal = attention !== 'none';
         const remaining = card.lowestRemaining;
-        const tone = remaining == null ? 'unknown' : limitRemainingTone(remaining);
-        const toneClass = `meter-${tone}`;
+        const tone = isAbnormal
+          ? (attention === 'critical' ? 'critical' : 'warn')
+          : (remaining == null ? 'unknown' : limitRemainingTone(remaining));
+        const toneClass = `meter-${tone}${card.stale ? ' meter-stale' : ''}`;
         const pct = remaining == null ? 0 : Math.max(0, Math.min(100, Math.round(remaining)));
+        const badgeHtml = isAbnormal ? formatLimitBadge(card) : '';
+        const hintText = isAbnormal ? formatLimitHint(card) : '';
         const subParts = [
           clientLabel(card.provider),
-          card.plan || ''
+          hintText || card.plan || ''
         ].filter(Boolean);
+        const cardClass = `home-limit-card${isAbnormal ? ` has-attention attention-${attention}` : ''}`;
         return `
-          <fluent-button appearance="secondary" type="button" class="home-limit-card" data-jump-view="limits">
+          <fluent-button appearance="secondary" type="button" class="${cardClass}" data-jump-view="limits"${hintText ? ` title="${escapeHtml(hintText)}"` : ''}>
             <div class="home-limit-head">
               <div class="home-limit-identity">
                 ${toolIconHtml(card.provider)}
                 <span class="home-limit-name">${escapeHtml(card.name)}</span>
               </div>
-              <span class="home-limit-val remaining-tone-${tone}">${remaining == null ? '—' : `${pct}%`}</span>
+              <div class="home-limit-trail">
+                ${badgeHtml}
+                <span class="home-limit-val remaining-tone-${tone}">${remaining == null ? '—' : `${pct}%`}</span>
+              </div>
             </div>
             <div class="home-limit-bar ${toneClass}"><span style="width:${pct}%"></span></div>
-            ${subParts.length ? `<div class="home-limit-sub">${escapeHtml(subParts.join(' · '))}</div>` : ''}
+            ${subParts.length ? `<div class="home-limit-sub${hintText ? ' home-limit-sub-hint' : ''}">${escapeHtml(subParts.join(' · '))}</div>` : ''}
           </fluent-button>
         `;
       }).join('')}</div>`
