@@ -50,7 +50,14 @@ function composeLocalSyncStats(hubStats, localDevice, options = {}) {
     // be copied from a remote Hub device or folded into period totals.
     ...(hasOwn(localDevice, 'nativeSessions') ? { nativeSessions: localDevice.nativeSessions } : {}),
     ...(hasOwn(localDevice, 'nativeProjects') ? { nativeProjects: localDevice.nativeProjects } : {}),
-    limits: hasHubStaleAfterMs || !hasOwn(hubStats, 'limits') ? aggregate.limits : hubStats.limits
+    // The Hub's account service is the single limits authority since quota probing
+    // moved server-side: device records no longer carry `limits` (the Hub strips
+    // them) and the desktop never probes locally, so the Hub's top-level snapshot
+    // is the only real source. Re-aggregating from devices — the old device-probe
+    // path this used to prefer whenever the Hub sent its staleness threshold,
+    // which is always — silently blanked every desktop limits card. The device
+    // aggregate stays only as the fallback for legacy snapshots without the field.
+    limits: hasOwn(hubStats, 'limits') ? hubStats.limits : aggregate.limits
   };
 }
 

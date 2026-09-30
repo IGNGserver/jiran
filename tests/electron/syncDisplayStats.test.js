@@ -73,13 +73,36 @@ test('composeLocalSyncStats can render a local device before the first hub snaps
   assert.equal(result.devices[0].deviceId, 'local');
 });
 
-test('composeLocalSyncStats uses the Hub threshold to refresh local limits without reviving stale remote data', () => {
+test('composeLocalSyncStats keeps the Hub central limits even when the Hub sends its staleness threshold', () => {
+  // Regression: the Hub always sends `staleAfterMs` and always strips per-device
+  // limits, so preferring the device re-aggregate here discarded the Hub account
+  // service's snapshot and the desktop limits page rendered empty forever.
+  const nowMs = Date.parse('2026-07-16T00:20:00.000Z');
+  const hubStats = aggregateDevices([
+    device('local', 100),
+    device('remote', 50)
+  ], 10 * 60 * 1000, nowMs);
+  hubStats.devices.forEach((entry) => delete entry.limits);
+  hubStats.staleAfterMs = 10 * 60 * 1000;
+  hubStats.limits = limits('2026-07-16T00:19:00.000Z', 45);
+
+  const result = composeLocalSyncStats(hubStats, device('local', 120, {
+    updatedAt: '2026-07-16T00:20:00.000Z',
+    receivedAt: '2026-07-16T00:20:00.000Z'
+  }), { nowMs });
+
+  assert.equal(result.limits, hubStats.limits);
+  assert.equal(result.limits.providers[0].windows[0].usedPercent, 55);
+});
+
+test('composeLocalSyncStats falls back to the device aggregate only for legacy snapshots without central limits', () => {
   const nowMs = Date.parse('2026-07-16T00:20:00.000Z');
   const hubStats = aggregateDevices([
     device('local', 100, { limits: limits('2026-07-16T00:00:00.000Z', 80) }),
     device('remote', 50, { limits: limits('2026-07-16T00:05:00.000Z', 70) })
   ], 10 * 60 * 1000, nowMs);
   hubStats.staleAfterMs = 10 * 60 * 1000;
+  delete hubStats.limits;
 
   const result = composeLocalSyncStats(hubStats, device('local', 120, {
     updatedAt: '2026-07-16T00:20:00.000Z',
@@ -116,20 +139,23 @@ test('composeLocalSyncStats honors a custom Hub staleness threshold', () => {
   assert.equal(result.devices.find((entry) => entry.deviceId === 'remote').stale, false);
 });
 
-test('composeLocalSyncStats honors an explicit zero Hub staleness threshold', () => {
+test('composeLocalSyncStats keeps the Hub central limits with an explicit zero Hub staleness threshold', () => {
+  // A zero `staleAfterMs` is a real threshold, not a missing one: the central
+  // limits snapshot must survive composition either way.
   const nowMs = Date.parse('2026-07-16T00:20:00.000Z');
   const hubStats = aggregateDevices([
-    device('local', 100, { limits: limits('2026-07-16T00:00:00.000Z', 80) })
+    device('local', 100)
   ], 0, nowMs);
+  hubStats.devices.forEach((entry) => delete entry.limits);
   hubStats.staleAfterMs = 0;
+  hubStats.limits = limits('2026-07-16T00:19:00.000Z', 45);
 
   const result = composeLocalSyncStats(hubStats, device('local', 120, {
     updatedAt: '2026-07-16T00:20:00.000Z',
-    receivedAt: '2026-07-16T00:20:00.000Z',
-    limits: limits('2026-07-16T00:20:00.000Z', 60)
+    receivedAt: '2026-07-16T00:20:00.000Z'
   }), { nowMs });
 
-  assert.equal(result.limits.providers[0].windows[0].remainingPercent, 60);
+  assert.equal(result.limits, hubStats.limits);
 });
 
 test('composeLocalSyncStats preserves an incompatible legacy snapshot instead of dropping remote usage', () => {
