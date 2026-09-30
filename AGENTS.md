@@ -26,7 +26,7 @@ This is the single source of project guidance, shared by every coding agent (Cla
 ## Commands
 
 ```bash
-npm start          # launch the desktop app (= npm run widget / npm run dev)
+npm start          # launch the desktop app (= npm run dev. The pre-rename `npm run widget` alias is gone; use either name)
 npm run agent      # start the headless collector→hub agent
 npm run agent:once # one-shot collect+post, then exit (useful for cron/launchd)
 npm test           # run the node:test suite (node --test "tests/**/*.test.js")

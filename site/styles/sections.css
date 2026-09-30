@@ -796,10 +796,9 @@
   border-radius: 0;
   background: transparent;
 }
-.surface-card:nth-child(1) { grid-column: span 6; }
-.surface-card:nth-child(2) { grid-column: span 6; }
-.surface-card:nth-child(3) { grid-column: span 7; }
-.surface-card:nth-child(4) { grid-column: span 5; }
+.surface-card:nth-child(1) { grid-column: span 8; }
+.surface-card:nth-child(2) { grid-column: span 8; }
+.surface-card:nth-child(3) { grid-column: span 8; }
 .surface-card h3 { margin-top: 0.9rem; font-size: 1rem; }
 .surface-card p { color: var(--muted); font-size: 0.86rem; margin: 0; }
 .surface-mock {
@@ -834,32 +833,6 @@
 .surface-mock.desktop .desk-num { color: var(--text-strong); font-size: 1.3rem; font-weight: 700; font-family: var(--mono); }
 .surface-mock.desktop .desk-bar { display: block; height: 8px; width: var(--w); border-radius: 999px; background: color-mix(in srgb, var(--accent-from) 80%, transparent); }
 
-/* Discord: a 1:1 of the real presence card — status line on top, then a large app logo (with the
-   top tool's icon badged in the corner) beside a text column: app name / details / state / timer. */
-.surface-mock.discord { align-items: stretch; gap: 0.16rem; padding: 0.54rem 0.72rem 0.62rem; }
-.surface-mock.discord .d-status { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 0.67rem; line-height: 1.25; transform: translateY(-2px); }
-.surface-mock.discord .d-status .d-dots { letter-spacing: 1px; line-height: 1.25; opacity: 0.6; }
-/* icon is top-aligned and tall enough that its bottom reaches into the timer line below */
-.surface-mock.discord .d-body { display: flex; align-items: flex-start; gap: 0.88rem; }
-.surface-mock.discord .d-icon { position: relative; flex: none; width: 55px; height: 55px; margin-top: 1px; }
-.surface-mock.discord .d-logo {
-  width: 55px; height: 55px;
-  border-radius: 14px;
-  object-fit: contain;
-}
-.surface-mock.discord .d-badge {
-  position: absolute; right: -8px; bottom: -8px;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px;
-}
-.surface-mock.discord .d-badge img { display: block; width: 24px; height: 24px; }
-.surface-mock.discord .d-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; line-height: 1.18; padding-top: 0.08rem; }
-.surface-mock.discord .d-app { color: var(--text-strong); font-weight: 700; font-size: 0.9rem; }
-.surface-mock.discord .d-detail { color: var(--text); font-size: 0.73rem; white-space: nowrap; }
-.surface-mock.discord small { color: var(--text); font-size: 0.73rem; white-space: nowrap; }
-/* timer is the 4th line of the text column; the icon above spans down into it */
-.surface-mock.discord .d-time { display: flex; align-items: center; gap: 0.28rem; margin-top: 3px; color: #3ba55c; font-size: 0.7rem; font-family: var(--mono); }
-.surface-mock.discord .d-time .d-pad { flex: none; width: 12px; height: 12px; }
 
 /* Android: a phone frame listing the synced devices, stale row greyed like the app. */
 .surface-mock.android { align-items: center; gap: 0.3rem; padding: 0.6rem; }

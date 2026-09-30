@@ -1285,7 +1285,7 @@ fun SettingsScreen(
           label = "检查并下载最新 Android 版本",
           onClick = {
             haptics.perform(HapticEvent.Tap)
-            uriHandler.openUri("https://github.com/IGNGserver/token-monitor-suite/releases/latest")
+            uriHandler.openUri("https://github.com/IGNGserver/jiran/releases/latest")
           },
           variant = FluentButtonVariant.Quiet
         )

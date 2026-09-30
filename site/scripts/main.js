@@ -55,20 +55,6 @@ function setupObservers() {
   for (var y = 0; y < counters.length; y++) io.observe(counters[y]);
 }
 
-/* Discord Rich Presence elapsed timer: counts up from the app's first release
-   (2026-05-19), formatted HH:MM:SS with hours unbounded, like Discord shows it. */
-function setupDiscordClock() {
-  var el = document.getElementById("d-elapsed");
-  if (!el) return;
-  var since = Date.UTC(2026, 4, 19, 0, 0, 0); // month is 0-based: 4 = May
-  function pad(n) { return n < 10 ? "0" + n : "" + n; }
-  function tick() {
-    var s = Math.max(0, Math.floor((Date.now() - since) / 1000));
-    el.textContent = pad(Math.floor(s / 3600)) + ":" + pad(Math.floor((s % 3600) / 60)) + ":" + pad(s % 60);
-  }
-  tick();
-  if (!reducedMotion()) setInterval(tick, 1000);
-}
 
 /* Hero pointer-parallax: moving the pointer over the hero gently tilts the main
    widget (--rx/--ry) and shifts the back/front cards at opposing depths
@@ -555,5 +541,4 @@ document.addEventListener("DOMContentLoaded", function () {
   setupHeroTilt();
   setupTour();
   setupDashboard();
-  setupDiscordClock();
 });

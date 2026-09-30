@@ -53,9 +53,6 @@ var translations = {
     "surfaces.web.body": "The Hub serves the identical UI in a browser and installs as a PWA, so a machine without the app still gets the full dashboard.",
     "surfaces.android.title": "Android client",
     "surfaces.android.body": "A native read-only client for your synced devices, totals, trends, and Hub-managed account limits.",
-    "surfaces.discord.playing": "Playing",
-    "surfaces.discord.title": "Discord Rich Presence",
-    "surfaces.discord.body": "Broadcast today's tokens, cost, and top tool to your profile. Opt-in.",
     "surfaces.desktop.title": "Desktop app",
     "surfaces.desktop.body": "A normal macOS, Windows, and Linux window that watches this machine's own logs and updates within seconds.",
 
@@ -150,9 +147,6 @@ var translations = {
     "surfaces.web.body": "Hub 在瀏覽器裡提供完全相同的介面，也能安裝成 PWA，沒裝應用的機器照樣能看到完整儀表板。",
     "surfaces.android.title": "Android 用戶端",
     "surfaces.android.body": "原生唯讀用戶端，查看已同步的裝置、總量、趨勢與 hub 管理的帳號額度。",
-    "surfaces.discord.playing": "正在遊玩",
-    "surfaces.discord.title": "Discord Rich Presence",
-    "surfaces.discord.body": "把今日 tokens、成本與最常用工具廣播到你的個人檔案，可選開啟。",
     "surfaces.desktop.title": "桌面應用",
     "surfaces.desktop.body": "macOS、Windows 與 Linux 上的標準視窗，監看這台機器自己的紀錄並在數秒內更新。",
 
@@ -247,9 +241,6 @@ var translations = {
     "surfaces.web.body": "Hub 在浏览器里提供完全相同的界面，也能安装成 PWA，没装应用的机器照样能看到完整仪表板。",
     "surfaces.android.title": "Android 客户端",
     "surfaces.android.body": "原生只读客户端，查看已同步的设备、总量、趋势与 hub 管理的账号额度。",
-    "surfaces.discord.playing": "正在玩",
-    "surfaces.discord.title": "Discord Rich Presence",
-    "surfaces.discord.body": "把今日 tokens、成本与最常用工具广播到你的个人资料，可选开启。",
     "surfaces.desktop.title": "桌面应用",
     "surfaces.desktop.body": "macOS、Windows 与 Linux 上的标准窗口，监视这台机器自己的日志并在数秒内更新。",
 
