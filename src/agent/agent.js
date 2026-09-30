@@ -143,7 +143,7 @@ function registerPidFile(stopRuntime) {
 }
 
 async function main() {
-  const startupMessage = `Token Monitor agent device=${deviceId} hub=${hubUrl} intervalMs=${usageOptions.intervalMs} uploadIntervalMs=${usageOptions.syncUploadIntervalMs} watch=${usageOptions.watchEnabled} projects=${usageOptions.projectsEnabled ? 'on' : 'off'} history=${usageOptions.historyEnabled ? 'on' : 'off'} sessionArchive=${usageOptions.dailyHistoryArchiveEnabled ? 'on' : 'off'} limits=hub`;
+  const startupMessage = `Jiran agent device=${deviceId} hub=${hubUrl} intervalMs=${usageOptions.intervalMs} uploadIntervalMs=${usageOptions.syncUploadIntervalMs} watch=${usageOptions.watchEnabled} projects=${usageOptions.projectsEnabled ? 'on' : 'off'} history=${usageOptions.historyEnabled ? 'on' : 'off'} sessionArchive=${usageOptions.dailyHistoryArchiveEnabled ? 'on' : 'off'} limits=hub`;
   if (dryRun) console.error(startupMessage);
   else console.log(startupMessage);
   if (!secret) console.warn('Warning: TOKEN_MONITOR_SECRET is not set. Posting without authorization header.');

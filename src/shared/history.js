@@ -124,7 +124,7 @@ function parseGraphResult(raw) {
         ? num(c.unclassifiedTokens ?? c.unclassified_tokens)
         : (t > 0 && !componentsAvailable ? t : 0)));
       // Reasonix's `messages` field is a provider request count, not user turns.
-      // Keep it out of Token Monitor's message/activity semantics; its tokens and
+      // Keep it out of Jiran's message/activity semantics; its tokens and
       // cost still contribute normally to the history totals.
       const msg = String(client).trim().toLowerCase() === REASONIX_CLIENT ? 0 : num(c.messages);
       tokens += t;

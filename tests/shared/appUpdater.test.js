@@ -46,7 +46,7 @@ test('appUpdateInstallSupport only enables packaged auto-updatable targets', () 
     env: { PORTABLE_EXECUTABLE_FILE: 'C:\\Downloads\\Jiran.exe' }
   }), { supported: false, reason: 'windows-portable' });
   assert.deepEqual(appUpdateInstallSupport({ isPackaged: true, platform: 'linux', env: {} }), { supported: false, reason: 'linux-not-appimage' });
-  assert.deepEqual(appUpdateInstallSupport({ isPackaged: true, platform: 'linux', env: { APPIMAGE: '/tmp/Token Monitor.AppImage' } }), { supported: true, reason: '' });
+  assert.deepEqual(appUpdateInstallSupport({ isPackaged: true, platform: 'linux', env: { APPIMAGE: '/tmp/Jiran.AppImage' } }), { supported: true, reason: '' });
   assert.deepEqual(appUpdateInstallSupport({ isPackaged: true, platform: 'linux', env: {}, packageType: 'deb' }), { supported: true, reason: '' });
   assert.deepEqual(appUpdateInstallSupport({ isPackaged: true, platform: 'linux', env: {}, packageType: ' DEB ' }), { supported: true, reason: '' });
 });
@@ -296,7 +296,7 @@ test('mergeLatestReleaseMetadata preserves notes when native updater metadata om
 test('parseLatestReleasePayload returns normalized object for valid payload', () => {
   const result = parseLatestReleasePayload({
     tag_name: 'v0.1.3',
-    name: 'Token Monitor 0.1.3',
+    name: 'Jiran 0.1.3',
     html_url: 'https://github.com/IGNGserver/jiran/releases/tag/v0.1.3',
     published_at: '2026-05-26T12:00:00Z',
     body: `
@@ -313,7 +313,7 @@ test('parseLatestReleasePayload returns normalized object for valid payload', ()
     tag: 'v0.1.3',
     // The payload omits the flag and 0.1.3 carries no -rev.N suffix, so this is formal.
     prerelease: false,
-    name: 'Token Monitor 0.1.3',
+    name: 'Jiran 0.1.3',
     htmlUrl: 'https://github.com/IGNGserver/jiran/releases/tag/v0.1.3',
     publishedAt: '2026-05-26T12:00:00Z',
     releaseNotes: {

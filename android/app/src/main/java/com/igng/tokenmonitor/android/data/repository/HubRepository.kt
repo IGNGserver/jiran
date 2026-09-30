@@ -68,7 +68,7 @@ class HubRepository @Inject constructor(
     val api = apiFactory.create(config)
     val health = api.health()
     require(health.ok && health.role.equals("hub", ignoreCase = true)) {
-      "地址没有返回可用的 Token Monitor Hub。"
+      "地址没有返回可用的 Hub。"
     }
     // /api/health is intentionally public on the Hub, so a health-only check
     // cannot prove that the saved secret can access the protected API.

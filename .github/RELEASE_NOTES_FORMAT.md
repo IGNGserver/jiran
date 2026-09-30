@@ -20,7 +20,7 @@ changelog 是英文 PR 列表，且没有任何 workflow 步骤去填充它，�
 ## 结构（自上而下）
 
 ```markdown
-# Token Monitor {{tag}}
+# Jiran {{tag}}
 
 ## 本次更新
 

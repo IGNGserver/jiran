@@ -819,7 +819,7 @@ function readReasonixEventLog(filePath, options = {}) {
   }
 }
 function countReasonixProviderMessages(events) {
-  // Token Monitor's native session `messageCount` is the provider-message
+  // Jiran's native session `messageCount` is the provider-message
   // count, not BranchMeta's user-turn count: snapshot replay emits one turn
   // event per assistant/model Message and deliberately excludes user/tool
   // records.

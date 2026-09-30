@@ -1,4 +1,4 @@
-/* Token Monitor hub web shell — cache app shell for offline reopen on mobile. */
+/* Jiran hub web shell — cache app shell for offline reopen on mobile. */
 const CACHE = 'token-monitor-web-v7-fluent';
 const PRECACHE = [
   '/',

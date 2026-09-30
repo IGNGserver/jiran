@@ -1956,7 +1956,7 @@ function fileExists(file) {
   try { return fs.statSync(file).isFile(); } catch (_) { return false; }
 }
 
-// A source can be created after Token Monitor starts (Qoder CN creates its
+// A source can be created after Jiran starts (Qoder CN creates its
 // transcript tree on the first session). Watch the nearest existing ancestor
 // in that case so the creation event can open the path below it; returning the
 // filesystem root would turn a missing, malformed configuration into a broad

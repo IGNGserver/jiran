@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 
 const REASONIX_META_MAX_BYTES = 1 << 20;
-// This bounds only the telemetry projection Token Monitor materializes. The
+// This bounds only the telemetry projection Jiran materializes. The
 // complete Reasonix sidecar may be larger because its preceding ReadFiles array
 // grows with a long-lived session.
 const REASONIX_TELEMETRY_USAGE_MAX_BYTES = 4 << 20;
