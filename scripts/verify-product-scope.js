@@ -165,9 +165,7 @@ function verifyProductScope() {
   const currentSurfaceFiles = [
     'README.md',
     'README.zh-CN.md',
-    'README.zh-TW.md',
-    'README.ja.md',
-    'README.ko.md',
+    'docs/supported-tools.md',
     'docs/API.md',
     'docs/configuration.md',
     'docs/hub-compose.md',

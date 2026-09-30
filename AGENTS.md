@@ -10,6 +10,12 @@ Worktree: `~/项目/.wt/token记录系统/<slug>`
 - 本文件是 158 行的架构与约定权威文档：改动架构约定必须同步更新本文件。`CLAUDE.md` 已用 `@AGENTS.md` 引用本文件，不要再往它里面写内容。
 - 历史里有 19 个外部作者邮箱，来自导入的上游历史，不代表有外部协作者：仍是 solo。
 - 本机 8G 内存、仓库在 NAS 共享上：多 worktree 并行时依赖与产物走共享目录，不要各存一份。
+- 文档面：README 只有 `README.md`（英文）与 `README.zh-CN.md`（简中）两份，逐工具一行的矩阵在
+  `docs/supported-tools.md`，其余文档一律英文。界面语言（en/zh-CN/zh-TW/ja/ko）与文档语言是两件
+  不同的事，不要为了"补齐语言"再把 ja/ko README 加回来。`tests/docs/*` 钉的是**产品事实**（矩阵
+  行与顺序、README 计数与矩阵一致、必须存在的文档链接、已退役 surface 的禁用词），**不钉既有句子**——
+  旧守卫把上游文案写成 5 个语言的正则，这是上游形状的报告反复回到 README 的直接原因，改写文案前
+  先确认守卫是否又在钉措辞。
 
 # AGENTS.md
 
@@ -116,8 +122,8 @@ The tracked client list lives in **one** place: `TRACKED_CLIENTS` in `src/shared
 | UI labels / colours | `CLIENT_LABELS` / `CLIENT_COLORS` in `src/shared-ui/core/data.js`, plus the `ICON_ALIASES` entry if the file name differs from the id |
 | Icon assets | `src/shared-ui/icons/clients/<id>.svg` (the one tree both hosts serve) + `.github/assets/tools-icon/<id>.png` |
 | WSL discovery | marker(s) in `WSL_DATA_MARKERS` **and** the marker→id mapping in `MARKER_CLIENTS` (`src/shared/wslUsage.js`) — use the exact roots tokscale reads, including alternate roots. A marker without a `MARKER_CLIENTS` entry attributes to nothing, so a WSL home holding only that client's data would be skipped |
-| Docs | the supported-tools table in `README.md` and its translations (`README.*.md`) + the Qoder/MiMo prose where a client's provenance is explained. Every locale's prose tool/provider counts must match its own table — `tests/docs/readmeConsistency.test.js` fails on a stale count or a table that drifts between locales |
-| Guard tests | the expected-client lists in `tests/shared/clientTracking.test.js` and the README icon mapping in `tests/docs/readmeToolTable.test.js` |
+| Docs | the supported-tools matrix in `docs/supported-tools.md` — the READMEs publish only its counts — plus the Qoder/MiMo prose where a client's provenance is explained. `tests/docs/supportedToolsTable.test.js` pins the matrix rows, order and icon ids; `tests/docs/readmeConsistency.test.js` fails when a README's counts stop matching the matrix |
+| Guard tests | the expected-client lists in `tests/shared/clientTracking.test.js` and the matrix icon mapping in `tests/docs/supportedToolsTable.test.js` |
 | Android client | `CLIENT_LABELS` / `CLIENT_COLORS` in `ClientBranding.kt` (same strings/hex as the shared UI — `tests/shared/clientTracking.test.js` fails otherwise), plus the mark: vendor `res/drawable/client_<id>.xml` and add the key in `ClientIcons.kt`, or add an `aliases` entry when the id shares another id's logo. `npm run update:fluent-assets` regenerates the **Fluent colour tokens only** — it does not convert SVGs. An SVG that needs filters, gradients or transforms is skipped *by design* and falls back to the letter monogram; nothing breaks, the mark just does not appear |
 
 Two caveats on top of the table:

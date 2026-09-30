@@ -1,13 +1,13 @@
 <p align="right">
-   <strong>EN</strong> | <a href="./README.zh-CN.md">简</a> | <a href="./README.zh-TW.md">繁</a> | <a href="./README.ko.md">KO</a> | <a href="./README.ja.md">JA</a>
+   <strong>EN</strong> | <a href="./README.zh-CN.md">简体中文</a>
 </p>
 <div align="center">
-    <img src=".github/assets/app.png" alt="Jiran logo" width="120">
-    <h1>Jiran</h1>
+    <img src=".github/assets/jiran-icon.png" alt="计然 / Jiran" width="120">
+    <h1>计然 · Jiran</h1>
 </div>
 
 <p align="center">
-    <em>One live dashboard for every AI coding tool, synced across every machine.</em>
+    <em>Local-first token, cost and quota monitoring for the AI coding tools you already run.</em>
 </p>
 
 <p align="center">
@@ -16,330 +16,274 @@
     <img src="https://img.shields.io/badge/Windows-10%2B-0078D4?style=flat-square" alt="Windows 10 or later" />
     <img src="https://img.shields.io/badge/macOS-12%2B-0A84FF?style=flat-square&logo=apple&logoColor=white" alt="macOS 12 or later" />
     <img src="https://img.shields.io/badge/Linux-x64-64748b?style=flat-square&logo=linux&logoColor=white" alt="Linux x64" />
+    <img src="https://img.shields.io/badge/Android-Compose%20read%20client-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android client" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-A855F7?style=flat-square" alt="License: MIT" /></a>
 </p>
 
-<div align="center">
-    <img src=".github/assets/demo.gif">
-</div>
+## Why this name
 
-## What is Jiran?
+计然 (Jīrán) is the strategist in《史记·货殖列传》credited with counting both what a state
+burned and what it earned. That is the whole product in two words: the tokens your AI tools
+spent, and what those plans actually cost you. The project shipped as **Token Monitor** up to
+v0.47.0-rev.36; [the rename section](#renamed-from-token-monitor) covers what moved and what
+deliberately did not.
 
-A desktop app that shows live token usage and AI Tool Limits across 59+ AI coding tools — Claude Code, Codex, Cursor, GitHub Copilot, and more — with real-time multi-device sync, historical usage trends, and breakdowns by tool, device, model, session, or project.
+## What it answers
 
-## Supported Tools
+Two questions cover most of an AI coding setup, and Jiran reads both from where the data
+already lives — your own disk:
 
-Jiran supports token usage, account-limit checks, and session details separately:
+- **How much have I used?** Every tracked tool keeps transcripts, session databases or caches
+  locally. Jiran turns those into tokens and cost, broken down by tool, model, device, project
+  and individual session, and keeps a durable daily history of it.
+- **How much of my plan is left?** Per-provider quota windows — session, weekly, billing,
+  credits. Quota probing belongs to the Hub: it refreshes the accounts configured there and
+  publishes one sanitized snapshot to every connected device. A device running in local-only
+  mode therefore has no quota source, and its Limits page is empty by design.
+- **What am I paying for it?** A hand-kept subscription ledger sits beside the model price
+  list, so a plan's tooltip can report what it costs, when it renews, and what this month's
+  usage would have cost at API prices.
 
-| Logo | Tool | Data path | Token Usage | AI Tool Limits | Session Details |
-|:---:|------|-----------|:---:|:---:|:---:|
-| <img src=".github/assets/tools-icon/claude.png" width="28" alt="Claude Code" /> | Claude Code | `~/.claude/projects/`, `~/.claude/transcripts/` | ✅ | ✅ | ✅ |
-| <img src=".github/assets/tools-icon/claude-desktop.png" width="28" alt="Claude Desktop" /> | Claude Desktop | `<platform-app-data>/Claude/` and `Claude-3p/` (Local Agent / Cowork transcripts) | ✅ | — | ✅ |
-| <img src=".github/assets/tools-icon/codex.png" width="28" alt="Codex" /> | Codex | `~/.codex/` (`sessions/`, `archived_sessions/`) | ✅ | ✅ | ✅ |
-| <img src=".github/assets/tools-icon/opencode.png" width="28" alt="OpenCode" /> | OpenCode | `~/.local/share/opencode/` (`opencode*.db`, `storage/message/`) | ✅ | ✅ | ✅ |
-| <img src=".github/assets/tools-icon/hermes-agent.png" width="28" alt="Hermes Agent" /> | Hermes Agent | `~/.hermes/state.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/openclaw.png" width="28" alt="OpenClaw" /> | OpenClaw | `~/.openclaw/agents/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/cursor.png" width="28" alt="Cursor" /> | Cursor | `~/.config/tokscale/cursor-cache/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/antigravity.png" width="28" alt="Antigravity" /> | Antigravity | `~/.gemini/` (`antigravity/`, `antigravity-ide/`, `antigravity-backup/`, `antigravity-cli/conversations/`) | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/cline.png" width="28" alt="Cline" /> | Cline | VS Code globalStorage tasks (`.../saoudrizwan.claude-dev/tasks/`), `~/.cline/data/sessions/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/kimi.png" width="28" alt="Kimi" /> | Kimi CLI / Kimi Code | `~/.kimi/sessions/`, `~/.kimi-code/sessions/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/qwen.png" width="28" alt="Qwen" /> | Qwen CLI | `~/.qwen/projects/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/xai.png" width="28" alt="Grok Build" /> | Grok Build | `~/.grok/` (`sessions/`, `logs/unified.jsonl`) | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/copilot.png" width="28" alt="GitHub Copilot" /> | GitHub Copilot | VS Code `workspaceStorage/*/chatSessions/`, `~/.copilot/` (`otel/`, `data.db`) | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/pi.png" width="28" alt="Pi" /> | Pi / Oh My Pi | `~/.pi/agent/sessions/`, `~/.omp/agent/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/zed.png" width="28" alt="Zed" /> | Zed | `~/.local/share/zed/threads/threads.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/kilocode.png" width="28" alt="Kilo Code" /> | Kilo Code | VS Code globalStorage tasks (`.../kilocode.kilo-code/tasks/`) — Linux & remote/WSL only | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/commandcode.png" width="28" alt="Command Code" /> | Command Code | `~/.commandcode/projects/**/*.jsonl` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/mimo-code.png" width="28" alt="MiMo Code" /> | MiMo Code | `~/.local/share/mimocode/mimocode.db` (imports Claude Code sessions; tokscale does not dedup them, so Claude totals can be inflated) | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/zcode.png" width="28" alt="ZCode" /> | ZCode / GLM | `~/.zcode/` (`projects/`, `cli/db/db.sqlite`) | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/kiro.png" width="28" alt="Kiro" /> | Kiro | `~/.kiro/sessions/cli/`, Kiro IDE globalStorage & `kiro-cli` DB | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/codebuddy.png" width="28" alt="CodeBuddy" /> | CodeBuddy | `~/.codebuddy/projects/` + IDE / VS Code extension logs | ✅ | — | — |
-| <img src=".github/assets/tools-icon/workbuddy.png" width="28" alt="WorkBuddy" /> | WorkBuddy | `~/.workbuddy/projects/`, `~/.workbuddy/workbuddy.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/proma.png" width="28" alt="Proma" /> | Proma | `~/.proma/agent-sessions/*.jsonl` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/deepseek-harness.svg" width="28" alt="DeepSeek Harness" /> | DeepSeek Harness | `$DSH_HOME/sessions/` (default `~/.dsh/sessions/`; `session.jsonl[.zstd]` and versioned `session.v<N>.jsonl[.zstd]`) | ✅ | — | — |
-| <img src=".github/assets/tools-icon/qoder.png" width="28" alt="Qoder" /> | Qoder / Qoder CN | Local adapter per edition: `~/.qoder/projects/` and `~/.qoder-cn/projects/` transcripts, plus `<platform-app-data>/Qoder/` & `QoderCN/SharedClientCache/cache/db/local.db` and `com.qoder.app.stable/` & `com.qodercn.app.stable/main.sqlite` when present; Qoder dashboard cookie (big-model credits via Qoder usage API) | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/reasonix.png" width="28" alt="Reasonix" /> | Reasonix | `~/.reasonix/` (`stats/`, `sessions/`, `projects/*/sessions/`) | ✅ | — | ✅ |
-| <img src=".github/assets/tools-icon/gemini.png" width="28" alt="Gemini CLI" /> | Gemini CLI | `~/.gemini/tmp/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/roocode.png" width="28" alt="Roo Code" /> | Roo Code | VS Code globalStorage tasks (`.../rooveterinaryinc.roo-cline/tasks/`) | ✅ | — | — |
-| <img src=".github/assets/tools-icon/amp.png" width="28" alt="Amp" /> | Amp | `~/.local/share/amp/threads/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/droid.png" width="28" alt="Droid" /> | Droid | `~/.factory/sessions/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/mux.png" width="28" alt="Mux" /> | Mux | `~/.mux/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/kilo.png" width="28" alt="Kilo CLI" /> | Kilo CLI | `~/.local/share/kilo/kilo.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/crush.png" width="28" alt="Crush" /> | Crush | `~/.local/share/crush/projects.json` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/goose.png" width="28" alt="Goose" /> | Goose | `~/.local/share/goose/sessions/sessions.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/codebuff.png" width="28" alt="Codebuff / Freebuff" /> | Codebuff / Freebuff | `~/.config/manicode/projects/` (`chats/*/chat-messages.json`) | ✅ | — | — |
-| <img src=".github/assets/tools-icon/trae.png" width="28" alt="Trae" /> | Trae | `~/.config/tokscale/trae-cache/` (after `tokscale trae sync`) | ✅ | — | — |
-| <img src=".github/assets/tools-icon/warp.png" width="28" alt="Warp / Oz" /> | Warp / Oz | `~/.config/tokscale/warp-cache/` (after `tokscale warp sync`) | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/gjc.png" width="28" alt="Gajae-Code" /> | Gajae-Code | `~/.gjc/agent/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/jcode.png" width="28" alt="Jcode" /> | Jcode | `~/.jcode/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/junie.png" width="28" alt="Junie" /> | Junie | `~/.junie/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/opencodereview.png" width="28" alt="OpenCodeReview" /> | OpenCodeReview | `~/.opencodereview/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/devin.png" width="28" alt="Devin CLI / Devin Desktop" /> | Devin CLI / Devin Desktop | `~/.local/share/devin/cli/sessions.db`; `~/Library/Application Support/Devin/User/acp-events/` (macOS) | ✅ | — | — |
-| <img src=".github/assets/tools-icon/senpi.png" width="28" alt="Senpi" /> | Senpi | `~/.senpi/agent/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/augment.png" width="28" alt="Augment Code" /> | Augment Code | `~/.augment/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/kimchi.png" width="28" alt="Kimchi" /> | Kimchi | `~/.config/kimchi/harness/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/prime-agent.png" width="28" alt="Prime Agent" /> | Prime Agent | `~/.prime/agent/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/cherrystudio.png" width="28" alt="Cherry Studio" /> | Cherry Studio | `~/.config/CherryStudio/.claude/projects/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/mcode.png" width="28" alt="MiniMax Code" /> | MiniMax Code | `~/.config/tokscale/headless/mcode/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/fx.png" width="28" alt="Fx" /> | Fx | `~/.fx/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/lmstudio.png" width="28" alt="LM Studio" /> | LM Studio | `~/.lmstudio/server-logs/` (final response usage only; local inference is $0) | ✅ | — | — |
-| <img src=".github/assets/tools-icon/unsloth.png" width="28" alt="Unsloth" /> | Unsloth | `~/.unsloth/studio/studio.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/hindsight.png" width="28" alt="Hindsight" /> | Hindsight | `~/.hindsight/usage/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/deepseek.png" width="28" alt="DeepSeek" /> | DeepSeek | DeepSeek API key (balance via DeepSeek API) | — | ✅ | — |
-| <img src=".github/assets/tools-icon/openrouter.png" width="28" alt="OpenRouter" /> | OpenRouter | OpenRouter API key (usage/key limit; balance when credits access is authorized, documented for Management keys) | — | ✅ | — |
-| <img src=".github/assets/tools-icon/minimax.png" width="28" alt="Minimax" /> | Minimax | Minimax API key (Token Plan quota via Minimax API) | — | ✅ | — |
-| <img src=".github/assets/tools-icon/volcengine.png" width="28" alt="Volcengine" /> | Volcengine | Ark API key or Volcengine AK/SK (Ark Coding Plan quota via Volcengine API) | — | ✅ | — |
-| <img src=".github/assets/tools-icon/ollama.png" width="28" alt="Ollama" /> | Ollama | Ollama Cloud cookie (session/weekly usage via ollama.com/settings) | — | ✅ | — |
-| <img src=".github/assets/tools-icon/newapi.png" width="28" alt="Third-party APIs" /> | Third-party APIs | New API-compatible account preset (including compatible One API forks), New API API-key preset, and a declarative Custom balance endpoint | — | ✅ | — |
-| <img src=".github/assets/tools-icon/sakana.png" width="28" alt="Sakana (Fugu)" /> | Sakana (Fugu) | Sakana billing console session cookie | — | ✅ | — |
+## Four surfaces, one product
 
-<details>
-<summary><strong>Notes, Custom balance endpoints, and data paths overridden by environment variables</strong></summary>
+| Surface | Role | Needs a Hub |
+|---|---|:---:|
+| **Desktop app** — Electron on Windows, macOS and Linux | collects this machine and shows the full UI | no |
+| **Hub** — Docker Compose + MySQL | ingest, aggregation, SSE, and the same dashboard as a web app / installable PWA | — |
+| **Headless agent** — `src/agent` | the collector with no GUI, for servers and WSL distros | yes |
+| **Android client** — Kotlin / Compose | reads the fleet and the quotas on a phone; it collects nothing and posts nothing | yes |
 
-<br>
+The desktop app and the Hub dashboard render the *same* interface from `src/shared-ui/`, so a
+screen you arranged once behaves the same in both. The only call each host makes differently —
+how data reaches the view — sits behind one transport module (`httpTransport` for the Hub,
+`ipcTransport` for Electron), and a guard test keeps every other host-specific call out of the
+shared views.
 
-- Paths above are the defaults. Jiran follows the same environment overrides Tokscale does — `$XDG_DATA_HOME` for the `~/.local/share/` roots, and per-tool variables such as `$CODEX_HOME`, `$GROK_HOME`, `$HERMES_HOME`, `$KIMI_CODE_HOME`, `$REASONIX_STATE_HOME`, `$REASONIX_HOME` and the `$CLINE_*` family.
+Inside the app there are six destinations: **Overview** (today at a glance), **Usage** (the
+period tabs and every breakdown), **Devices**, **Limits**, **Trends** (heatmap, streaks,
+stacked per-tool / per-model history), and **Management** — one page holding provider accounts,
+the subscription and pricing ledger, and the dashboard preferences.
 
-- Command Code v3 transcripts persist per-request `usage` (input / output / cache-read / cache-write tokens, plus the provider-reported `costUsd`), so those sessions are exact rather than estimated. Only legacy transcripts written before the `usage` block existed fall back to a text-based estimate, and their model attribution may reflect the currently configured model rather than the model historically used for each request.
+## Honest about what is measured
 
-- Custom maps numeric JSON fields from one GET balance endpoint; OpenAI or Anthropic compatibility alone is not enough.
+A usage dashboard that quietly mixes measurements with guesses is worse than no dashboard.
+These rules are what the product commits to, and they hold on every surface:
 
-#### Qoder / Qoder CN (local adapter)
+- **`~` means estimated.** Where a tool never stored real token counts, the total is estimated
+  from the text it did store and is shown with a leading `~`; the basis of each estimate is
+  documented in the matrix notes.
+- **Credits are their own unit.** A provider that bills in credits (Qoder is the case in point)
+  reports exact credits beside `~`-marked tokens; credits are never folded into a token total.
+- **A refresh never interrupts you.** Frames arrive every few seconds; the renderer defers a
+  rebuild while a dropdown or a half-typed value is open, keeps expanded rows and scroll
+  positions, and skips the DOM write entirely when nothing changed.
+- **A number belongs to the tab that measured it.** Day / Month / Total come from the
+  collector's fixed windows; Yesterday and Week are calendar ranges resolved on request, and
+  each of them is only ever rendered by the tab that asked for it. The week starts on ISO
+  Monday everywhere a total is reported.
+- **A greyed device is a silent device.** A device whose last report is older than 10 minutes
+  is marked stale on purpose rather than being shown as if it were live.
 
-Qoder token usage is read from the app's own local files, not an API. The international and China editions are tracked as two separate clients — `qoder` and `qodercn` — because they keep separate profiles, and both are always tracked (there is no per-tool opt-in). Three sources per edition are probed and whichever exist contribute:
+## Supported tools
 
-- **Transcript tree — the primary source in current builds.** `~/.qoder/projects/**/*.jsonl` (international) or `~/.qoder-cn/projects/**/*.jsonl` (CN), one JSON line per request. It is watched for live updates and needs nothing but the filesystem. Point `JIRAN_QODER_TRANSCRIPTS_DIR` / `JIRAN_QODER_CN_TRANSCRIPTS_DIR` at a different root, or set Qoder CN's own `QODERCN_CONFIG_DIR` when the whole profile is relocated.
-- **Desktop message store.** `com.qoder.app.stable/main.sqlite` (international) or `com.qodercn.app.stable/main.sqlite` (CN) under the platform application-support directory; override with `JIRAN_QODER_MAIN_DB_PATH` / `JIRAN_QODER_CN_MAIN_DB_PATH`. Qoder CN 0.1.x used the international spelling, so both candidates are tried for the CN site.
-- **Legacy cache database.** `<platform-app-data>/Qoder/SharedClientCache/cache/db/local.db` (international) or the same path under `QoderCN/` (CN) — macOS `~/Library/Application Support/`, Windows `%APPDATA%\`, Linux `~/.config/`; override with `JIRAN_QODER_DB_PATH` / `JIRAN_QODER_CN_DB_PATH`.
+| Capability | Coverage |
+|---|---:|
+| Rows in the matrix (tools + providers) | 59 |
+| Tools reporting token usage | 52 |
+| Providers with quota windows | 26 |
+| Tools with per-session detail | 5 |
 
-`com.qoder.app.stable` is claimed by both editions, so a site reads it only when that site's own footprint (app-support or profile directory) is also present: an international-only machine is never billed to `qodercn`, and a CN 0.1.x-only machine is never billed to `qoder`. Which sources actually exist varies by edition and install — on the Linux machine this was verified against (2026-09-26, Qoder CN 0.4.2) the CN site had transcripts and `com.qodercn.app.stable/main.sqlite` but no legacy cache database, while the international CLI-only install had transcripts alone.
+The full matrix — every tool, the exact path it is read from, and which of the three
+capabilities it supports — lives in **[docs/supported-tools.md](docs/supported-tools.md)**.
+A tool with no row is not tracked: the client list is wired in one place
+(`TRACKED_CLIENTS`) and every runtime always collects all of it, so there is no per-tool
+opt-in that could silently under-count.
 
-Rows from every present source are merged additively and de-duplicated by request identity. Where a transcript row cannot be proven distinct from a database row, the database row wins — two sources that overlap must not double-count.
+## Install
 
-This is an advanced local integration. Either SQLite source needs a `sqlite3` CLI on PATH or a Node runtime with unflagged `node:sqlite` (Node ≥ 23.4; the Electron app may need the CLI); the transcript tree needs neither. Read failures are logged, and an existing complete snapshot is retained instead of being replaced with zero usage. Main-database and transcript rows use a blended estimate of CJK characters / 1.5 and other characters / 4; a request's input is the conversation appended **since the previous request** and its output is that request's stored content, so each message of a session is counted once rather than re-summed by every later request. Provider billing fields, system prompts, and tool schemas are not available in these local records, so those totals and costs are marked `estimated` and are not exact provider token billing. Costs are estimated from the models.dev catalog for each mapped model; the adapter may break if Qoder changes its on-disk format.
+Grab the current build from [GitHub Releases](https://github.com/IGNGserver/jiran/releases):
 
-One figure in that record is not an estimate. Qoder bills in credits rather than tokens — it leaves every token field of its usage block at `0` and publishes an exact per-request `credits` amount beside them — so a Qoder tool row shows real credit consumption next to its `~`-marked tokens and cost. Credits cover exactly what Qoder usage covers, which is the Day / Month / Total tabs: the Yesterday and Week custom ranges do not include Qoder at all today (that scan covers Tokscale-backed tools plus Proma and Claude Desktop), and a Hub range answered from stored history reports no credits either.
+| Platform | Artifact |
+|---|---|
+| macOS (Apple Silicon / Intel) | `Jiran-<version>-arm64.dmg`, `Jiran-<version>-x64.dmg` — signed and notarized |
+| Windows 10/11 | `Jiran-Setup-<version>.exe` (installer) or `Jiran-<version>.exe` (portable) — [code-signed](docs/code-signing.md) |
+| Linux x64 | `Jiran-<version>.AppImage` or `Jiran-<version>.deb` |
+| Android | `Jiran-Android-<version>.apk` — a Hub read client |
+| Headless / server | `Jiran-Headless-<version>.tar.gz` — Node.js 22.13+, then `npm ci --omit=dev` |
 
-#### Qoder account limits
+On Linux, the APT repository keeps the app upgraded through the package manager. Verify the key
+fingerprint against `jiran-archive-keyring-fingerprint.txt` published beside it:
 
-`qoder` quota accounts are added manually to the Hub, separately from the local usage adapters above. The Hub encrypts the supplied credential, refreshes the account quota, and distributes the normalized result to connected devices. Device-side automatic discovery of local Qoder logins, browser profiles, environment credentials, and CLI accounts is removed; the device never uploads those credentials or treats them as quota sources.
-</details>
+```bash
+curl -fsSL https://igngserver.github.io/jiran/apt/jiran-archive-keyring.asc \
+  | gpg --dearmor \
+  | sudo tee /usr/share/keyrings/jiran-archive-keyring.gpg >/dev/null
+curl -fsSL https://igngserver.github.io/jiran/apt/jiran.sources \
+  | sudo tee /etc/apt/sources.list.d/jiran.sources >/dev/null
+sudo apt update && sudo apt install jiran
+```
 
-## Showcase
+Packaged builds check GitHub Releases and surface an update indicator; where the platform supports
+self-install, Management's **Behaviour** group offers **Check for updates** and **Restart to
+install**. The channel follows the **installed** build: a formal release (`1.2.3`) only considers
+non-prerelease publishes, while a `-rev.N` build tracks the newest publish.
 
-<table>
-<tr>
-<td width="290" align="center"><img src=".github/assets/home-view.png" width="250" alt="Home View"><br><sub>Customizable dashboard — choose which modules show and their order</sub></td>
-<td width="290" align="center"><img src=".github/assets/limits-view.png" width="250" alt="Limits View"><br><sub>Hub-managed accounts and refreshed quotas across devices</sub></td>
-<td width="290" align="center"><img src=".github/assets/tools-view.png" width="250" alt="Tools View"><br><sub>Click any tool to expand input / output and cache-hit detail</sub></td>
-</tr>
-<tr>
-<td width="290" align="center"><img src=".github/assets/sessions-view.png" width="250" alt="Session View"><br><sub>Open a single session to break each prompt into tokens and tools used</sub></td>
-<td width="290" align="center"><img src=".github/assets/models-view.png" width="250" alt="Models View"><br><sub>Every model's usage and cost, aggregated across tools</sub></td>
-<td width="290" align="center"><img src=".github/assets/devices-view.png" width="250" alt="Devices View"><br><sub>Each device's usage, cost, and sync status — expand for per-machine detail</sub></td>
-</tr>
-</table>
+**First run needs no setup.** Local mode is the default: launch the app and it starts tracking
+this device — no Hub, no agent, no `.env`.
 
-<table>
-<tr>
-<td width="435" align="center"><img src=".github/assets/dashboard-overview.png" width="400" alt="Usage Dashboard Overview"><br><sub>A year of activity heatmap and streaks, aggregated across all devices</sub></td>
-<td width="435" align="center"><img src=".github/assets/dashboard-trends.png" width="400" alt="Usage Dashboard Trends"><br><sub>A year of daily trends, stacked by tool / model, with K-line</sub></td>
-</tr>
-</table>
+## Run a Hub for several machines
 
-## Why Jiran?
-
-Most usage monitors are useful on the machine they run on. Jiran is built for multi-device work: each device watches its own local logs, sends summary updates to your hub, and every connected client sees token changes almost immediately.
-
-## Features
-
-### Tracking usage
-
-- **Live token tracking** — Claude Code, Codex, Cursor, GitHub Copilot, Antigravity, OpenCode, and 52+ AI tools, with the UI updating within seconds of each turn (full list in the table above)
-- **Per-session detail** — open a Claude Code, Claude Desktop, Codex, OpenCode, or Reasonix session to see tokens per prompt, expandable to each reply's exact token split and tools used (read on-demand from local transcripts or databases, never synced)
-- **Cache hit statistics** — click any tool or model to expand a detailed breakdown of input tokens (cache hit vs miss), output tokens, and hit-rate percentages
-- **Cost & currency** — cost alongside token counts, shown in USD, TWD, HKD, or CNY; exchange rates auto-update daily and can be manually overridden in Settings
-- **WSL usage (Windows)** — file-based usage from a running WSL distro is detected automatically and merged about every 5 minutes; SQLite-backed tools such as OpenCode and Hermes may require a [headless agent inside WSL](docs/wsl-sqlite-setup.md)
-
-### Limits & trends
-
-- **AI Tool Limits detection** — provider-specific session, weekly, billing, and credits windows for Claude Code, Codex, Cursor, OpenRouter, third-party APIs, GLM, Kimi, and 26+ providers, including multiple OpenRouter/third-party profiles and DeepSeek prepaid balance/spend
-- **Hub-managed account quotas** — add multiple provider accounts manually, keep their credentials in the Hub, refresh quotas centrally, and distribute the results to every connected device
-- **Preserve deleted session usage** — many tools prune old sessions (Claude Code drops transcripts after 30 days by default), losing that history. Jiran always archives observed daily tool/model usage locally, so the heatmap and trends survive even after the source files are gone (see [Session data retention](#session-data-retention) below)
-- **Usage Trends** — a home-screen activity heatmap and trend chart, plus the Trends view with streaks and stacked per-tool/per-model history (bar and K-line views) across all your devices
-- **Subscription records** — record by hand what each AI account actually costs; the plan label's tooltip then reports the price, the next renewal or end date, time subscribed, and the month's usage cost as a multiple of what the plan costs, for recurring plans and top-up ledgers alike
-
-### Multi-device & deployment
-
-- **Real-time multi-device sync** — Server-Sent Events push an update on one device to the others within seconds
-- **Local-first** — no servers needed for single-device use
-- **Self-hosted sync backend** — Docker Compose Hub
-- **Privacy-first** — prompts, responses, source code, and file contents stay on your machine
-
-### Interface & surfaces
-
-- **Breakdown views** — grouped by tool, device, model, session, project, or account limits
-- **One interface, two hosts** — the desktop app and the Hub's web dashboard render the same UI, so a machine without the app can still open the full dashboard in a browser
-- **Appearance controls** — interface theme switching (incl. a light mode), per-tool vendor colours, and native window backdrop
-- **Desktop settings** — language, window surface and motion, startup/tray behaviour, updates, and the Hub connection
-- **Device data transfer** — an admin-only Hub-web operation under Management → Advanced that re-attributes one device's history to another
-
-## Installation
-
-Download from [GitHub Releases](https://github.com/IGNGserver/jiran/releases).
-
-- **macOS (Apple Silicon)** — `.dmg`, signed and notarized
-- **macOS (Intel)** — x64 `.dmg`, signed and notarized
-- **Windows 10/11** — setup and portable `.exe`, [code-signed](docs/code-signing.md)
-- **Linux x64** — `.AppImage`, or the `.deb` package
-- **Linux x64, kept up to date** — add the APT repository so the package manager upgrades the app (verify the key fingerprint against `jiran-archive-keyring-fingerprint.txt` next to it):
-  ```bash
-  curl -fsSL https://igngserver.github.io/jiran/apt/jiran-archive-keyring.asc \
-    | gpg --dearmor \
-    | sudo tee /usr/share/keyrings/jiran-archive-keyring.gpg >/dev/null
-  curl -fsSL https://igngserver.github.io/jiran/apt/jiran.sources \
-    | sudo tee /etc/apt/sources.list.d/jiran.sources >/dev/null
-  sudo apt update && sudo apt install token-monitor
-  ```
-- **Android** — `Jiran-Android-<version>.apk`, a read-only client for a Docker Compose Hub
-- **No-GUI/server** — `Jiran-Headless-<version>.tar.gz`; install with Node.js 22.13+ and `npm ci --omit=dev`
-
-Packaged builds check GitHub Releases automatically. When an update is available, the app shows an update indicator; supported platforms can also install from Management → Startup & updates.
-
-### First run
-
-Local mode is the default: launch the app and it starts tracking this device. No hub, agent, or config required.
-
-## Multi-device sync
-
-When you want multi-device sync, connect all devices (and any headless agents) to the same Docker Compose Hub. On each device, open the app and choose **Connect to a hub** under Management → Hub connection. The app contributes this device's usage automatically; run `npm run agent` only on machines without the app. For a no-GUI install, use the [headless agent guide](docs/headless-agent.md) and the `Jiran-Headless-<version>.tar.gz` release asset.
-
-For this single-user project, `JIRAN_SECRET` is the one Hub owner key used by every client and it covers read, ingest, and administrative operations, including manually managed quota accounts. Devices identify data sources, not separate users. Remote connections require HTTPS by default; desktop/agent HTTP needs an explicit trusted-LAN opt-in, while Android release builds always require HTTPS.
-
-An older profile that points to a non-loopback `http://` Hub is not silently weakened during upgrade: local collection continues, while Hub read/upload/stream remain blocked until HTTPS is configured or the user explicitly enables the trusted-LAN option. The sync settings panel reports those channels separately and can recover them in the same process after the setting changes.
-
-#### Option A — Local only (default)
-
-Use the app's local mode for a single device. It reads this machine's local data directly and does not require a Hub or an agent.
-
-#### Option B — Connect to a Docker Compose Hub
-
-Deploy the root `docker-compose.yml` on an always-on machine:
+The Hub is a single-user component: you run it on a machine you control, and every device that
+should share its usage points at it. The root `docker-compose.yml` is the **only** supported
+deployment — there is no embedded Hub, no standalone Hub command and no secondary edge
+deployment.
 
 ```bash
 cp .env.example .env
-# set JIRAN_SECRET and the MySQL passwords in .env
+# set JIRAN_SECRET plus the MySQL passwords, then:
 docker compose up -d
+curl http://127.0.0.1:17321/api/health
 ```
 
-In every app, choose **Connect to a hub** under Management → Hub connection, then enter the Hub URL and the same Hub key. On machines without the app, configure the same URL and key and run `npm run agent`.
+The dashboard is served by the Hub itself on the same port (`http://<server>:17321`) and can be
+installed as a PWA. The image is `ghcr.io/igngserver/jiran-hub`; pin a version with
+`JIRAN_VERSION` for anything you care about. Full guide: [docs/hub-compose.md](docs/hub-compose.md).
 
-The root Docker Compose stack is the only supported Hub deployment. It provides the HTTP API, dashboard, PWA, device ingest, and SSE stream for every connected client.
+Then, on each machine:
 
-## App data
+- **Desktop app** → Management → Hub connection → **Connect to a hub**, paste the URL and the
+  same Hub key. The app keeps collecting locally and uploads its own summary.
+- **Headless agent** → configure the same URL and key and run `npm run agent` (or
+  `npm run agent:once` from cron / launchd); see the [headless agent guide](docs/headless-agent.md).
+  Use it on machines with no GUI, and inside a WSL distro when the tool there keeps its usage in
+  SQLite, which the Windows-side scan cannot read
+  ([docs/wsl-sqlite-setup.md](docs/wsl-sqlite-setup.md)).
+- **Android** → point the app at the Hub URL and the same key. Release builds require HTTPS.
 
-App state lives in the OS user-data dir — delete it along with the app to fully uninstall.
+`JIRAN_SECRET` is the one owner key: it covers reads, ingest and administration, including the
+quota accounts. Devices identify *data sources*, not users. Remote connections require HTTPS;
+plain HTTP to a Hub on your LAN is possible only after you opt in explicitly, and an older
+profile pointing at a non-loopback `http://` Hub keeps its local collection while its Hub
+channels stay blocked until you choose.
 
-| Platform | Path |
-|----------|------|
-| macOS | `~/Library/Application Support/Jiran/` |
-| Windows | `%APPDATA%/Jiran/` |
-| Linux | `~/.config/Jiran/` |
-
-## Build from source
-
-To build your own installer, use Node.js 22.13+ on the **target** OS (electron-builder can't cross-build a macOS `.dmg` on Windows, or vice-versa).
-
-```bash
-npm install
-npm run dist:mac     # macOS arm64 .dmg           → dist/
-npm run dist:mac:x64 # macOS Intel x64 .dmg       → dist/
-npm run dist:win     # Windows x64 installer .exe → dist/
-npm run dist:linux   # Linux x64 AppImage         → dist/
-npm run pack         # unpacked app dir (no installer), for quick local testing
-```
-
-Output lands in `dist/`. Windows and Linux use the matching `dist:*` script above on the target OS. Packaging the macOS release build requires a local Developer ID Application signing identity; use `npm start` for local development or unsupported platforms.
-
-## How it works
+## How the data moves
 
 ```text
-Mode A — Local (default, no setup)
-    desktop app (Electron) ──▶ tokscale ──▶ ~/.claude, ~/.codex, $HERMES_HOME
-
-Mode B — Sync (opt-in, multi-device)
-    device A agent ──▶
-    device B agent ──▶  hub  ──▶  desktop app or browser on any device
-    device C agent ──▶
+one device                                   the Hub
+──────────                                   ───────
+AI tools write local        tokscale         POST /api/ingest      MySQL
+transcripts / session  ──▶  collector  ──────────────────────▶  normalize + aggregate
+databases / caches          (src/shared)                              │
+      ▲   watch for changes                                           │ SSE /api/stats/stream
+      └── every few seconds ──────────────────────────────────────────┴▶ desktop · browser · Android
 ```
 
-The desktop app chooses local vs sync mode based on Management → Hub connection. The Docker Compose Hub receives each device's normalized summary and pushes aggregated stats to connected clients over Server-Sent Events, so updates on one device appear on the others within a few seconds.
-
-## Session data retention
-
-Jiran always archives observed daily tool/model usage locally with no time limit — so even after a source tool prunes its own sessions, the heatmap and trends are unaffected.
-
-<details>
-<summary><strong>Advanced: extend the source tool's own retention</strong></summary>
-
-<br>
-
-The heatmap and sync payload use a rolling 370-day window (older observations remain available locally for future views). **Claude Code keeps only 30 days of transcripts by default** (`cleanupPeriodDays`); to keep the full rolling year before the archive kicks in, raise it in `~/.claude/settings.json` before the window passes:
-
-```json
-{
-  "cleanupPeriodDays": 370
-}
-```
-
-A larger value keeps more, at the cost of transcripts living on disk for as long as you set. tokscale's [Session Data Retention](https://github.com/junhoyeo/tokscale#session-data-retention) table covers the other tools' defaults and config paths.
-
-This archive only covers days Jiran has already observed; data deleted before it started tracking cannot be recovered.
-
-</details>
-
-## Settings
-
-There are two places to configure Jiran; day-to-day use only needs the first:
-
-- **Desktop app (GUI)** — open Settings from the sidebar or the app menu. It covers language, window surface and motion, startup and tray behaviour, updates, and the Hub connection; collection cadence and the other device-local keys live in `.env` / `settings.json`, and every supported tool is always tracked. Quota accounts, subscriptions, and pricing are managed on the Hub (see the Accounts and Management views).
-- **Headless agent & hub** — no UI; configured with a `.env` file at the project root (copy from `.env.example`), precedence CLI flag → env var → built-in default.
-
-See the [configuration reference](docs/configuration.md) for every setting and all environment variables.
-
-## Tested Environments & Platform Compatibility
-
-Jiran is developed and tested primarily in the environments below. **Platforms and setups outside this list have not been fully verified and may encounter unexpected issues.** Feedback and PRs are welcome:
-
-- **Docker Compose Hub**: Verified for multi-device sync, aggregation, and SSE streaming.
-- **Windows 11**: Primary development and testing platform.
-  - Main tested coding tools: **Codex**, **OpenCode**.
-  - Lightly tested tools: **Antigravity**, **Claude Desktop**.
-- **Ubuntu**: Only headless agent **data reporting/ingest** has been tested; day-to-day coding workflows and complete client operation have not been comprehensively verified on this platform.
+- `src/shared/collector.js` is the only place that invokes `tokscale`; it funnels the output
+  through one defensive parser, so an upstream format change degrades loudly instead of
+  silently reporting zero.
+- Local collection is watch-driven (a 1.5 s debounce after a file changes) with a full period
+  scan every 5 minutes. Period scans run serially on purpose: they are CPU- and IO-bound, and
+  running three at once only slows the machine you are coding on.
+- On Windows, file-based usage from **running** WSL distros is scanned and merged into that
+  machine's totals on full ticks. A distro is never started to satisfy a scan, and the scan is
+  gated on the registry, so a machine without WSL never spawns `wsl.exe`.
+- Usage and quotas are separate pipelines with different owners. Collection runs on the device;
+  quota probing runs on the Hub, which keeps each account's last good result, retries with
+  backoff, and pushes one normalized snapshot to every client. Configuring an account on the Hub
+  never touches collection on any device, and no device uploads provider credentials.
+- Reads are staged and compressed because one client is a phone on a mobile network:
+  `/api/stats/summary` is the first-paint projection of the same aggregate, and the SSE stream
+  can start `detail=slim`. A projection is never a second measurement — the headline numbers
+  stay identical to `/api/stats`.
+- What a synchronized device contributes per session is a usage row — tokens, cost, models, an
+  optional workspace label; absolute workspace paths stay on the collecting device. The
+  per-prompt breakdown is read live from that tool's own files on the machine that has them, and
+  prompt text, replies and source code never leave it.
 
 ## Privacy
 
-Jiran processes usage logs locally and sends no analytics or telemetry to the project maintainer. Network access occurs only for documented or user-enabled features. See the [privacy policy](docs/privacy.md) for the data used by updates, provider integrations, and optional multi-device sync.
+Local-first is the actual architecture, not a slogan: prompts, responses, source code and file
+contents stay on your machine, and nothing is sent to the project maintainer — there is no
+telemetry, no analytics and no hosted backend. Network access happens only for documented or
+user-enabled features: the update check, the exchange-rate lookup, the Hub you deploy, and the
+provider endpoints for quotas you configured. Quota accounts are configured on the Hub and probed
+there — the only raw credential the desktop app stores is the Hub key.
+Details: [docs/privacy.md](docs/privacy.md).
 
-## Contributing
+## Configuration
 
-Issues and PRs are welcome. Project conventions, architecture notes, and the command reference live in [AGENTS.md](AGENTS.md) — written for coding agents, but it doubles as the contributor guide.
+- **Desktop app** — preferences live in the OS user-data directory (`settings.json`, plus a
+  permission-restricted `credentials.json` that holds the one raw credential the GUI manages:
+  the Hub key). Management's
+  **Display** group covers language, window surface and motion; **Behaviour** covers launch at
+  login, start hidden, closing to the tray and updates; **Hub connection** switches the device
+  between local-only and a Hub. What gets *collected* is not configurable: the tracked set,
+  cadence, history and session archive are fixed by `src/shared/collectorConfig.js`.
+- **Agent and Hub** — a `.env` file at the project root (copy `.env.example`), with precedence
+  CLI flag → environment variable → built-in default. `JIRAN_*` is the documented prefix; the
+  historical `TOKEN_MONITOR_*` names keep working, and one of those still wins when both are set.
+
+Every setting and environment variable: [docs/configuration.md](docs/configuration.md). The HTTP
+contract between devices and the Hub: [docs/API.md](docs/API.md). The interface itself is localized
+into English, Simplified and Traditional Chinese, Japanese and Korean; these two READMEs are the
+documentation surface, and the tool matrix is English-only.
+
+## Tested platforms
+
+Development and verification concentrate on Windows 11 (primary), a Docker Compose Hub, and
+Ubuntu running the headless agent's ingest path. **Anything outside that has not been fully
+verified and may misbehave** — macOS packaging in particular requires a real Developer ID
+signing identity to build.
+
+## Development
+
+```bash
+npm install
+npm start                  # the desktop app
+npm run agent:once         # one collect + post cycle, no GUI
+npm run verify             # guards + lint + tests — this is what CI runs
+npm test                   # node:test suite
+npm run test:mysql         # Hub tests against MySQL
+npm run verify:deb         # Debian package check
+```
+
+Needs Node.js 22.13+. The Android client is a separate Gradle project:
+`cd android && ./gradlew :app:testDebugUnitTest` / `:app:assembleDebug`.
+
+[AGENTS.md](AGENTS.md) is the authoritative architecture and conventions document — it is
+written for coding agents and doubles as the contributor guide. [docs/design/](docs/design/)
+holds the UI contracts.
+
+## Renamed from Token Monitor
+
+v0.47.0-rev.37 renamed the product to 计然 / Jiran. It is a rename, not a reset:
+
+- The desktop app copies the legacy `Token Monitor` user-data folder into `Jiran` on first launch,
+  and the shared runtime state (device identity, `agent.pid`, the daily and session archives, the
+  tokscale cache) merges forward too. A target file is never overwritten and the legacy directory
+  is never deleted: a still-running pre-rename desktop or agent keeps writing there, and the PID
+  check reads both locations.
+- `TOKEN_MONITOR_*` environment variables and the `X-Token-Monitor-Secret` header keep working
+  beside the new `JIRAN_*` / `X-Jiran-Secret` spellings.
+- Releases push identical tags to both `ghcr.io/igngserver/jiran-hub` and
+  `ghcr.io/igngserver/token-monitor-hub` during the transition.
+- APT publishes `jiran` and a `token-monitor` transitional package that depends on it, so
+  `apt upgrade` carries existing installs over. **One manual step is still required**: GitHub
+  Pages URLs do not follow a repository rename, so a source file pointing at
+  `…/token-monitor-suite/apt` now 404s — re-run the `curl … | sudo tee` line above once.
+- Deliberately unchanged, because they are identity surfaces: the Electron `appId`
+  (`com.igng.tokenmonitor`), the Android `applicationId`, the MySQL default database and user,
+  and the code-signing project slug.
 
 ## Acknowledgments
 
-- [tokscale](https://github.com/junhoyeo/tokscale) for log parsing and token accounting.
-- [CodexBar](https://github.com/steipete/CodexBar) for AI Tool Limits research.
-- [Jiran](https://github.com/Javis603/token-monitor) by [@Javis](https://github.com/Javis603) for the initial desktop architecture and inspiration.
-- **[Code signing policy](docs/code-signing.md):** Free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
-
-## One codebase, four surfaces
-
-- **Desktop app** (Electron) — collects this device's usage locally, and syncs it when you connect it to a Hub.
-- **Docker Compose Hub** — MySQL-backed ingest, aggregation, SSE streaming, and the same dashboard as a web app / PWA, served from the Hub itself.
-- **Headless agent** — the collector without a GUI, for machines that only report usage.
-- **Android client** — reads synced usage and account limits from a Docker Compose Hub.
-
-The desktop app and the Hub dashboard render the identical UI from `src/shared-ui/`, so a screen you configure once behaves the same on both.
+- [tokscale](https://github.com/junhoyeo/tokscale) — the log parser and token accounting this
+  project runs on.
+- [CodexBar](https://github.com/steipete/CodexBar) — early research on reading AI plan quotas.
+- [token-monitor](https://github.com/Javis603/token-monitor) by [@Javis](https://github.com/Javis603)
+  — the upstream project this one started from, for its desktop architecture.
+- Free code signing via [SignPath.io](https://signpath.io/), certificate by
+  [SignPath Foundation](https://signpath.org/) — see [docs/code-signing.md](docs/code-signing.md).
 
 ## License
 

@@ -26,7 +26,19 @@ const FORBIDDEN_TERMS = [
   { pattern: /独立的仪表板窗口/, name: '独立的仪表板窗口' },
   { pattern: /獨立的儀表板視窗/, name: '獨立的儀表板視窗' },
   { pattern: /専用ダッシュボードウィンドウ/, name: '専用ダッシュボードウィンドウ' },
-  { pattern: /전용 대시보드 창/, name: '전용 대시보드 창' }
+  { pattern: /전용 대시보드 창/, name: '전용 대시보드 창' },
+  // Surfaces the upstream project ships and this one does not. They kept creeping back into the
+  // README while it was still shaped like upstream's; each of these was retired together with
+  // the settings key that reached it (RETIRED_SETTING_KEYS in src/electron/main.js).
+  { pattern: /brew install/i, name: 'Homebrew install' },
+  { pattern: /iCloud Drive/i, name: 'iCloud Drive sync' },
+  { pattern: /Discord Rich Presence/i, name: 'Discord Rich Presence' },
+  { pattern: /Edge Dock/i, name: 'Edge Dock' },
+  { pattern: /menu bar layout/i, name: 'menu bar layout composer' },
+  { pattern: /live token rate/i, name: 'live token rate readout' },
+  { pattern: /reset forecast/i, name: 'Codex reset forecast' },
+  { pattern: /Host hub on this device/i, name: 'embedded Hub host mode' },
+  { pattern: /source-only preview/i, name: 'macOS widget source-only preview' }
 ];
 
 function getMarkdownFiles(dir) {

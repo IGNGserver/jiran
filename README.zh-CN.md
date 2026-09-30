@@ -1,331 +1,255 @@
 <p align="right">
-   <a href="./README.md">EN</a> | <strong>简</strong> | <a href="./README.zh-TW.md">繁</a> | <a href="./README.ko.md">KO</a> | <a href="./README.ja.md">JA</a>
+   <a href="./README.md">English</a> | <strong>简体中文</strong>
 </p>
 <div align="center">
-    <img src=".github/assets/app.png" alt="计然 logo" width="120">
+    <img src=".github/assets/jiran-icon.png" alt="计然" width="120">
     <h1>计然</h1>
 </div>
 
 <p align="center">
-    <em>跨设备聚合每个 AI 编程工具的实时用量。</em>
+    <em>把你已经在用的 AI 编程工具的 Token 用量、花费与订阅额度，先在本机算清楚。</em>
 </p>
 
 <p align="center">
-    <a href="https://github.com/IGNGserver/jiran/releases"><img src="https://img.shields.io/github/v/release/IGNGserver/jiran?include_prereleases&style=flat-square&label=release&color=22c55e" alt="最新发布" /></a>
-    <a href="https://github.com/IGNGserver/jiran/releases"><img src="https://img.shields.io/github/downloads/IGNGserver/jiran/total?style=flat-square&color=22c55e" alt="总下载量" /></a>
-    <img src="https://img.shields.io/badge/Windows-10%2B-0078D4?style=flat-square" alt="Windows 10 或更新" />
-    <img src="https://img.shields.io/badge/macOS-12%2B-0A84FF?style=flat-square&logo=apple&logoColor=white" alt="macOS 12 或更新" />
+    <a href="https://github.com/IGNGserver/jiran/releases"><img src="https://img.shields.io/github/v/release/IGNGserver/jiran?include_prereleases&style=flat-square&label=release&color=22c55e" alt="最新版本" /></a>
+    <a href="https://github.com/IGNGserver/jiran/releases"><img src="https://img.shields.io/github/downloads/IGNGserver/jiran/total?style=flat-square&color=22c55e" alt="累计下载" /></a>
+    <img src="https://img.shields.io/badge/Windows-10%2B-0078D4?style=flat-square" alt="Windows 10 及以上" />
+    <img src="https://img.shields.io/badge/macOS-12%2B-0A84FF?style=flat-square&logo=apple&logoColor=white" alt="macOS 12 及以上" />
     <img src="https://img.shields.io/badge/Linux-x64-64748b?style=flat-square&logo=linux&logoColor=white" alt="Linux x64" />
+    <img src="https://img.shields.io/badge/Android-Hub%20读端-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android 客户端" />
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-A855F7?style=flat-square" alt="许可证：MIT" /></a>
 </p>
 
-<div align="center">
-    <img src=".github/assets/demo.gif">
-</div>
+## 为什么叫「计然」
 
-## 计然是什么？
+计然是《史记·货殖列传》里那位善于「计」的谋士——既算支出，也算收入。这个名字就是本项目的
+全部范围：AI 工具烧掉了多少 Token，这些订阅与调用实际花了你多少钱。项目在 v0.47.0-rev.36 之前
+叫 **Token Monitor**，改名的影响面见[改名说明](#从-token-monitor-改名)。
 
-一款桌面应用，实时显示 Claude Code、Codex、Cursor、GitHub Copilot 等 59+ 种 AI 编程工具的 Token 用量与 AI 工具额度，具备实时多设备同步与历史使用趋势功能，并支持按工具、设备、模型、session 或项目分项显示。
+## 它回答什么问题
 
-## 支持的工具计然对 Token 用量、账户额度和 session 明细分别支持：
+AI 编程环境通常只有两个数字说不清，计然都从数据所在的地方——你自己的磁盘——把它们读出来：
 
-| Logo | 工具 | 数据路径 | Token 用量 | AI 工具额度 | session 明细 |
-|:---:|------|-----------|:---:|:---:|:---:|
-| <img src=".github/assets/tools-icon/claude.png" width="28" alt="Claude Code" /> | Claude Code | `~/.claude/projects/`、`~/.claude/transcripts/` | ✅ | ✅ | ✅ |
-| <img src=".github/assets/tools-icon/claude-desktop.png" width="28" alt="Claude Desktop" /> | Claude Desktop | `<platform-app-data>/Claude/` 与 `Claude-3p/`（Local Agent / Cowork transcript） | ✅ | — | ✅ |
-| <img src=".github/assets/tools-icon/codex.png" width="28" alt="Codex" /> | Codex | `~/.codex/`（`sessions/`、`archived_sessions/`） | ✅ | ✅ | ✅ |
-| <img src=".github/assets/tools-icon/opencode.png" width="28" alt="OpenCode" /> | OpenCode | `~/.local/share/opencode/`（`opencode*.db`、`storage/message/`） | ✅ | ✅ | ✅ |
-| <img src=".github/assets/tools-icon/hermes-agent.png" width="28" alt="Hermes Agent" /> | Hermes Agent | `~/.hermes/state.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/openclaw.png" width="28" alt="OpenClaw" /> | OpenClaw | `~/.openclaw/agents/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/cursor.png" width="28" alt="Cursor" /> | Cursor | `~/.config/tokscale/cursor-cache/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/antigravity.png" width="28" alt="Antigravity" /> | Antigravity | `~/.gemini/`（`antigravity/`、`antigravity-ide/`、`antigravity-backup/`、`antigravity-cli/conversations/`） | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/cline.png" width="28" alt="Cline" /> | Cline | VS Code globalStorage tasks（`.../saoudrizwan.claude-dev/tasks/`）、`~/.cline/data/sessions/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/kimi.png" width="28" alt="Kimi" /> | Kimi CLI / Kimi Code | `~/.kimi/sessions/`、`~/.kimi-code/sessions/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/qwen.png" width="28" alt="Qwen" /> | Qwen CLI | `~/.qwen/projects/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/xai.png" width="28" alt="Grok Build" /> | Grok Build | `~/.grok/`（`sessions/`、`logs/unified.jsonl`） | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/copilot.png" width="28" alt="GitHub Copilot" /> | GitHub Copilot | VS Code `workspaceStorage/*/chatSessions/`、`~/.copilot/`（`otel/`、`data.db`） | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/pi.png" width="28" alt="Pi" /> | Pi / Oh My Pi | `~/.pi/agent/sessions/`、`~/.omp/agent/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/zed.png" width="28" alt="Zed" /> | Zed | `~/.local/share/zed/threads/threads.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/kilocode.png" width="28" alt="Kilo Code" /> | Kilo Code | VS Code globalStorage tasks（`.../kilocode.kilo-code/tasks/`）—— 仅 Linux 与远程/WSL | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/commandcode.png" width="28" alt="Command Code" /> | Command Code | `~/.commandcode/projects/**/*.jsonl` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/mimo-code.png" width="28" alt="MiMo Code" /> | MiMo Code | `~/.local/share/mimocode/mimocode.db`（会导入 Claude Code 会话；tokscale 不去重，Claude 总量可能被重复计入） | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/zcode.png" width="28" alt="ZCode" /> | ZCode / GLM | `~/.zcode/`（`projects/`、`cli/db/db.sqlite`） | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/kiro.png" width="28" alt="Kiro" /> | Kiro | `~/.kiro/sessions/cli/`、Kiro IDE globalStorage 与 `kiro-cli` 数据库 | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/codebuddy.png" width="28" alt="CodeBuddy" /> | CodeBuddy | `~/.codebuddy/projects/` 与 IDE / VS Code 扩展日志 | ✅ | — | — |
-| <img src=".github/assets/tools-icon/workbuddy.png" width="28" alt="WorkBuddy" /> | WorkBuddy | `~/.workbuddy/projects/`、`~/.workbuddy/workbuddy.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/proma.png" width="28" alt="Proma" /> | Proma | `~/.proma/agent-sessions/*.jsonl` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/deepseek-harness.svg" width="28" alt="DeepSeek Harness" /> | DeepSeek Harness | `$DSH_HOME/sessions/`（默认 `~/.dsh/sessions/`；`session.jsonl[.zstd]` 及带版本号的 `session.v<N>.jsonl[.zstd]`） | ✅ | — | — |
-| <img src=".github/assets/tools-icon/qoder.png" width="28" alt="Qoder" /> | Qoder / Qoder CN | 本地适配器，两个版本各自读取：`~/.qoder/projects/` 与 `~/.qoder-cn/projects/` transcript，以及存在时的 `<platform-app-data>/Qoder/` 与 `QoderCN/SharedClientCache/cache/db/local.db`、`com.qoder.app.stable/` 与 `com.qodercn.app.stable/main.sqlite`；Qoder dashboard cookie（通过 Qoder usage API 查询 big-model credits） | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/reasonix.png" width="28" alt="Reasonix" /> | Reasonix | `~/.reasonix/`（`stats/`、`sessions/`、`projects/*/sessions/`） | ✅ | — | ✅ |
-| <img src=".github/assets/tools-icon/gemini.png" width="28" alt="Gemini CLI" /> | Gemini CLI | `~/.gemini/tmp/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/roocode.png" width="28" alt="Roo Code" /> | Roo Code | VS Code globalStorage tasks（`.../rooveterinaryinc.roo-cline/tasks/`） | ✅ | — | — |
-| <img src=".github/assets/tools-icon/amp.png" width="28" alt="Amp" /> | Amp | `~/.local/share/amp/threads/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/droid.png" width="28" alt="Droid" /> | Droid | `~/.factory/sessions/` | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/mux.png" width="28" alt="Mux" /> | Mux | `~/.mux/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/kilo.png" width="28" alt="Kilo CLI" /> | Kilo CLI | `~/.local/share/kilo/kilo.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/crush.png" width="28" alt="Crush" /> | Crush | `~/.local/share/crush/projects.json` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/goose.png" width="28" alt="Goose" /> | Goose | `~/.local/share/goose/sessions/sessions.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/codebuff.png" width="28" alt="Codebuff / Freebuff" /> | Codebuff / Freebuff | `~/.config/manicode/projects/`（`chats/*/chat-messages.json`） | ✅ | — | — |
-| <img src=".github/assets/tools-icon/trae.png" width="28" alt="Trae" /> | Trae | `~/.config/tokscale/trae-cache/`（执行 `tokscale trae sync` 后） | ✅ | — | — |
-| <img src=".github/assets/tools-icon/warp.png" width="28" alt="Warp / Oz" /> | Warp / Oz | `~/.config/tokscale/warp-cache/`（执行 `tokscale warp sync` 后） | ✅ | ✅ | — |
-| <img src=".github/assets/tools-icon/gjc.png" width="28" alt="Gajae-Code" /> | Gajae-Code | `~/.gjc/agent/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/jcode.png" width="28" alt="Jcode" /> | Jcode | `~/.jcode/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/junie.png" width="28" alt="Junie" /> | Junie | `~/.junie/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/opencodereview.png" width="28" alt="OpenCodeReview" /> | OpenCodeReview | `~/.opencodereview/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/devin.png" width="28" alt="Devin CLI / Devin Desktop" /> | Devin CLI / Devin Desktop | `~/.local/share/devin/cli/sessions.db`；`~/Library/Application Support/Devin/User/acp-events/`（macOS） | ✅ | — | — |
-| <img src=".github/assets/tools-icon/senpi.png" width="28" alt="Senpi" /> | Senpi | `~/.senpi/agent/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/augment.png" width="28" alt="Augment Code" /> | Augment Code | `~/.augment/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/kimchi.png" width="28" alt="Kimchi" /> | Kimchi | `~/.config/kimchi/harness/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/prime-agent.png" width="28" alt="Prime Agent" /> | Prime Agent | `~/.prime/agent/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/cherrystudio.png" width="28" alt="Cherry Studio" /> | Cherry Studio | `~/.config/CherryStudio/.claude/projects/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/mcode.png" width="28" alt="MiniMax Code" /> | MiniMax Code | `~/.config/tokscale/headless/mcode/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/fx.png" width="28" alt="Fx" /> | Fx | `~/.fx/sessions/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/lmstudio.png" width="28" alt="LM Studio" /> | LM Studio | `~/.lmstudio/server-logs/`（仅最终响应用量；本地推理为 $0） | ✅ | — | — |
-| <img src=".github/assets/tools-icon/unsloth.png" width="28" alt="Unsloth" /> | Unsloth | `~/.unsloth/studio/studio.db` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/hindsight.png" width="28" alt="Hindsight" /> | Hindsight | `~/.hindsight/usage/` | ✅ | — | — |
-| <img src=".github/assets/tools-icon/deepseek.png" width="28" alt="DeepSeek" /> | DeepSeek | DeepSeek API 密钥（通过 DeepSeek API 查询余额） | — | ✅ | — |
-| <img src=".github/assets/tools-icon/openrouter.png" width="28" alt="OpenRouter" /> | OpenRouter | OpenRouter API 密钥（查询用量／密钥上限；获授权访问 credits 时显示余额，官方文档指定 Management 密钥） | — | ✅ | — |
-| <img src=".github/assets/tools-icon/minimax.png" width="28" alt="Minimax" /> | Minimax | Minimax API 密钥（通过 Minimax API 查询 Token Plan 额度） | — | ✅ | — |
-| <img src=".github/assets/tools-icon/volcengine.png" width="28" alt="Volcengine" /> | Volcengine | Ark API key 或火山引擎 AK/SK（通过火山引擎 API 查询火山方舟 Coding Plan 额度） | — | ✅ | — |
-| <img src=".github/assets/tools-icon/ollama.png" width="28" alt="Ollama" /> | Ollama | Ollama Cloud cookie（通过 ollama.com/settings 查询 session／每周用量） | — | ✅ | — |
-| <img src=".github/assets/tools-icon/newapi.png" width="28" alt="第三方 API" /> | 第三方 API | New API 兼容账号预设方案（包括兼容的 One API 分支）、New API 密钥预设方案与声明式自定义余额端点 | — | ✅ | — |
-| <img src=".github/assets/tools-icon/sakana.png" width="28" alt="Sakana (Fugu)" /> | Sakana (Fugu) | Sakana 计费控制台 session cookie | — | ✅ | — |
+- **我到底用了多少？** 每个被跟踪的工具都在本机留下 transcript、会话数据库或缓存。计然把它们
+  换算成 Token 与成本，可按工具、模型、设备、项目、单个会话拆分，并且长期保存每日历史。
+- **我的订阅还剩多少？** 各供应商的额度窗口（会话 / 周 / 账期 / credits）。额度探测归 Hub：它刷新
+  配置在那里的账号，并把一份脱敏后的快照推给所有连接的设备。因此纯本机模式的设备没有额度来源，
+  「额度」页为空是设计如此。
+- **我为此付了多少钱？** 手工记账的订阅台账与模型价格表放在一起，于是套餐标签的悬浮提示能告诉
+  你：这个套餐多少钱、下次续费是什么时候、本月用量按 API 价格本应花多少。
 
-<details>
-<summary><strong>注意事项、Custom 余额端点，以及用环境变量覆盖的数据路径</strong></summary>
+## 四个界面，一个产品
 
-<br>
+| 界面 | 职责 | 是否需要 Hub |
+|---|---|:---:|
+| **桌面应用** — Electron，支持 Windows / macOS / Linux | 采集本机数据并呈现完整界面 | 否 |
+| **Hub** — Docker Compose + MySQL | 接收上报、聚合、SSE 推送，并用同端口提供 Web 仪表板 / 可安装 PWA | — |
+| **Headless agent** — `src/agent` | 没有图形界面的采集端，用于服务器与 WSL 发行版 | 是 |
+| **Android 客户端** — Kotlin / Compose | 在手机上查看设备群组的用量与额度；不采集、不上报 | 是 |
 
-- 上表为默认路径。计然与 Tokscale 遵循相同的环境变量覆盖：`~/.local/share/` 下的路径跟随 `$XDG_DATA_HOME`，各工具另有 `$CODEX_HOME`、`$GROK_HOME`、`$HERMES_HOME`、`$KIMI_CODE_HOME`、`$REASONIX_STATE_HOME`、`$REASONIX_HOME` 以及 `$CLINE_*` 系列。
+桌面应用与 Hub 网页渲染的是**同一套**界面（`src/shared-ui/`），一次排布的页面在两处行为一致。
+两者唯一的差别是数据怎么到达视图，这一层收在 transport 模块里（Hub 用 `httpTransport`，Electron
+用 `ipcTransport`），并有守卫测试禁止共享视图直接碰 `fetch`、存储或宿主 API。
 
-- Command Code v3 transcript 会持久化每次请求的 `usage`（输入 / 输出 / 缓存读 / 缓存写 Token，以及服务端上报的 `costUsd`），因此这些会话是精确值而非估算。只有在 `usage` 字段出现之前写入的旧版 transcript 才回退为基于文本的估算，其模型归属也可能反映当前配置的模型，而不是每次请求当时实际使用的模型。
+应用内共六个入口：**总览**（今日一览）、**使用情况**（时间范围与各种拆分）、**设备**、**额度**、
+**趋势**（热力图、连续天数、按工具/模型堆叠的历史）、**管理**——账号、订阅与定价、界面偏好统一
+收在一页里。
 
-- Custom 会从一个 GET 余额端点映射数值 JSON 字段；仅兼容 OpenAI 或 Anthropic API 并不足够。
+## 数字怎么来的，说清楚
 
-#### Qoder / Qoder CN（本地适配器）
+一个把「实测」和「估算」混着显示的仪表板，比没有仪表板更糟。以下是每个界面都遵守的规则：
 
-Qoder 的 Token 用量来自应用自身的本地文件，而非 API。国际版与中国版按两个独立客户端跟踪 —— `qoder` 与 `qodercn`，因为二者使用各自独立的配置目录；两者都会被自动跟踪（不存在按工具开关的选项）。每个版本探测三个来源，实际存在的那些都会贡献数据：
+- **`~` 就是估算。** 某个工具从来没存过真实 Token 数时，总量按它存下的文本估算得出，并在数字
+  前加 `~`；每一项估算的依据都写在支持矩阵的注释里。
+- **credits 是独立单位。** 以 credits 计费的供应商（Qoder 就是这样）会给出精确 credits，旁边的
+  Token 与成本仍标 `~`；credits 绝不折算进 Token 总量。
+- **刷新不打断操作。** 数据每几秒就来一帧；下拉框开着、输入到一半时重绘会被推迟，展开的行与
+  滚动位置都保留，内容没变则完全不碰 DOM。
+- **数字只属于问它的那个标签页。** 今天 / 本月 / 全部来自采集器的固定窗口，昨日与本周是按需
+  解析的日历区间，且只有发起请求的那个标签页会消费结果；凡是上报总量的地方，一周都从 ISO 周一
+  开始。
+- **置灰的设备是真的沉默了。** 最后一次上报超过 10 分钟的设备被标记为 stale 并置灰，而不是假装
+  它还在线。
 
-- **Transcript 目录 —— 当前版本的主要来源。** `~/.qoder/projects/**/*.jsonl`（国际版）或 `~/.qoder-cn/projects/**/*.jsonl`（中国版），每个请求一行 JSON。它会被监听以实时更新，且只需要文件系统。可用 `JIRAN_QODER_TRANSCRIPTS_DIR` / `JIRAN_QODER_CN_TRANSCRIPTS_DIR` 指向其他目录；若整个配置目录被迁移，则设置 Qoder CN 自带的 `QODERCN_CONFIG_DIR`。
-- **桌面消息库。** 平台应用支持目录下的 `com.qoder.app.stable/main.sqlite`（国际版）或 `com.qodercn.app.stable/main.sqlite`（中国版），可用 `JIRAN_QODER_MAIN_DB_PATH` / `JIRAN_QODER_CN_MAIN_DB_PATH` 覆盖。Qoder CN 0.1.x 使用国际版的拼写，因此中国版会依次尝试两个候选。
-- **旧版缓存数据库。** `<platform-app-data>/Qoder/SharedClientCache/cache/db/local.db`（国际版），中国版为同一路径但位于 `QoderCN/` 下 —— macOS `~/Library/Application Support/`、Windows `%APPDATA%\`、Linux `~/.config/`；可用 `JIRAN_QODER_DB_PATH` / `JIRAN_QODER_CN_DB_PATH` 覆盖。
+## 支持哪些工具
 
-`com.qoder.app.stable` 被两个版本共同声明，因此只有当某版本自己的痕迹（应用支持目录或配置目录）也存在时，该版本才会读取它：只装了国际版的机器不会被计入 `qodercn`，只装了 Qoder CN 0.1.x 的机器也不会被计入 `qoder`。实际存在哪些来源随版本和安装方式而异 —— 在核实本文的 Linux 机器上（2026-09-26，Qoder CN 0.4.2），中国版有 transcript 和 `com.qodercn.app.stable/main.sqlite`，但没有旧版缓存数据库；国际版只安装了 CLI，仅有 transcript。
+| 能力 | 数量 |
+|---|---:|
+| 支持矩阵条目（工具 + 供应商） | 59 |
+| 可统计 Token 用量的工具 | 52 |
+| 可读取订阅额度的供应商 | 26 |
+| 可展开会话明细的工具 | 5 |
 
-各来源的行按请求身份累加合并并去重。当一条 transcript 行无法证明与数据库行不同时，以数据库行为准 —— 两个重叠的来源不能重复计数。
-
-这是高级本地集成。两个 SQLite 来源需要 PATH 上的 `sqlite3` CLI，或内置无需 flag 即可用 `node:sqlite` 的 Node 运行时（Node ≥ 23.4；Electron 组件可能需要 CLI）；transcript 目录两者都不需要。读取失败会写入日志；若已有完整快照，采集器会保留它而不是用零用量覆盖。Main SQLite 和 transcript 行使用 CJK 字符 / 1.5 与其他字符 / 4 的混合公式估算；每个请求的输入是**上一个请求之后**新增的对话内容，输出是该请求保存的内容，因此一个 session 中的每条消息只计一次，而不是被之后的每个请求重复累加。本地记录没有提供方计费字段、系统提示和工具 schema，因此这些来源的用量和成本会标记为 `estimated`，并不等于提供方的精确计费 Token。成本按每个映射模型在 models.dev 目录中的价格估算；Qoder 若改变磁盘格式，适配器可能失效。
-
-这份记录里有一个数字不是估算。Qoder 按 Credits 而不是 Token 计费 —— 它把 usage 块中的每个 Token 字段都留作 `0`，同时在旁边给出精确的每请求 `credits` 数量 —— 所以 Qoder 工具行会在标着 `~` 的 Token 与成本旁边显示真实的 Credits 消耗。Credits 的覆盖范围与 Qoder 用量本身完全一致，也就是 今日 / 本月 / 总计 三个页签：昨天与本周这两个自定义区间目前根本不包含 Qoder（该扫描覆盖由 Tokscale 支持的工具加上 Proma 与 Claude Desktop），而 Hub 上由已存储历史回答的区间同样不会报告 Credits。
-
-#### Qoder 账号额度
-
-`qoder` 额度账号必须手动添加到 Hub，与上面的本地用量适配器分开。Hub 会加密保存用户提交的凭证、自动刷新账号额度，并把规范化结果分发给已连接设备。设备端已经移除对本地 Qoder 登录、浏览器 profile、环境凭据和 CLI 账号的自动探测；这些凭证不会被设备上报，也不会作为额度来源。
-</details>
-
-## 界面展示
-
-<table>
-<tr>
-<td width="290" align="center"><img src=".github/assets/home-view.png" width="250" alt="主页视图"><br><sub>可自定义仪表板：自选要显示的模块与排序</sub></td>
-<td width="290" align="center"><img src=".github/assets/limits-view.png" width="250" alt="额度视图"><br><sub>Hub 管理账号，额度刷新后同步到各设备</sub></td>
-<td width="290" align="center"><img src=".github/assets/tools-view.png" width="250" alt="工具视图"><br><sub>点任一工具展开输入／输出与缓存命中明细</sub></td>
-</tr>
-<tr>
-<td width="290" align="center"><img src=".github/assets/sessions-view.png" width="250" alt="Session 视图"><br><sub>点进单个 session，逐条提问拆解 token 与用到的工具</sub></td>
-<td width="290" align="center"><img src=".github/assets/models-view.png" width="250" alt="模型视图"><br><sub>跨工具汇总每个模型的用量与成本</sub></td>
-<td width="290" align="center"><img src=".github/assets/devices-view.png" width="250" alt="设备视图"><br><sub>每台设备的用量、成本与同步状态，可展开看单机明细</sub></td>
-</tr>
-</table>
-
-<table>
-<tr>
-<td width="435" align="center"><img src=".github/assets/dashboard-overview.png" width="400" alt="使用仪表板 总览"><br><sub>跨所有设备汇总的一年活跃热力图与连续天数</sub></td>
-<td width="435" align="center"><img src=".github/assets/dashboard-trends.png" width="400" alt="使用仪表板 趋势"><br><sub>一年的每日趋势，按工具／模型堆叠，含 K 线</sub></td>
-</tr>
-</table>
-
-## 为什么用计然？
-
-大多数用量监控工具只在它运行的那台机器上有用。计然是为多设备工作流而设计的：每台设备监视自己的本地日志、把汇总更新发送到你的 hub，每个连接中的客户端几乎都能实时看到 Token 变化。
-
-## 功能特性
-
-### 用量追踪
-
-- **实时 Token 追踪**：Claude Code、Codex、Cursor、GitHub Copilot、Antigravity、OpenCode 等 52+ 种 AI 工具，每轮对话后 UI 在数秒内刷新（完整列表见上方表格）
-- **单个 session 明细**：点进 Claude Code、Claude Desktop、Codex、OpenCode 或 Reasonix 的 session，可看每条提问的 Token 消耗，并展开查看每次回复的 Token 拆分与用到的工具（打开时才实时读取本机 transcript 或数据库，绝不同步）
-- **缓存命中统计**：点击任何工具或模型，展开查看输入 Token（缓存命中与未命中）、输出 Token 的详细分类及命中率百分比
-- **成本与币别**：Token 数量旁附带成本；可用 USD、TWD、HKD 或 CNY 显示，汇率每日自动更新，也可在设置中手动覆写
-- **WSL 用量（Windows）**：运行中 WSL 发行版里的文件型用量会自动识别，约每 5 分钟并入总量；OpenCode、Hermes 等 SQLite 来源可能需要按照[指南](docs/wsl-sqlite-setup.zh-CN.md)在 WSL 内运行 headless agent
-
-### 额度与趋势
-
-- **AI 工具额度检测**：涵盖 Claude Code、Codex、Cursor、OpenRouter、第三方 API、GLM、Kimi 等 26+ 家提供方的 session、每周、账单与 credits 窗口，支持多个 OpenRouter／第三方 profile，以及 DeepSeek 预付余额与消费
-- **Hub 统一管理额度账号**：同一提供方可手动添加多个账号；凭证只保存在 Hub，由 Hub 统一刷新额度并同步到所有连接设备
-- **保留已删除会话用量**：许多工具会定期清除旧 session（Claude Code 默认清 30 天前的 transcript），一删就再也算不到。计然一律在本地不设期限地归档已观测到的每日工具／模型用量，让热力图与趋势即使在来源文件被清掉后仍然完整（详见下方[〈会话数据保留期〉](#会话数据保留期)）
-- **使用趋势**：主页的活跃热力图与趋势图，加上趋势视图中的连续天数，以及跨所有设备、按工具／按模型堆叠的历史（柱状图与 K 线两种视图）
-- **订阅资料**：手动记录每个 AI 账号的实际费用；方案标签的 tooltip 会显示费用、下次续费或到期日、已订阅时间，以及本月用量成本相对订阅费的回本倍数，定期方案与储值记录均适用
-
-### 多设备与部署
-
-- **多设备实时同步**：通过 Server-Sent Events 推送，一台设备的更新数秒内出现在其他设备
-- **本地优先**：单设备使用完全无需服务器
-- **自托管同步后端**：Docker Compose Hub
-- **隐私优先**：提示词、回复、源代码和文件内容都留在你的设备上
-
-### 界面与呈现
-
-- **分组视图**：可按工具、设备、模型、session、项目或账户额度分组查看用量
-- **一套界面，两个宿主**：桌面应用与中枢的网页仪表板渲染同一套 UI，没装应用的机器也能直接在浏览器里打开完整仪表板
-- **外观控制**：界面主题切换（含浅色模式）、各工具厂商色，以及原生窗口背景效果
-- **桌面端设置**：语言、窗口材质与动效、开机启动/托盘行为、更新，以及中枢连接
-- **设备数据迁移**：仅中枢网页端、仅管理员的管理 →「高级」操作，把一台设备的历史改归到另一台
+完整矩阵——每个工具的确切读取路径、三项能力各自支持到哪一步——在
+**[docs/supported-tools.md](docs/supported-tools.md)**（英文）。工具清单只在一处定义
+（`src/shared/clientTracking.js` 的 `TRACKED_CLIENTS`），所有运行时常驻采集全集，没有逐项开关，
+因此不存在「悄悄少算」的状态。
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/IGNGserver/jiran/releases) 下载。
+从 [GitHub Releases](https://github.com/IGNGserver/jiran/releases) 下载当前版本：
 
-- **macOS（Apple Silicon）** — `.dmg`，已签名并 notarize
-- **macOS（Intel）** — x64 `.dmg`，已签名并 notarize
-- **Windows 10/11** — 安装版和便携版 `.exe`，均[已签名](docs/code-signing.md)
-- **Linux x64** — `.AppImage`，或 `.deb` 包
-- **Linux x64（可自动升级）** — 添加 APT 软件源，让包管理器负责升级（安装前请对照同目录的 `jiran-archive-keyring-fingerprint.txt` 核验公钥指纹）：
-  ```bash
-  curl -fsSL https://igngserver.github.io/jiran/apt/jiran-archive-keyring.asc \
-    | gpg --dearmor \
-    | sudo tee /usr/share/keyrings/jiran-archive-keyring.gpg >/dev/null
-  curl -fsSL https://igngserver.github.io/jiran/apt/jiran.sources \
-    | sudo tee /etc/apt/sources.list.d/jiran.sources >/dev/null
-  sudo apt update && sudo apt install token-monitor
-  ```
-- **Android** — `Jiran-Android-<version>.apk`，用于查看 Docker Compose Hub 同步数据的只读客户端
-- **无 GUI／服务器** — `Jiran-Headless-<version>.tar.gz`；使用 Node.js 22.13+ 与 `npm ci --omit=dev` 安装
+| 平台 | 文件 |
+|---|---|
+| macOS（Apple Silicon / Intel） | `Jiran-<version>-arm64.dmg`、`Jiran-<version>-x64.dmg`，已签名并公证 |
+| Windows 10/11 | `Jiran-Setup-<version>.exe`（安装版）或 `Jiran-<version>.exe`（便携版），已[代码签名](docs/code-signing.md) |
+| Linux x64 | `Jiran-<version>.AppImage` 或 `Jiran-<version>.deb` |
+| Android | `Jiran-Android-<version>.apk`（Hub 的读端） |
+| 无界面 / 服务器 | `Jiran-Headless-<version>.tar.gz`，需 Node.js 22.13+，装好依赖用 `npm ci --omit=dev` |
 
-打包版会自动检查 GitHub Releases。有新版本时，界面会显示更新提示；受支持的平台也可在 管理 → 启动与更新 中安装更新。
+Linux 上可以挂 APT 仓库，让包管理器负责升级。请先与同目录下的
+`jiran-archive-keyring-fingerprint.txt` 核对密钥指纹：
 
-### 首次启动
+```bash
+curl -fsSL https://igngserver.github.io/jiran/apt/jiran-archive-keyring.asc \
+  | gpg --dearmor \
+  | sudo tee /usr/share/keyrings/jiran-archive-keyring.gpg >/dev/null
+curl -fsSL https://igngserver.github.io/jiran/apt/jiran.sources \
+  | sudo tee /etc/apt/sources.list.d/jiran.sources >/dev/null
+sudo apt update && sudo apt install jiran
+```
 
-本地模式是默认模式：启动 App 后会开始追踪这台设备。无需 hub、代理或配置。
+打包版会自动检查 GitHub Releases 并给出更新提示；在平台支持自装的前提下，管理页的「行为」组里
+提供「检查更新」与「重启安装」。更新通道跟随**已安装**的版本：正式版（`1.2.3`）只考虑非
+prerelease 的发布，带 `-rev.N` 的构建则跟随最新发布。
 
-## 多设备同步
+**首次运行不需要任何配置。** 默认就是本机模式：打开应用即开始跟踪这台设备，不需要 Hub、不需要
+agent、也不需要 `.env`。
 
-如果需要多设备同步，把所有设备（以及没有安装应用的无头代理）连接到同一个 Docker Compose Hub。在每台设备上打开应用，在 管理 → 中枢连接 中选择 **连接中枢**；只有没有安装应用的机器才需要运行 `npm run agent`。无 GUI 安装请参阅[Headless Agent 指南](docs/headless-agent.md)，并下载 `Jiran-Headless-<version>.tar.gz`。
+## 多台机器：部署一个 Hub
 
-Hub 凭据已分权：viewer 令牌只读，设备令牌可读取并仅上报绑定的 Device ID，admin 令牌才能执行变更。远程连接默认必须使用 HTTPS；桌面端/agent 需显式开启可信 LAN HTTP，Android 发行版始终要求 HTTPS。
-
-升级旧配置时，如果 Hub 是非本机的 `http://` 地址，不会静默降低安全性：本机采集会继续运行，但 Hub 读取／上报／实时流会保持 blocked，直到改用 HTTPS 或用户明确开启可信 LAN 选项。同步设置会分别显示这些通道，并在设置变更后于同一进程中恢复。
-
-#### 方案 A——仅限本机（默认）
-
-单设备使用应用的本机模式。它直接读取这台机器的本地数据，不需要 Hub 或 agent。
-
-#### 方案 B——连接 Docker Compose Hub
-
-在一台长期开机的机器上部署根目录的 `docker-compose.yml`：
+Hub 是单用户组件——跑在你自己控制的机器上，需要共享用量的设备都指向它。根目录的
+`docker-compose.yml` 是**唯一**受支持的部署方式：没有内嵌 Hub，没有独立的 Hub 命令，也没有第二套
+边缘部署。
 
 ```bash
 cp .env.example .env
-# 在 .env 只需配置 JIRAN_SECRET 和 MySQL 密码
+# 填好 JIRAN_SECRET 与 MySQL 口令，然后：
 docker compose up -d
+curl http://127.0.0.1:17321/api/health
 ```
 
-在每个应用中，前往 管理 → 中枢连接，选择 **连接中枢**，然后输入 Hub URL 和同一个 Hub 密钥。没有安装应用的机器使用相同的 URL 和密钥运行 `npm run agent`。这个密钥同时覆盖读取、上报和管理员操作。
+网页仪表板由 Hub 自己在同一端口提供（`http://<server>:17321`），可以安装为 PWA。镜像是
+`ghcr.io/igngserver/jiran-hub`，生产环境请用 `JIRAN_VERSION` 固定版本。完整说明：
+[docs/hub-compose.md](docs/hub-compose.md)。
 
-根目录 Docker Compose 堆栈是唯一支持的 Hub 部署方式，提供 HTTP API、仪表盘、PWA、设备上报和 SSE 实时流。
+然后在每台机器上：
 
-## App 数据
+- **桌面应用** → 管理 → 中枢连接 → **连接中枢**，填入地址与同一个 Hub 密钥。采集仍在本地进行，
+  只把本机的汇总上报。
+- **Headless agent** → 配置同样的地址与密钥，运行 `npm run agent`（或由 cron / launchd 跑
+  `npm run agent:once`），见 [headless agent 指南](docs/headless-agent.md)。没有图形界面的机器用它；
+  当 WSL 里的工具把用量存在 SQLite 时也用它——Windows 侧的扫描读不到那种库
+  （见 [docs/wsl-sqlite-setup.zh-CN.md](docs/wsl-sqlite-setup.zh-CN.md)）。
+- **Android** → 填入 Hub 地址与同一个密钥。正式版只接受 HTTPS。
 
-App 状态保存在系统的用户数据目录——卸载时一并删除该目录即可完整移除。
+`JIRAN_SECRET` 是唯一的所有者密钥：读取、上报与管理（包括额度账号）都用它。设备标识的是**数据
+来源**，不是用户。远程连接要求 HTTPS；只有你显式开启可信局域网选项后，桌面端/agent 才允许明文
+HTTP。旧配置若指向非回环地址的 `http://` Hub，升级时不会被悄悄降级：本机采集照常，Hub 的读取、
+上报与推送通道保持阻断，直到你做出选择。
 
-| 平台 | 路径 |
-|------|------|
-| macOS | `~/Library/Application Support/计然/` |
-| Windows | `%APPDATA%/计然/` |
-| Linux | `~/.config/计然/` |
+## 数据是怎么流动的
 
-## 从源码构建
+```text
+一台设备                                      Hub
+────────                                      ────
+AI 工具在本机写          tokscale              POST /api/ingest     MySQL
+transcript / 会话  ──▶  采集器  ──────────────────────────▶  归一化 + 聚合
+数据库 / 缓存           （src/shared）                             │
+      ▲   监听文件变化                                              │ SSE /api/stats/stream
+      └── 每几秒一帧 ──────────────────────────────────────────────┴▶ 桌面 · 浏览器 · Android
+```
 
-如需自己从源码打包安装包，请在**对应的**操作系统上使用 Node.js 22.13+（electron-builder 无法在 Windows 上交叉构建 macOS 的 `.dmg`，反之亦然）。
+- `src/shared/collector.js` 是唯一调用 `tokscale` 的地方；输出统一经过一个防御式解析器，因此上游
+  格式变化会明显退化，而不是安静地报出 0。
+- 本机采集由文件监听驱动（变化后 1.5 秒去抖），每 5 分钟做一次完整的周期扫描。周期扫描刻意串行
+  ——它们吃 CPU 与 IO，并发三跑只会拖慢你正在写代码的机器。
+- Windows 上会把**正在运行**的 WSL 发行版里的文件型用量一并扫出，并在全量扫描时并入这台机器的
+  总量；不会为了扫描去启动一个已停止的发行版，且整个能力以注册表为开关——没装 WSL 的机器连
+  `wsl.exe` 都不会被调用。
+- 用量与额度是两条各有归属的链路。采集在设备上跑；额度探测在 Hub 上跑——Hub 为每个账号保留最近
+  一次成功的结果，按退避策略重试，再把一份归一化快照推给所有客户端。在 Hub 上配置账号不会影响任何
+  设备的采集，设备也不会上传服务商凭据。
+- 读取是分阶段且压缩的，因为总有一台客户端是走移动网络的手机：`/api/stats/summary` 是同一份聚合
+  的首屏投影，SSE 也可以 `detail=slim` 起流。投影绝不是第二次测量——头条数字必须与 `/api/stats`
+  完全一致。
+- 同步上传的会话信息只是每个会话的用量条目（Token、成本、模型、可选的工作区标签），绝对路径留在
+  采集的那台机器上。逐条 prompt 的展开只在真正持有该会话的机器上现场读本地文件；prompt 正文、
+  回复与源码不出本机。
+
+## 隐私
+
+本机优先是架构事实，不是口号：prompt、回复、源码与文件内容都留在本机，任何数据都不会发给项目
+维护者——没有遥测、没有埋点、没有托管后端。网络请求只发生在有文档说明或由你开启的功能上：检查
+更新、拉取汇率、你部署的 Hub，以及你配置的额度账号对应的服务商接口。额度账号配置在 Hub 上，也由
+Hub 去探测——桌面应用保存的唯一原始凭据就是那个 Hub 密钥。细节见 [docs/privacy.md](docs/privacy.md)。
+
+## 配置
+
+- **桌面应用** — 偏好存在操作系统的 user-data 目录里（`settings.json`，以及权限受限的
+  `credentials.json`——GUI 管理的唯一原始凭据 Hub 密钥就存在这里）。管理页的「显示」组管语言、
+  窗口表面与动效；「行为」组管登录自启、隐藏启动、关闭进托盘与更新；「中枢连接」组决定这台设备
+  是本机模式还是连到 Hub。至于
+  「采集什么」并不在配置范围内：跟踪集合、节奏、历史与会话归档由 `src/shared/collectorConfig.js`
+  固定。
+- **agent 与 Hub** — 项目根目录的 `.env`（从 `.env.example` 复制），优先级为 CLI 参数 → 环境变量
+  → 内置默认值。`JIRAN_*` 是当前文档化的前缀，历史 `TOKEN_MONITOR_*` 名称继续有效，两者同时存在时
+  以旧名为准。
+
+所有设置与环境变量：[docs/configuration.md](docs/configuration.md)。设备与 Hub 之间的 HTTP 契约：
+[docs/API.md](docs/API.md)。界面本身提供英文、简体中文、繁体中文、日语、韩语五种语言；文档面只有
+本文件与英文版两份，工具矩阵为英文。
+
+## 实测平台
+
+开发与验证集中在 Windows 11（主力）、Docker Compose Hub，以及 Ubuntu 上 headless agent 的上报
+链路。**清单之外的平台与环境未经完整验证，可能遇到意料之外的问题。** macOS 的发行打包尤其需要
+真实的 Developer ID 签名身份才能完成。
+
+## 开发
 
 ```bash
 npm install
-npm run dist:mac     # macOS arm64 .dmg → dist/
-npm run dist:mac:x64 # macOS Intel x64 .dmg → dist/
-npm run dist:win     # Windows x64 安装包 .exe → dist/
-npm run dist:linux   # Linux x64 AppImage → dist/
-npm run pack         # 未打包的 app 目录（无安装包），方便本机快速测试
+npm start                  # 桌面应用
+npm run agent:once         # 跑一轮采集 + 上报后退出
+npm run verify             # 守卫 + lint + 测试，CI 跑的就是它
+npm test                   # node:test 测试集
+npm run test:mysql         # 需要 MySQL 的 Hub 测试
+npm run verify:deb         # Debian 包校验
 ```
 
-产物会放在 `dist/`。Windows 和 Linux 请在对应系统上使用上面的 `dist:*` 脚本。如果要打包 macOS 发布版，需要本机有 Developer ID Application 签名身份；本地开发或未列出的平台请用 `npm start` 运行。
+工具链需要 Node.js 22.13+。Android 是独立的 Gradle 工程：
+`cd android && ./gradlew :app:testDebugUnitTest` / `:app:assembleDebug`。
 
-## 工作原理
+[AGENTS.md](AGENTS.md) 是架构与约定的权威文档——它写给编码 Agent，同时充当贡献指南。界面契约在
+[docs/design/](docs/design/)。
 
-```text
-模式 A——本地（默认，免配置）
-    桌面应用 (Electron) ──▶ tokscale ──▶ ~/.claude、~/.codex、$HERMES_HOME
+## 从 Token Monitor 改名
 
-模式 B——同步（可选，多设备）
-    设备 A agent ──▶
-    设备 B agent ──▶  hub  ──▶  任一设备上的桌面应用或浏览器
-    设备 C agent ──▶
-```
+v0.47.0-rev.37 把产品改名为 计然 / Jiran。这是改名，不是重来：
 
-桌面应用会根据 管理 → 中枢连接 决定走本地还是同步模式。Docker Compose Hub 接收每台设备的标准化摘要，并通过 Server-Sent Events 将聚合统计推送给已连接的客户端，因此一台设备上的更新会在数秒内出现在其他设备上。
-
-## 会话数据保留期计然一律在本地不设期限地归档已观测到的每日工具／模型用量——即使来源工具日后清掉 session，热力图与趋势也不受影响。
-
-<details>
-<summary><strong>进阶：延长来源工具本身的保留期</strong></summary>
-
-<br>
-
-热力图与同步数据采用 370 天的滚动窗口（更早的观测数据仍保留在本地供日后查看）。**Claude Code 默认只保留 30 天的 transcript**（`cleanupPeriodDays`）；若想在归档启用前就保住完整的滚动年份，请在时限过去之前于 `~/.claude/settings.json` 调高：
-
-```json
-{
-  "cleanupPeriodDays": 370
-}
-```
-
-设更大能留更多，代价是 transcript 会按你设定的期限一直留在磁盘上。其他工具的默认值与配置文件路径，请见 tokscale 的 [Session Data Retention](https://github.com/junhoyeo/tokscale#session-data-retention) 表。
-
-这份归档只涵盖计然已观测过的日期；在它开始追踪之前就被删除的数据无法找回。
-
-</details>
-
-## 设置
-
-设置分两处，日常使用只需要前者：
-
-- **桌面应用（GUI）**——从侧边栏或应用菜单打开设置。涵盖语言、窗口材质与动效、开机启动与托盘行为、更新，以及中枢连接；采集频率等设备本地键仍在 `.env` / `settings.json` 中配置，全部受支持工具始终会被采集。额度账号、订阅与定价由中枢管理（见「账号」与「管理」视图）。
-- **无头代理与 hub**——没有 UI，用项目根目录的 `.env` 配置（从 `.env.example` 复制）；优先级为 CLI 参数 → 环境变量 → 内置默认。
-
-每一项设置与所有环境变量的完整说明，请见[设置参考文档](docs/configuration.md)。
-
-## 开发者测试平台与兼容性说明
-
-本项目由开发者在以下环境中进行开发与测试，**未经测试的平台或环境可能存在未知问题**，遇到问题欢迎提交 Issue 或 PR：
-
-- **Docker Compose 中枢（Hub）**：测试通过，用于多设备用量汇聚与数据同步。
-- **Windows 11**：日常开发与主要测试平台。
-  - 重点测试开发工具：**Codex**、**OpenCode**。
-  - 简单测试开发工具：**Antigravity**、**Claude Desktop**。
-- **Ubuntu**：仅测试了 Headless Agent 的**数据上报**流程，尚未完整测试各开发软件在该平台下能否正常操作与完整采集。
-
-## 隐私计然在本地处理使用日志，不会向项目维护者发送分析或遥测数据。网络访问仅用于文档所述或由用户启用的功能；更新、提供方集成与可选多设备同步所使用的数据，请参阅[隐私政策](docs/privacy.md)。
-
-## 参与贡献
-
-欢迎提交 Issue 和 PR。项目规范、架构说明和命令参考都在 [AGENTS.md](AGENTS.md) 中——它是为编码代理编写的，但同样可以作为贡献者指南。
+- 桌面应用首次启动会把旧的 `Token Monitor` user-data 目录复制到 `Jiran`，共享运行态（设备标识、
+  `agent.pid`、每日与会话归档、tokscale 缓存）也一并向前合并。目标文件永不被覆盖，旧目录也永不
+  删除：仍在运行的改名前 desktop/agent 会继续往旧目录写，PID 检查会同时读两处。
+- `TOKEN_MONITOR_*` 环境变量与 `X-Token-Monitor-Secret` 请求头继续可用，与新的 `JIRAN_*` /
+  `X-Jiran-Secret` 并行。
+- 过渡期内，发布同时向 `ghcr.io/igngserver/jiran-hub` 与 `ghcr.io/igngserver/token-monitor-hub`
+  推送完全相同的标签。
+- APT 同时发布 `jiran` 与依赖它的 `token-monitor` 过渡包，已装机器 `apt upgrade` 就会被带到新包名。
+  **但仍需一次手工操作**：GitHub Pages 的 URL 不随仓库改名重定向，指向
+  `…/token-monitor-suite/apt` 的源文件现在会 404，请重跑上面那条 `curl … | sudo tee`。
+- 有意保留不动的是身份类标识：Electron `appId`（`com.igng.tokenmonitor`）、Android
+  `applicationId`、MySQL 默认库名与用户名、签名项目的 slug。
 
 ## 致谢
 
-- [tokscale](https://github.com/junhoyeo/tokscale) 提供日志解析与 Token 计算。
-- [CodexBar](https://github.com/steipete/CodexBar) 提供 AI 工具额度的研究参考。
-- [计然](https://github.com/Javis603/token-monitor) by [@Javis](https://github.com/Javis603) 提供原项目桌面端原型与灵感。
-- **[代码签名政策](docs/code-signing.md)：** 免费代码签名由 [SignPath.io](https://signpath.io/) 提供，证书由 [SignPath Foundation](https://signpath.org/) 提供。
+- [tokscale](https://github.com/junhoyeo/tokscale) —— 本项目依赖的日志解析与 Token 计量。
+- [CodexBar](https://github.com/steipete/CodexBar) —— 早期关于读取 AI 订阅额度的研究。
+- [token-monitor](https://github.com/Javis603/token-monitor)（[@Javis](https://github.com/Javis603)）
+  —— 本项目由此派生，感谢其桌面端架构。
+- 免费的代码签名由 [SignPath.io](https://signpath.io/) 提供，证书来自
+  [SignPath Foundation](https://signpath.org/)，见 [docs/code-signing.md](docs/code-signing.md)。
 
 ## 许可证
 
-[MIT](LICENSE) © [IGNGserver](https://github.com/IGNGserver) & [@Javis](https://github.com/Javis603)
+[MIT](LICENSE) © [IGNGserver](https://github.com/IGNGserver) 与 [@Javis](https://github.com/Javis603)
