@@ -104,7 +104,9 @@ test('no settings key survives without a writer', () => {
     'language', 'windowSurface', 'reduceMotion', 'startAtLogin', 'startHidden',
     'closeToTray', 'hubMode', 'hubUrl', 'allowInsecureHubHttp', 'deviceId',
     'systemGlass', 'windowsBackdrop', 'secret',
-    // shared-UI preferences persisted through the prefs bridge.
+    // shared-UI preferences persisted through the prefs bridge. On the desktop
+    // host there is no 偏好 section, so 显示 carries the theme and currency
+    // controls and these keys keep a writer on both surfaces.
     'theme', 'currency', 'heatmapMetric', 'homeActiveDaysWindow', 'homeLimitAccountCount',
     // the tray item and the in-app zoom gesture.
     'collectionPaused', 'zoomFactor',

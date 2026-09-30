@@ -214,11 +214,13 @@ Details: [docs/privacy.md](docs/privacy.md).
 
 - **Desktop app** — preferences live in the OS user-data directory (`settings.json`, plus a
   permission-restricted `credentials.json` that holds the one raw credential the GUI manages:
-  the Hub key). Management's
-  **Display** group covers language, window surface and motion; **Behaviour** covers launch at
-  login, start hidden, closing to the tray and updates; **Hub connection** switches the device
-  between local-only and a Hub. What gets *collected* is not configurable: the tracked set,
-  cadence, history and session archive are fixed by `src/shared/collectorConfig.js`.
+  the Hub key). Management's **Display** group covers language, theme, currency, window surface
+  and motion; **Behaviour** covers launch at login, start hidden, closing to the tray and
+  updates; **Hub connection** switches the device between local-only and a Hub. The Hub
+  dashboard's Management page adds the **Accounts**, **Consumption** and **Preferences** sections
+  on top: quota accounts, subscriptions and pricing are Hub surfaces, so the desktop app has no
+  section for them. What gets *collected* is not configurable: the tracked set, cadence, history
+  and session archive are fixed by `src/shared/collectorConfig.js`.
 - **Agent and Hub** — a `.env` file at the project root (copy `.env.example`), with precedence
   CLI flag → environment variable → built-in default. `JIRAN_*` is the documented prefix; the
   historical `TOKEN_MONITOR_*` names keep working, and one of those still wins when both are set.

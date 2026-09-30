@@ -11,11 +11,17 @@
 // through env vars and settings.json — they remain part of the settings
 // document and its normalizers, they just have no GUI anymore.
 //
+// 显示 also carries the appearance choices the Hub keeps in its 偏好 section
+// (language, theme, currency): the desktop page has no 偏好 section, and these
+// are `settings.json` keys this machine's window, locale and cost formatters
+// read, so dropping the controls would leave those keys without any writer.
+//
 // Every key written here is an existing settings.json key. Renaming one would
 // silently drop a user's configuration on upgrade, so the field `name`
 // attributes are the compatibility surface.
 
 import { tr, escapeHtml, appState, settingsOptionList } from '../core/viewContext.js';
+import { CURRENCY_OPTIONS, LANGUAGE_OPTIONS, THEME_OPTIONS } from '../core/data.js';
 
 // One dropdown for the whole window-material decision. The settings document
 // stores it as the two legacy keys (systemGlass boolean + windowsBackdrop
@@ -99,9 +105,12 @@ export function renderDesktopSettings(settings = {}, info = {}) {
   const surfaceOptions = SURFACE_OPTIONS
     .filter(([value]) => isWindows || (value !== 'acrylic' && value !== 'mica'));
   const displayRows = [];
-  displayRows.push(dropdownField('language', 'settings.language',
-    [['auto', 'Auto'], ['en', 'English'], ['zh-CN', '简体中文'], ['zh-TW', '繁體中文'], ['ja', '日本語'], ['ko', '한국어']],
+  displayRows.push(dropdownField('language', 'settings.language', LANGUAGE_OPTIONS,
     settings.language || 'auto', { id: 'desktopLanguageInput' }));
+  displayRows.push(dropdownField('theme', 'settings.theme', THEME_OPTIONS,
+    settings.theme || 'system'));
+  displayRows.push(dropdownField('currency', 'settings.currency', CURRENCY_OPTIONS,
+    settings.currency || 'USD'));
   displayRows.push(dropdownField('windowSurface', 'desktop.settings.windowSurface',
     optionLabels(surfaceOptions), surfaceValueFromSettings(settings, info), { id: 'windowSurfaceInput' }));
   displayRows.push(dropdownField('reduceMotion', 'desktop.settings.reduceMotion',
@@ -200,6 +209,12 @@ export function readDesktopSettingsPatch(form) {
   if (language) patch.language = String(language.value || 'auto');
   const reduceMotion = form.querySelector('[name="reduceMotion"]');
   if (reduceMotion) patch.reduceMotion = String(reduceMotion.value || 'system');
+  // The two appearance keys the Hub keeps in 偏好; the main process normalizes
+  // both, so an out-of-range value cannot be persisted from here.
+  const theme = form.querySelector('[name="theme"]');
+  if (theme) patch.theme = String(theme.value || 'system');
+  const currency = form.querySelector('[name="currency"]');
+  if (currency) patch.currency = String(currency.value || 'USD');
   const hubMode = form.querySelector('fluent-radio-group[name="hubMode"]');
   if (hubMode) patch.hubMode = String(hubMode.value || '');
 

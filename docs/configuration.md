@@ -25,24 +25,26 @@ so a persisted or `JIRAN_CLIENTS`-style subset is ignored and removed.
 ## Desktop app (GUI)
 
 Open **Settings** from the sidebar or the app menu. The desktop app and the Hub
-web dashboard share one interface, so the shared preferences below are also
-available in a browser; the device-local groups only appear in the desktop app.
+web dashboard share one interface, but the Management page is not the same page
+on both: the Hub holds the credential and the shared ledger, so 账号 / 消费 / 偏好
+(and 高级 for the owner) are Hub-web sections, and the desktop page carries only
+the three device groups.
 
-Shared preferences (both hosts):
-
-| Group | What it controls |
-|---|---|
-| Preferences | Interface language, theme, and display currency (USD, TWD, HKD, or CNY; daily auto rate or a manual override). The browser host additionally sets the home-screen limit-account count and holds the Hub key. |
-| Accounts / Management | Hub-owned quota accounts (including OAuth sign-in), subscriptions, and model pricing. |
-
-Device-local groups (desktop app only):
+Device groups (desktop app):
 
 | Group | What it controls |
 |---|---|
-| Display | Interface language, native window surface (Windows acrylic/mica included), and motion. |
+| Display | Interface language, theme, display currency (USD, TWD, HKD, or CNY; daily auto rate or a manual override), native window surface (Windows acrylic/mica included), and motion. |
 | Behaviour | Start at login (with the Linux AppImage caveat), start hidden when launched at sign-in, keep running in the tray when the window is closed, automatic update downloads, and check-for-updates / install-now actions. |
 | Connection | **Local only** (no Hub) or **Connect to a hub** (Docker Compose Hub URL, the single Hub key, the trusted-LAN HTTP opt-in, and the device ID). |
-| Device data transfer | Move this device's ledger, sessions, periods, and history onto another device on the same Hub. |
+
+Hub web dashboard only:
+
+| Section | What it controls |
+|---|---|
+| Preferences | Interface language, theme, and display currency for that browser and Hub connection, the home-screen limit-account count, and the Hub key. |
+| Accounts / Consumption | Hub-owned quota accounts (including OAuth sign-in), subscriptions, and model pricing. |
+| Advanced | Device data transfer: move one device's ledger, sessions, periods, and history onto another device on the same Hub. Owner-only. |
 
 The settings document carries only keys something can still change: the form
 controls above, the browser preferences the shared UI persists, the tray's
@@ -53,8 +55,8 @@ Keys whose surface has gone are stripped on both read and write (one
 
 ### Central Hub accounts and quotas
 
-Quota accounts are a Hub-owned resource. Add an account from the app's
-**Accounts** view (or the Hub dashboard) while connected to the Docker Compose
+Quota accounts are a Hub-owned resource. Add an account from the Hub dashboard's
+**Accounts** section while connected to the Docker Compose
 Hub, or call the Hub's `/api/accounts` admin API. The request contains a provider, display name, and
 the credential supplied by the user. The Hub encrypts the credential at rest,
 refreshes the provider on its own schedule, and publishes only normalized quota

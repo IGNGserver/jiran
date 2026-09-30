@@ -15,6 +15,7 @@ import {
   statusRows
 } from '../core/data.js';
 import { tr, escapeHtml, appState, toolIconHtml, viewHelper } from '../core/viewContext.js';
+import { canRenderManagementSection } from './settings.js';
 
 const emptyHtml = (key) => viewHelper('emptyHtml')(key);
 const panel = (...args) => viewHelper('panel')(...args);
@@ -190,7 +191,11 @@ export function renderLimitCards(cards, { compact = false, hideProvider = false 
           <div class="limit-card-windows">${renderLimitCardWindows(card)}</div>
           ${(() => {
             const hint = formatLimitHint(card);
-            const canOpenAccounts = appState().authorization?.capabilities?.hubAccounts !== false && appState().authorization?.authenticated === true;
+            // The jump targets the Management page's 账号 section, so it exists only
+            // where that section renders: the Hub, for its owner.
+            const canOpenAccounts = canRenderManagementSection('accounts')
+              && appState().authorization?.authenticated === true
+              && appState().authorization?.capabilities?.hubAccounts !== false;
             const action = canOpenAccounts && card.status !== 'ok'
               ? `<fluent-button appearance="transparent" type="button" class="limit-account-action" data-jump-view="settings" data-jump-section="accounts">${tr('management.section.accounts')}</fluent-button>`
               : '';

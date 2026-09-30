@@ -36,7 +36,7 @@ import { renderHome } from './views/home.js';
 import { renderUsage, renderTokenMix } from './views/usage.js';
 import { renderDevices } from './views/devices.js';
 import { readDesktopSettingsPatch } from './views/settingsDesktop.js';
-import { renderSettingsPage } from './views/settings.js';
+import { managementSections, normalizeManagementSection, renderSettingsPage } from './views/settings.js';
 import { submitTransfer } from './views/transfer.js';
 import { usageMetricCard } from './views/rows.js';
 import {
@@ -105,7 +105,9 @@ function renderStaticUiIcons() {
 
 // The Administration group has one destination: `settings`, labelled 管理. The
 // provider accounts and the subscriptions/pricing pages are sections inside it
-// rather than separate views, so they are no longer in this list.
+// rather than separate views, so they are no longer in this list. Which sections
+// the page shows is the page's own decision per host (`managementSections()` in
+// views/settings.js); the desktop host renders none of the Hub sections.
 const VIEWS = [
   { id: 'overview', icon: 'home' },
   { id: 'usage', icon: 'usage' },
@@ -197,7 +199,7 @@ function routeFromLocation() {
     managementTab: ['subscriptions', 'pricing'].includes(params.get('tab'))
       ? params.get('tab')
       : target.managementTab,
-    managementSection: ['accounts', 'consumption', 'preferences', 'advanced'].includes(params.get('section'))
+    managementSection: managementSections().includes(params.get('section'))
       ? params.get('section')
       : target.managementSection,
     limitTab: params.get('tab') === 'health' || target.limitTab ? 'health' : 'limits'
@@ -225,8 +227,9 @@ function syncUrlForView(viewId, { replace = false, tab = '' } = {}) {
       params.set('tab', nextTab);
     }
     // The consolidated page keeps its section in the URL so a bookmark or a
-    // hand-off lands on 账号 / 消费 / 偏好 / 高级 rather than the first section.
-    if (viewId === 'settings' && ['accounts', 'consumption', 'preferences', 'advanced'].includes(state?.prefs?.managementSection)) {
+    // hand-off lands on 账号 / 消费 / 偏好 / 高级 rather than the first section. The
+    // desktop host has no routed sections, so it writes no `section` param.
+    if (viewId === 'settings' && managementSections().includes(state?.prefs?.managementSection)) {
       params.set('section', state.prefs.managementSection);
     }
     const query = params.toString();
@@ -321,7 +324,7 @@ const state = {
     view: initialRoute.view || viewFromLocation() || 'overview',
     usageTab: initialRoute.usageTab || 'tools',
     managementTab: initialRoute.managementTab || 'subscriptions',
-    managementSection: initialRoute.managementSection || 'accounts',
+    managementSection: normalizeManagementSection(initialRoute.managementSection),
     limitTab: initialRoute.limitTab || 'limits'
   },
   secret: '',
@@ -630,6 +633,33 @@ function applyLocale() {
   document.title = tr('brand.name');
   renderChrome();
   render();
+}
+
+/**
+ * On the desktop host the settings document *is* the prefs store (the preload
+ * bridges PREFS_KEYS onto it), so a settings write has to land back in
+ * `state.prefs` — otherwise the theme, locale and currency keep rendering the
+ * pre-change values until the next restart. `savePrefs` does this on the Hub;
+ * here the main process is the one that just answered.
+ */
+function adoptDesktopPrefs(settings) {
+  if (!settings) return;
+  const before = {
+    language: state.prefs.language || 'auto',
+    currency: state.prefs.currency || 'USD'
+  };
+  let changed = false;
+  for (const key of ['language', 'theme', 'currency']) {
+    if (settings[key] === undefined || state.prefs[key] === settings[key]) continue;
+    state.prefs[key] = settings[key];
+    changed = true;
+  }
+  if (!changed) return;
+  applyTheme();
+  // Labels and formatted costs are baked into the rendered content, so a locale
+  // or currency change repaints it; a theme change is pure CSS.
+  if (before.language !== (state.prefs.language || 'auto')
+    || before.currency !== (state.prefs.currency || 'USD')) applyLocale();
 }
 
 function showAuth(show) {
@@ -1919,7 +1949,11 @@ function render({ quiet = false } = {}) {
         html = renderTrends();
         break;
       case 'settings':
-        html = renderSettingsPage({ consumption: renderConsumptionSection() });
+        // The 消费 body only ever mounts into the web section; building it for the
+        // desktop host would walk ledger state no section renders.
+        html = renderSettingsPage({
+          consumption: desktopHost ? '' : renderConsumptionSection()
+        });
         break;
       default:
         html = renderHome();
@@ -2469,11 +2503,14 @@ async function bootstrapAuthorized() {
   // useful enhancements and must not keep a healthy snapshot behind a spinner.
   connectStream();
   render();
+  // The desktop client renders neither 账号 nor 消费: those are Hub surfaces, so
+  // proxying ledger and credential reads it never displays is pure traffic.
+  const hubManagement = managementSections().length > 0;
   void Promise.allSettled([
     ensureHistory(),
-    capabilities.subscriptions === false ? null : loadSubscriptions(),
-    capabilities.pricing === false ? null : loadPricing(),
-    capabilities.hubAccounts === false ? null : loadAccounts()
+    hubManagement && capabilities.subscriptions !== false ? loadSubscriptions() : null,
+    hubManagement && capabilities.pricing !== false ? loadPricing() : null,
+    hubManagement && capabilities.hubAccounts !== false ? loadAccounts() : null
   ]).then(() => {
     if (state.stats) render({ quiet: true });
   });
@@ -2914,9 +2951,7 @@ function switchView(viewId, { updateHistory = true, replace = false, tab = '', s
   const nextLimitTab = tab || legacy?.limitTab || state.prefs.limitTab;
   const usageTab = ['tools', 'models', 'projects', 'sessions'].includes(nextUsageTab) ? nextUsageTab : 'tools';
   const managementTab = ['subscriptions', 'pricing'].includes(nextManagementTab) ? nextManagementTab : 'subscriptions';
-  const managementSection = ['accounts', 'consumption', 'preferences', 'advanced'].includes(nextManagementSection)
-    ? nextManagementSection
-    : 'accounts';
+  const managementSection = normalizeManagementSection(nextManagementSection);
   const limitTab = nextLimitTab === 'health' ? 'health' : 'limits';
   state.accountDrawerOpen = false;
   state.subscriptionDrawerOpen = false;
@@ -3400,7 +3435,7 @@ function bindEvents() {
   // the URL in step, so a refresh or a bookmark returns to the same section.
   els.content.addEventListener('settings-section-change', (event) => {
     const section = String(event.detail?.section || '');
-    if (!['accounts', 'consumption', 'preferences', 'advanced'].includes(section)) return;
+    if (!managementSections().includes(section)) return;
     state.prefs.managementSection = section;
     savePrefs({ managementSection: section });
     syncUrlForView('settings', { replace: true, tab: state.prefs.managementTab });
@@ -3760,6 +3795,7 @@ async function saveDesktopSettings(patch) {
     const next = await desktop.updateSettings(patch);
     if (next) state.desktopSettings = next;
     syncFluentMotion(state.desktopSettings?.reduceMotion || 'system');
+    adoptDesktopPrefs(next);
     return true;
   } catch (error) {
     showToast(error?.message || tr('error.generic'));

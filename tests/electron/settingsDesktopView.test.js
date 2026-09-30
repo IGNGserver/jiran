@@ -32,6 +32,11 @@ function loadView(state = {}) {
       const appState = () => (${JSON.stringify({
     desktopAppUpdate: null, ...state
   })});
+    `)
+    .replace(/^import \{[\s\S]*?\} from '\.\.\/core\/data\.js';/m, `
+      const LANGUAGE_OPTIONS = [['auto', 'Auto'], ['en', 'English'], ['zh-CN', '简体中文'], ['zh-TW', '繁體中文'], ['ja', '日本語'], ['ko', '한국어']];
+      const THEME_OPTIONS = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
+      const CURRENCY_OPTIONS = [['USD', 'USD'], ['CNY', 'CNY'], ['TWD', 'TWD'], ['HKD', 'HKD']];
     `);
   const factory = new Function(`${source.replace(/^export /gm, '')}
     return { renderDesktopSettings, readDesktopSettingsPatch, surfaceValueFromSettings, settingsPatchForSurface };`);
@@ -56,7 +61,7 @@ test('every retained settings key has a form control', () => {
   }, { platform: 'win32', loginItemSupported: true });
 
   const required = [
-    'language', 'windowSurface', 'reduceMotion',
+    'language', 'theme', 'currency', 'windowSurface', 'reduceMotion',
     'startAtLogin', 'startHidden', 'closeToTray',
     'hubMode', 'hubUrl', 'allowInsecureHubHttp', 'deviceId'
   ];
@@ -128,6 +133,8 @@ test('reading the form back produces the right value types', () => {
       if (selector === '[name="windowSurface"]') return { value: 'regular' };
       if (selector === '[name="language"]') return { value: 'zh-CN' };
       if (selector === '[name="reduceMotion"]') return { value: 'on' };
+      if (selector === '[name="theme"]') return { value: 'dark' };
+      if (selector === '[name="currency"]') return { value: 'CNY' };
       if (selector === 'fluent-radio-group[name="hubMode"]') return { value: 'client' };
       const m = /^\[name="([^"]+)"\]$/.exec(selector);
       if (m) return nodes.find((n) => n.name === m[1]) || null;
@@ -144,6 +151,8 @@ test('reading the form back produces the right value types', () => {
   assert.equal(patch.hubMode, 'client');
   assert.equal(patch.language, 'zh-CN');
   assert.equal(patch.reduceMotion, 'on');
+  assert.equal(patch.theme, 'dark', 'the appearance keys the Hub keeps in 偏好 persist here');
+  assert.equal(patch.currency, 'CNY');
   assert.equal(patch.systemGlass, false, 'the surface control unfolds to the legacy pair');
   assert.equal(patch.windowsBackdrop, undefined, 'regular carries no material');
 });

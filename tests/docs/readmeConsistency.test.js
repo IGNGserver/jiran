@@ -113,7 +113,10 @@ test('configuration reference env keys all exist in .env.example', () => {
 
 test('configuration reference sends provider accounts to the Hub', () => {
   const configuration = read('docs/configuration.md');
-  assert.match(configuration, /Accounts\s*\/\s*Management/, 'the accounts row should exist');
+  // Quota credentials are Hub accounts; the doc must say so, must present them
+  // under the Hub-web-only heading (the desktop page has no such section), and
+  // must not present a device-local credentials section.
+  assert.match(configuration, /Hub web dashboard only[\s\S]*\|\s*Accounts \/ Consumption\s*\|/, 'the accounts row should exist as a Hub-web section');
   assert.match(configuration, /Hub-owned quota accounts[^.]*OAuth/, 'accounts and their sign-in are Hub-owned');
   assert.match(configuration, /does not discover local developer-tool accounts/, 'the device must not claim to hold credentials');
   assert.doesNotMatch(configuration, /\*\*Window\*\* \|[^|]*tray mode/, 'the removed widget window settings must not be documented');

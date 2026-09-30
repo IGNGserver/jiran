@@ -366,6 +366,31 @@ export function clampHomeLimitAccountCount(value, fallback = 3) {
   return Math.max(1, Math.min(12, Math.floor(n)));
 }
 
+// Appearance choices, as `[value, label]` pairs for `settingsOptionList()`.
+// The Hub renders them in its 偏好 section and the desktop in 显示, so one copy
+// is what keeps the two dropdowns offering the same set — a currency or locale
+// present on one surface and missing on the other reads as a broken setting.
+// The labels are the option's own names, deliberately untranslated.
+export const LANGUAGE_OPTIONS = Object.freeze([
+  ['auto', 'Auto'],
+  ['en', 'English'],
+  ['zh-CN', '简体中文'],
+  ['zh-TW', '繁體中文'],
+  ['ja', '日本語'],
+  ['ko', '한국어']
+]);
+export const THEME_OPTIONS = Object.freeze([
+  ['system', 'System'],
+  ['light', 'Light'],
+  ['dark', 'Dark']
+]);
+export const CURRENCY_OPTIONS = Object.freeze([
+  ['USD', 'USD'],
+  ['CNY', 'CNY'],
+  ['TWD', 'TWD'],
+  ['HKD', 'HKD']
+]);
+
 export function personalWorkspaceLabel(locale = 'en') {
   const lang = String(locale || 'en').toLowerCase();
   if (lang.startsWith('zh')) return lang.includes('tw') || lang.includes('hk') ? '個人' : '个人';

@@ -37,7 +37,12 @@ function loadView({ desktop = false, authenticated = true, capabilities = { hubA
       const settingsOptionList = () => '<listbox></listbox>';
       const appState = () => (${JSON.stringify(state)});
     `)
-    .replace(/^import \{ clampHomeLimitAccountCount \} from '\.\.\/core\/data\.js';/m, 'const clampHomeLimitAccountCount = (v, f) => v || f;')
+    .replace(/^import \{[\s\S]*?\} from '\.\.\/core\/data\.js';/m, `
+      const clampHomeLimitAccountCount = (v, f) => v || f;
+      const LANGUAGE_OPTIONS = [['auto', 'Auto']];
+      const THEME_OPTIONS = [['system', 'System']];
+      const CURRENCY_OPTIONS = [['USD', 'USD']];
+    `)
     .replace(/^import \{ renderDesktopSettings \} from '\.\/settingsDesktop\.js';/m, "const renderDesktopSettings = () => '<desktop-settings></desktop-settings>';")
     .replace(/^import \{ renderTransferPanel \} from '\.\/transfer\.js';/m, "const renderTransferPanel = () => '<transfer-panel></transfer-panel>';")
     .replace(/^import \{ renderAccounts \} from '\.\/accounts\.js';/m, "const renderAccounts = () => '<accounts-body></accounts-body>';");
@@ -78,14 +83,23 @@ test('a Hub without subscriptions or pricing hides the consumption section', () 
   assert.deepEqual(sectionIds(html), ['accounts', 'preferences']);
 });
 
-test('the desktop host renders its device groups and no transfer section', () => {
-  // Device transfer is a Hub-web admin operation; the desktop client has no code
-  // path to it, so `advanced` must not appear however the scopes look.
+test('the desktop host renders its device groups and no Hub section', () => {
+  // 账号 / 消费 / 偏好 are Hub surfaces: credentials and the shared ledger live on
+  // the Hub, so the desktop page is only the device groups. Device transfer is a
+  // Hub-web admin operation too, so `advanced` must not appear however the
+  // scopes look.
   const { renderSettingsPage } = loadView({ desktop: true });
   const html = renderSettingsPage({ consumption: '<consumption-body></consumption-body>' });
-  assert.deepEqual(sectionIds(html), ['accounts', 'consumption', 'preferences']);
+  assert.deepEqual(sectionIds(html), []);
   assert.match(html, /<desktop-settings><\/desktop-settings>/);
+  assert.doesNotMatch(html, /<accounts-body>/);
+  assert.doesNotMatch(html, /<consumption-body>/);
+  assert.doesNotMatch(html, /data-web-settings-form/);
   assert.doesNotMatch(html, /<transfer-panel>/);
+  // The chrome header owns the visible description, but the page's own intro
+  // must not promise accounts and consumption on a host that renders neither.
+  assert.match(html, /<p>settings\.desktopDescription<\/p>/);
+  assert.doesNotMatch(html, /page\.settings\.description/);
 });
 
 test('the stored section marks exactly one section active', () => {
@@ -97,4 +111,22 @@ test('the stored section marks exactly one section active', () => {
     .filter(([, , marker]) => marker)
     .map(([, id]) => id);
   assert.deepEqual(active, ['consumption']);
+});
+
+test('both hosts read the appearance options from one table', () => {
+  // The Hub offers language / theme / currency in 偏好 and the desktop in 显示.
+  // Two inline lists is how one surface gains a locale the other does not have,
+  // so both views must import the shared table.
+  const views = ['settings.js', 'settingsDesktop.js'];
+  for (const file of views) {
+    const source = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'shared-ui', 'views', file), 'utf8');
+    for (const table of ['LANGUAGE_OPTIONS', 'THEME_OPTIONS', 'CURRENCY_OPTIONS']) {
+      assert.match(source, new RegExp(`\\b${table}\\b`), `${file} must use the shared ${table}`);
+    }
+    assert.doesNotMatch(source, /简体中文/, `${file} must not inline a locale list`);
+  }
+  const data = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'shared-ui', 'core', 'data.js'), 'utf8');
+  for (const table of ['LANGUAGE_OPTIONS', 'THEME_OPTIONS', 'CURRENCY_OPTIONS']) {
+    assert.match(data, new RegExp(`export const ${table} = Object\\.freeze\\(`), `${table} must be exported once`);
+  }
 });

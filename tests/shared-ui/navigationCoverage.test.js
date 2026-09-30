@@ -10,6 +10,7 @@ const { MESSAGE_KEYS, SUPPORTED_LOCALES } = require('../../src/shared-ui/core/i1
 const REPO_ROOT = path.join(__dirname, '..', '..');
 const APP_SOURCE = fs.readFileSync(path.join(REPO_ROOT, 'src/shared-ui/app.js'), 'utf8');
 const SETTINGS_SOURCE = fs.readFileSync(path.join(REPO_ROOT, 'src/shared-ui/views/settings.js'), 'utf8');
+const LIMITS_SOURCE = fs.readFileSync(path.join(REPO_ROOT, 'src/shared-ui/views/limits.js'), 'utf8');
 const TRANSFER_SOURCE = fs.readFileSync(path.join(REPO_ROOT, 'src/shared-ui/views/transfer.js'), 'utf8');
 const DESKTOP_ROUTER_SOURCE = fs.readFileSync(path.join(REPO_ROOT, 'src/electron/desktopRequestRouter.js'), 'utf8');
 
@@ -73,6 +74,29 @@ test('the transfer panel is not a standalone page with desktop settings scaffold
   assert.doesNotMatch(TRANSFER_SOURCE, /export function renderTransfer\(\)/);
   assert.doesNotMatch(TRANSFER_SOURCE, /class="[^"]*desktop-settings-body/);
   assert.doesNotMatch(TRANSFER_SOURCE, /class="[^"]*settings-layout/);
+});
+
+test('the desktop host renders no Hub management sections and fetches no Hub ledger', () => {
+  // 账号 / 消费 / 偏好 are Hub surfaces. Deleting them from the desktop page is
+  // only half the change: the router must stop naming sections the desktop never
+  // renders, the boot prefetch must stop proxying accounts and ledger reads
+  // nothing displays, and the 额度 cards must stop offering a jump to a section
+  // that is not there. One list in the page module keeps all three honest.
+  assert.match(SETTINGS_SOURCE, /const WEB_MANAGEMENT_SECTIONS = Object\.freeze\(\['accounts', 'consumption', 'preferences', 'advanced'\]\)/);
+  assert.match(SETTINGS_SOURCE, /const DESKTOP_MANAGEMENT_SECTIONS = Object\.freeze\(\[\]\)/);
+  for (const helper of ['managementSections', 'canRenderManagementSection', 'normalizeManagementSection']) {
+    assert.match(SETTINGS_SOURCE, new RegExp(`export function ${helper}\\(`), `settings.js must export ${helper}`);
+  }
+  assert.match(APP_SOURCE, /import \{ managementSections, normalizeManagementSection, renderSettingsPage \} from '\.\/views\/settings\.js';/,
+    'the router must ask the page which sections exist, not keep its own list');
+  assert.equal((APP_SOURCE.match(/\['accounts',\s*'consumption',\s*'preferences',\s*'advanced'\]/g) || []).length, 0,
+    'app.js must not keep its own copy of the section list');
+  for (const loader of ['loadSubscriptions()', 'loadPricing()', 'loadAccounts()']) {
+    assert.match(APP_SOURCE, new RegExp(`hubManagement && capabilities\\.[A-Za-z]+ !== false \\? ${loader.replace(/[()]/g, '\\$&')} : null`),
+      `the desktop boot must not prefetch ${loader}`);
+  }
+  assert.match(LIMITS_SOURCE, /canRenderManagementSection\('accounts'\)/,
+    'the 账号 jump on a failing limit card must ask whether this host renders that section');
 });
 
 test('both transfer device pickers are Fluent dropdowns backed by a listbox', () => {
