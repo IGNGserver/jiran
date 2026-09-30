@@ -110,11 +110,12 @@ const {
   macosLiquidGlassSupported
 } = require('./macosGlassNative');
 const { configureLinuxDisplayBackend } = require('./linuxDisplay');
+const { migrateLegacyUserData } = require('./userDataMigration');
 
 if (!app.isPackaged) loadDotEnv();
 configureLinuxDisplayBackend({ app, platform: process.platform, env: process.env, argv: process.argv });
 
-const APP_NAME = 'Token Monitor';
+const APP_NAME = 'Jiran';
 const WIN_ICON_PATH = path.join(__dirname, '..', '..', 'build', 'icons', 'icon.ico');
 const PNG_ICON_PATH = path.join(__dirname, '..', '..', 'assets', 'icon.png');
 const APP_ICON_PATH = process.platform === 'win32' && fs.existsSync(WIN_ICON_PATH)
@@ -179,6 +180,9 @@ let initialWindowCreated = false;
 
 app.setName(APP_NAME);
 if (process.platform === 'win32') app.setAppUserModelId('com.igng.tokenmonitor');
+// 计然 / Jiran rename: Electron derives userData from app.getName(), so the profile must be
+// carried over from the legacy `Token Monitor` folder before anything reads it.
+migrateLegacyUserData({ appDataDir: app.getPath('appData'), appName: APP_NAME });
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) app.exit(0);
@@ -563,7 +567,7 @@ function reportCredentialStorageError(context, error) {
   try {
     dialog.showErrorBox(
       'Credential storage error',
-      `Token Monitor could not safely access credentials.json (${context}). The save was stopped and previous data was restored where possible. Check the file's JSON and permissions, then restart the app.\n\n${detail}`
+      `Jiran could not safely access credentials.json (${context}). The save was stopped and previous data was restored where possible. Check the file's JSON and permissions, then restart the app.\n\n${detail}`
     );
   } catch (_) {}
 }
@@ -3286,11 +3290,11 @@ function appDiagnosticsInfo() {
 // The tooltip is the only always-visible tray surface, so it carries the two facts
 // that matter without a window: that collection is paused, and what today cost.
 function trayTooltipText() {
-  if (settings?.collectionPaused === true) return `Token Monitor · ${nativeShellText('trayMenu.paused')}`;
+  if (settings?.collectionPaused === true) return `Jiran · ${nativeShellText('trayMenu.paused')}`;
   const tokens = Number((localDevice || lastCollectedDevice)?.today?.totalTokens || 0);
   return tokens > 0
-    ? `Token Monitor · ${nativeShellText('trayMenu.tooltipToday', { tokens: formatCompactTokens(tokens) })}`
-    : 'Token Monitor';
+    ? `Jiran · ${nativeShellText('trayMenu.tooltipToday', { tokens: formatCompactTokens(tokens) })}`
+    : 'Jiran';
 }
 
 // One function so the tray, the settings switch and any later menu entry all take

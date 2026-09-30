@@ -90,7 +90,7 @@ test('translate interpolates params and falls back to the key', () => {
   // The key fallback is what made the original bug invisible: the menu bar showed
   // `menu.file` rather than throwing, so nothing looked broken in the renderer.
   assert.equal(translate('en', 'menu.repository'), 'GitHub Repository');
-  assert.equal(translate('zh-CN', 'trayMenu.quit'), '退出 Token Monitor');
+  assert.equal(translate('zh-CN', 'trayMenu.quit'), '退出计然');
   assert.equal(translate('ja', 'settings.appearance.glassEffectTransparent'), '透明');
   const interpolated = translate('zh-TW', 'limits.accountsCount', { count: 2 });
   assert.ok(interpolated.includes('2') && !interpolated.includes('{count'), interpolated);

@@ -2070,7 +2070,7 @@ if (require.main === module) {
   });
   hub.start()
     .then(() => {
-      console.log(`Token Monitor hub listening on ${hub.protocol}://${hub.bindHost}:${port}`);
+      console.log(`Jiran hub listening on ${hub.protocol}://${hub.bindHost}:${port}`);
 
       // A non-loopback bind with no credential is silently rewritten to loopback,
       // which inside a container makes the published port dead while the container

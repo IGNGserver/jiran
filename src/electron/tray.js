@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 
-const DEFAULT_TOOLTIP = 'Token Monitor';
+const DEFAULT_TOOLTIP = 'Jiran';
 
 function trayIcon({ iconPath, templateIconPath, platform, nativeImage }) {
   const sourcePath = platform === 'darwin' && templateIconPath

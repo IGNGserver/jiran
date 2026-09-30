@@ -82,14 +82,14 @@ test('hub serves the web UI on the same port without a secret', async () => {
     assert.equal(home.headers.get('referrer-policy'), 'no-referrer');
     assert.match(home.headers.get('permissions-policy') || '', /camera=\(\)/);
     const html = await home.text();
-    assert.match(html, /Token Monitor/);
+    assert.match(html, /Jiran/);
     assert.match(html, /manifest\.webmanifest/);
 
     const manifest = await fetch(`${base}/manifest.webmanifest`);
     assert.equal(manifest.status, 200);
     assert.match(manifest.headers.get('content-type') || '', /manifest|json/);
     const body = await manifest.json();
-    assert.equal(body.name, 'Token Monitor');
+    assert.equal(body.name, 'Jiran');
     assert.equal(body.display, 'standalone');
 
     const sw = await fetch(`${base}/sw.js`);
@@ -165,7 +165,7 @@ test('hub web UI stays reachable when a secret protects the API', async () => {
 
     const home = await fetch(`${base}/`);
     assert.equal(home.status, 200);
-    assert.match(await home.text(), /authGate|Connect to hub|Token Monitor/);
+    assert.match(await home.text(), /authGate|Connect to hub|Jiran/);
 
     const denied = await fetch(`${base}/api/stats`);
     assert.equal(denied.status, 401);

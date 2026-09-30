@@ -63,11 +63,11 @@ test('the tray carries the window, the pause switch, view jumps and quit', () =>
     onOpenView: (view) => calls.push(`view:${view}`),
     isCollectionPaused: () => paused,
     onToggleCollectionPaused: () => { paused = true; handle.refreshMenu(); },
-    tooltip: () => (paused ? 'Token Monitor · paused' : 'Token Monitor · today'),
+    tooltip: () => (paused ? 'Jiran · paused' : 'Jiran · today'),
     translate: (key) => labels[key] || key
   });
 
-  assert.equal(handle.tray.tooltip, 'Token Monitor · today');
+  assert.equal(handle.tray.tooltip, 'Jiran · today');
   assert.equal(handle.tray.image.sourcePath, '/tmp/token-monitor.png');
   assert.deepEqual(handle.tray.menu.map((item) => item.label || item.type), [
     'Show window', 'Pause collection', 'separator', 'Open view', 'Settings', 'separator', 'Quit'
@@ -89,7 +89,7 @@ test('the tray carries the window, the pause switch, view jumps and quit', () =>
   handle.tray.menu[1].click();
   assert.equal(handle.tray.menu[1].checked, true);
   assert.equal(handle.tray.menu[1].label, 'Resume collection');
-  assert.equal(handle.tray.tooltip, 'Token Monitor · paused');
+  assert.equal(handle.tray.tooltip, 'Jiran · paused');
 });
 
 test('macOS uses the template tray icon', () => {

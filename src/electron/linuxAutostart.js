@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const DESKTOP_FILE_NAME = 'token-monitor.desktop';
+const DESKTOP_FILE_NAME = 'jiran.desktop';
 // Written by builds that could start hidden in the tray. Nothing starts hidden
 // now, but `isAutostartEnabled` still recognises the marker so an existing
 // autostart entry is not silently reported as off after an update.
@@ -46,7 +46,7 @@ function desktopFileContents(executablePath, { hidden = false } = {}) {
   return [
     '[Desktop Entry]',
     'Type=Application',
-    'Name=Token Monitor',
+    'Name=Jiran',
     // The argument belongs to the Exec line outside the quoted path, which is how
     // the Desktop Entry spec separates the program from its arguments.
     `Exec=${exec}${hidden ? ` ${HIDDEN_LAUNCH_ARG}` : ''}`,

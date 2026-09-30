@@ -741,7 +741,7 @@ function pwaStatusText() {
 
 function refreshPwaUi() {
   if (els.aboutLine) {
-    const base = `Token Monitor hub web · ${state.health?.now ? new Date(state.health.now).toLocaleString(state.locale) : 'ready'}`;
+    const base = `${tr('brand.name')} hub web · ${state.health?.now ? new Date(state.health.now).toLocaleString(state.locale) : 'ready'}`;
     els.aboutLine.textContent = `${base} · ${pwaStatusText()}`;
   }
   if (!els.pwaBanner) return;
@@ -1894,7 +1894,7 @@ function render({ quiet = false } = {}) {
     return;
   }
   if (state.error && !state.stats && !desktopHost) {
-    writeContentHtml(`<section class="error-card"><div class="error-kicker">Token Monitor</div><h2>${escapeHtml(tr('error.title'))}</h2><p>${escapeHtml(state.error.message || tr('error.generic'))}</p><fluent-button appearance="primary" type="button" class="primary-btn" data-retry-dashboard>${tr('actions.retry')}</fluent-button></section>`, renderState);
+    writeContentHtml(`<section class="error-card"><div class="error-kicker">${escapeHtml(tr('brand.name'))}</div><h2>${escapeHtml(tr('error.title'))}</h2><p>${escapeHtml(state.error.message || tr('error.generic'))}</p><fluent-button appearance="primary" type="button" class="primary-btn" data-retry-dashboard>${tr('actions.retry')}</fluent-button></section>`, renderState);
     return;
   }
   let html;
@@ -1930,7 +1930,7 @@ function render({ quiet = false } = {}) {
     // A throwing quiet render must not take the quiet path on later frames:
     // the error card is the only signal the user gets, so it has to paint.
     quietFailed = true;
-    writeContentHtml(`<section class="error-card" role="alert"><div class="error-kicker">Token Monitor</div><h2>${escapeHtml(tr('error.title'))}</h2><p>${escapeHtml(tr('error.generic'))}</p><fluent-button appearance="primary" type="button" class="primary-btn" data-retry-dashboard>${tr('actions.retry')}</fluent-button></section>`, renderState);
+    writeContentHtml(`<section class="error-card" role="alert"><div class="error-kicker">${escapeHtml(tr('brand.name'))}</div><h2>${escapeHtml(tr('error.title'))}</h2><p>${escapeHtml(tr('error.generic'))}</p><fluent-button appearance="primary" type="button" class="primary-btn" data-retry-dashboard>${tr('actions.retry')}</fluent-button></section>`, renderState);
     return;
   }
   // The skip-write check below makes per-frame work bounded: a tick that changes
