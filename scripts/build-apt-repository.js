@@ -202,7 +202,13 @@ function buildAptRepository({
   fs.mkdirSync(binaryRoot, { recursive: true });
 
   for (const packagePath of packages) fs.copyFileSync(packagePath, path.join(packagePoolPath, path.basename(packagePath)));
-  const transitionalPath = publishTransitionalPackage({ packages, poolPath: transitionalPoolPath });
+  // The stub only makes sense once the renamed package itself is published:
+  // regenerating Pages from a pre-rename release (old token-monitor .deb) would
+  // otherwise emit a token-monitor stub whose `jiran` dependency is unsatisfiable.
+  const publishesJiran = packages.some((debPath) => readDebField(debPath, 'Package') === 'jiran');
+  const transitionalPath = publishesJiran
+    ? publishTransitionalPackage({ packages, poolPath: transitionalPoolPath })
+    : null;
   const packagesText = runDpkgScanpackages(repositoryRoot, poolRootRelativePath);
   const packagesPath = path.join(binaryRoot, 'Packages');
   writeFile(packagesPath, packagesText);
