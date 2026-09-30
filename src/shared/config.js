@@ -14,6 +14,22 @@ function sharedDataDir(options = {}) {
   if (env.TOKEN_MONITOR_SHARED_DIR) return env.TOKEN_MONITOR_SHARED_DIR;
   const platform = options.platform || process.platform;
   const homeDir = options.homeDir || os.homedir();
+  // Directory identity is the ASCII brand, matching app.setName()/userData.
+  const productName = 'Jiran';
+  if (platform === 'darwin') return path.join(homeDir, 'Library', 'Application Support', productName);
+  if (platform === 'win32') return path.join(env.APPDATA || path.join(homeDir, 'AppData', 'Roaming'), productName);
+  return path.join(env.XDG_CONFIG_HOME || path.join(homeDir, '.config'), productName);
+}
+
+// The pre-rename shared directory. It is only ever a migration/fallback source:
+// a still-running pre-rename desktop or agent keeps writing there, so nothing
+// may delete or rename it — sharedDataMigration merges it forward instead, and
+// pidFileCandidates() still reads the old agent.pid until that process exits.
+function legacySharedDataDir(options = {}) {
+  const env = options.env || process.env;
+  if (env.TOKEN_MONITOR_SHARED_DIR) return env.TOKEN_MONITOR_SHARED_DIR;
+  const platform = options.platform || process.platform;
+  const homeDir = options.homeDir || os.homedir();
   const productName = 'Token Monitor';
   if (platform === 'darwin') return path.join(homeDir, 'Library', 'Application Support', productName);
   if (platform === 'win32') return path.join(env.APPDATA || path.join(homeDir, 'AppData', 'Roaming'), productName);
@@ -125,8 +141,19 @@ function normalizeHubUrl(value) {
   return `http://${raw}`;
 }
 
-function pidFilePath() {
-  return path.join(sharedDataDir(), 'agent.pid');
+function pidFilePath(options = {}) {
+  return path.join(sharedDataDir(options), 'agent.pid');
+}
+
+// Backoff reads must consider the legacy directory too: a pre-rename agent
+// still publishes its pid only there, and missing it would let the desktop
+// post in parallel. (The damage is bounded — same device id, hub ingest
+// overwrites — but the duplicate scan costs a full tokscale run each tick.)
+function pidFileCandidates(options = {}) {
+  const candidates = [pidFilePath(options)];
+  const legacy = path.join(legacySharedDataDir(options), 'agent.pid');
+  if (legacy !== candidates[0]) candidates.push(legacy);
+  return candidates;
 }
 
 // Heuristics adapted from CrossPaste's AbstractNetworkInterfaceService — Node's
@@ -200,9 +227,11 @@ module.exports = {
   defaultDeviceId,
   generateHubSecret,
   lanIpv4Addresses,
+  legacySharedDataDir,
   loadDotEnv,
   parseBoolean,
   parseArgs,
+  pidFileCandidates,
   pidFilePath,
   projectRoot,
   readJson,

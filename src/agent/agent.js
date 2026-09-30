@@ -11,6 +11,7 @@ const {
   pidFilePath
 } = require('../shared/config');
 const { appVersion } = require('../shared/appVersion');
+const { migrateLegacySharedData } = require('../shared/sharedDataMigration');
 const { usageConfigFromSource } = require('../shared/collectorConfig');
 const {
   readDeviceIdentity,
@@ -24,6 +25,10 @@ const { requireSafeHubTransport } = require('../shared/hubTransport');
 const { runAgent, runAgentOnce } = require('./runtime');
 
 loadDotEnv();
+// Merge the pre-rename `<appData>/Token Monitor` shared directory forward before
+// the device identity is read — keeping the id stable is what stops the hub from
+// seeing this machine as a second device after the 计然 / Jiran rename.
+migrateLegacySharedData();
 const args = parseArgs(process.argv.slice(2));
 const allowInsecureHubHttp = parseBoolean(
   args.allowInsecureHttp ?? args['allow-insecure-http'] ?? process.env.TOKEN_MONITOR_ALLOW_INSECURE_HTTP,

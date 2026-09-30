@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { pidFilePath, sharedDataDir, applyEnvAliases } = require('../../src/shared/config');
+const { pidFilePath, pidFileCandidates, sharedDataDir, legacySharedDataDir, applyEnvAliases } = require('../../src/shared/config');
 
 test('sharedDataDir uses TOKEN_MONITOR_SHARED_DIR override', () => {
   const previous = process.env.TOKEN_MONITOR_SHARED_DIR;
@@ -23,16 +23,42 @@ test('sharedDataDir follows Electron userData-compatible platform paths', () => 
   const home = path.join(path.sep, 'Users', 'javis');
   assert.equal(
     sharedDataDir({ platform: 'darwin', homeDir: home, env: {} }),
-    path.join(home, 'Library', 'Application Support', 'Token Monitor')
+    path.join(home, 'Library', 'Application Support', 'Jiran')
   );
   assert.equal(
     sharedDataDir({ platform: 'win32', homeDir: home, env: { APPDATA: 'C:\\Users\\javis\\AppData\\Roaming' } }),
-    path.join('C:\\Users\\javis\\AppData\\Roaming', 'Token Monitor')
+    path.join('C:\\Users\\javis\\AppData\\Roaming', 'Jiran')
   );
   assert.equal(
     sharedDataDir({ platform: 'linux', homeDir: home, env: { XDG_CONFIG_HOME: '/tmp/config' } }),
+    path.join('/tmp/config', 'Jiran')
+  );
+});
+
+test('legacySharedDataDir keeps pointing at the pre-rename folder', () => {
+  const home = path.join(path.sep, 'Users', 'javis');
+  assert.equal(
+    legacySharedDataDir({ platform: 'linux', homeDir: home, env: { XDG_CONFIG_HOME: '/tmp/config' } }),
     path.join('/tmp/config', 'Token Monitor')
   );
+});
+
+test('an explicit shared dir override collapses the legacy path and pid candidates', () => {
+  const env = { TOKEN_MONITOR_SHARED_DIR: path.join(os.tmpdir(), 'explicit-shared') };
+  assert.equal(sharedDataDir({ env }), env.TOKEN_MONITOR_SHARED_DIR);
+  assert.equal(legacySharedDataDir({ env }), env.TOKEN_MONITOR_SHARED_DIR);
+});
+
+test('pidFileCandidates covers the legacy directory as a fallback read', () => {
+  const home = path.join(path.sep, 'home', 'u');
+  const options = { platform: 'linux', homeDir: home, env: { XDG_CONFIG_HOME: '/tmp/cfg' } };
+  assert.deepEqual(pidFileCandidates(options), [
+    path.join('/tmp/cfg', 'Jiran', 'agent.pid'),
+    path.join('/tmp/cfg', 'Token Monitor', 'agent.pid')
+  ]);
+  // an explicit shared-dir override is both paths: no second candidate
+  const override = { platform: 'linux', homeDir: home, env: { TOKEN_MONITOR_SHARED_DIR: '/tmp/explicit' } };
+  assert.deepEqual(pidFileCandidates(override), [path.join('/tmp/explicit', 'agent.pid')]);
 });
 
 test('applyEnvAliases folds JIRAN_* into the legacy TOKEN_MONITOR_* slots', () => {
