@@ -61,8 +61,9 @@ shared views.
 
 Inside the app there are six destinations: **Overview** (today at a glance), **Usage** (the
 period tabs and every breakdown), **Devices**, **Limits**, **Trends** (heatmap, streaks,
-stacked per-tool / per-model history), and **Management** — one page holding provider accounts,
-the subscription and pricing ledger, and the dashboard preferences.
+stacked per-tool / per-model history), and **Management**, the configuration page: this device's
+groups on the desktop, and on the Hub's web dashboard also the quota accounts, the subscription
+and pricing ledger, and the browser preferences.
 
 ## Honest about what is measured
 
