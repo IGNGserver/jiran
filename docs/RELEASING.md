@@ -1,14 +1,14 @@
 # 发布说明
 
-`.github/workflows/release.yml` 使用 `v<版本号>` tag 构建并创建 GitHub Release。项目版本格式为标准 SemVer：
+`.github/workflows/release.yml` 使用 `v<版本号>` tag 构建并创建 GitHub Release。版本真源为仓库根目录的 `VERSION` 文件，项目版本格式遵循语义化版本：
 
 ```text
-<major>.<minor>.<patch>[-rev.<正整数>]
+<major>.<minor>.<patch>
 ```
 
-`-rev.N` 是可选的本地维护修订号，用于在不改变 SemVer 主体的情况下发布增量修复。版本字符串必须通过 `npm run verify:release-version` 校验。
+（历史/过渡版本的 `-rev.N` 格式由解析器向下兼容支持）。版本字符串必须通过 `npm run verify:release-version` 校验（强制与 `VERSION`、`package.json`、`package-lock.json` 同步并严格递增）。
 
-发布类型和版本字符串是两个独立概念：是否带 `-rev.N` 由本次发布的性质决定，GitHub Release 是否标记为 prerelease 由发布流程决定。普通的“发布 release”按 prerelease 处理；只有明确要求“发布正式版 release”时，才选择正式版。正式版还会更新 Docker 镜像的 `latest` 标签，版本化标签则始终发布。
+发布类型和版本字符串是两个独立概念：GitHub Release 是否标记为 prerelease 由发布流程决定。普通的“发布 release”按 prerelease 处理；只有明确要求“发布正式版 release”时，才选择正式版。正式版还会更新 Docker 镜像的 `latest` 标签，版本化标签则始终发布。
 
 ## 首次配置 Android 签名
 
@@ -27,7 +27,7 @@ Android 正式包必须使用长期保存的签名密钥。不要把 keystore �
 
 1. 新建 `.github/release-notes/<版本号>.md`（文件名是无 `v` 前缀的项目版本号，例如 `0.47.0-rev.36.md`），把本次更新写进文件里的 `<!-- app-update-notes:zh:start -->` 与 `<!-- app-update-notes:zh:end -->` 之间。一个版本一个文件：模板 `.github/RELEASE_TEMPLATE.md` 只留 `{{release_notes}}` 占位符，发布时渲染脚本按 tag 的版本读取对应文件，旧版本的说明不会再累积进新 Release。发布正文只有中文；快捷下载列表、版本号与 Hub 镜像段都由 `scripts/generate-release-notes.js` 注入，不要手写 `releases/download/` 链接。结构约定见 `.github/RELEASE_NOTES_FORMAT.md`。
 
-2. 在根项目和锁文件中同步版本号，例如 `0.47.0`，然后运行：
+2. 在根目录 `VERSION`、`package.json` 和锁文件中同步版本号，例如 `1.0.0`，然后运行：
 
    ```bash
    npm run verify:release-version
@@ -37,18 +37,18 @@ Android 正式包必须使用长期保存的签名密钥。不要把 keystore �
 4. 创建并推送同名版本 tag，例如：
 
    ```bash
-   git tag v0.47.0
-   git push origin v0.47.0
+   git tag v1.0.0
+   git push origin v1.0.0
    ```
 
    推送 tag 会自动创建 prerelease。
 5. 如果要创建正式版，进入 GitHub Actions 手动运行 `Release`，填写同一个版本号，并将 `release_type` 选择为 `release`。只有这个明确操作会创建正式版 Release。
 6. GitHub Actions 会构建 Windows 安装包、Linux AppImage、Debian `.deb` 包、Android release APK 和 Hub 镜像。Release 资产文件名中的 `<version>` 会保留完整版本号，例如：
 
-   - `Jiran-Setup-0.47.0.exe`
-   - `Jiran-0.47.0.AppImage`
-   - `Jiran-0.47.0.deb`
-   - `Jiran-Android-0.47.0.apk`
+   - `Jiran-Setup-1.0.0.exe`
+   - `Jiran-1.0.0.AppImage`
+   - `Jiran-1.0.0.deb`
+   - `Jiran-Android-1.0.0.apk`
 
 Android 的 `versionName` 与桌面版本一致；`versionCode` 由同一版本字符串推导（`major*10000 + minor*100 + patch`，再乘以 10000 加上 `rev.N`，无修订号时该位为 0），因此带或不带 `-rev.N` 的发布都能保持单调递增。
 
@@ -116,7 +116,7 @@ apt-cache policy jiran
 本地验证 compose 包（不推镜像）：
 
 ```bash
-node scripts/package-hub-compose.js 0.47.0
+node scripts/package-hub-compose.js 1.0.0
 ```
 
 本地从源码构建（不经过 GHCR）：

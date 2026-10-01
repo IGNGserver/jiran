@@ -61,4 +61,8 @@ test('project versions compare semver components and revisions correctly', () =>
 test('release version verification checks the synchronized package metadata', () => {
   assert.equal(verifyReleaseVersion(`v${packageJson.version}`), packageJson.version);
   assert.throws(() => verifyReleaseVersion('1.0.0.1'), /Invalid project release version/);
+  assert.throws(
+    () => verifyReleaseVersion('0.47.0-rev.30'),
+    /does not match expected/
+  );
 });

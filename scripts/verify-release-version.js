@@ -2,9 +2,11 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseProjectVersion } = require('../src/shared/versioning');
+const { execFileSync } = require('node:child_process');
+const { parseProjectVersion, compareProjectVersions } = require('../src/shared/versioning');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
+const VERSION_FILE_PATH = path.join(PROJECT_ROOT, 'VERSION');
 const VERSION_FILES = [
   ['package.json', ['version']],
   ['package-lock.json', ['version']],
@@ -25,6 +27,18 @@ function normalizeVersion(value) {
   return parseProjectVersion(raw)?.version || null;
 }
 
+function readRootVersion() {
+  if (fs.existsSync(VERSION_FILE_PATH)) {
+    const raw = fs.readFileSync(VERSION_FILE_PATH, 'utf8').trim();
+    const normalized = normalizeVersion(raw);
+    if (!normalized) {
+      throw new Error(`VERSION contains an invalid project version: ${raw}`);
+    }
+    return normalized;
+  }
+  return normalizeVersion(readJson('package.json').version);
+}
+
 function versionFromArgs(argv) {
   const index = argv.indexOf('--version');
   if (index >= 0) return argv[index + 1] || '';
@@ -32,10 +46,51 @@ function versionFromArgs(argv) {
   return inline ? inline.slice('--version='.length) : '';
 }
 
-function verifyReleaseVersion(expectedValue = '') {
-  const expected = normalizeVersion(expectedValue || readJson('package.json').version);
+function verifyAgainstLatestGitTag(expectedVersion) {
+  try {
+    const stdout = execFileSync('git', ['tag', '--list', 'v*'], {
+      cwd: PROJECT_ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    });
+    const tags = stdout
+      .split(/\r?\n/)
+      .map((t) => t.trim().replace(/^v/i, ''))
+      .filter((v) => parseProjectVersion(v) && v !== expectedVersion);
+
+    if (tags.length > 0) {
+      tags.sort((a, b) => compareProjectVersions(b, a));
+      const latestTag = tags[0];
+      const comparison = compareProjectVersions(expectedVersion, latestTag);
+      if (comparison <= 0) {
+        throw new Error(
+          `Project version must be greater than latest tag v${latestTag}; got ${expectedVersion}`
+        );
+      }
+    }
+  } catch (error) {
+    if (error?.code !== 'ENOENT' && !String(error?.message ?? '').includes('must be greater than latest tag')) {
+      // Ignore git failures if git is missing or repo has no tags
+    } else if (String(error?.message ?? '').includes('must be greater than latest tag')) {
+      throw error;
+    }
+  }
+}
+
+function verifyReleaseVersion(expectedValue = '', options = {}) {
+  const rootVersion = readRootVersion();
+  const expected = normalizeVersion(expectedValue || rootVersion);
   if (!expected) {
-    throw new Error(`Invalid project release version: ${String(expectedValue || readJson('package.json').version)}`);
+    throw new Error(`Invalid project release version: ${String(expectedValue || rootVersion)}`);
+  }
+
+  if (fs.existsSync(VERSION_FILE_PATH)) {
+    const raw = fs.readFileSync(VERSION_FILE_PATH, 'utf8').trim();
+    const actual = normalizeVersion(raw);
+    if (!actual) throw new Error(`VERSION contains an invalid project version: ${raw}`);
+    if (actual !== expected) {
+      throw new Error(`VERSION ${actual} does not match expected ${expected}`);
+    }
   }
 
   for (const [relativePath, valuePath] of VERSION_FILES) {
@@ -46,6 +101,11 @@ function verifyReleaseVersion(expectedValue = '') {
       throw new Error(`${relativePath} version ${actual} does not match expected ${expected}`);
     }
   }
+
+  if (options.checkGitTag ?? true) {
+    verifyAgainstLatestGitTag(expected);
+  }
+
   return expected;
 }
 
