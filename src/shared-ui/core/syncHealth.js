@@ -37,6 +37,58 @@ export const RECOVERY_CHANNEL_LABEL_KEYS = Object.freeze({
   stream: 'settings.sync.healthStream'
 });
 
+// Stable failure codes come from the main process and must be translated before
+// they reach the UI. Keeping the fallback generic avoids exposing transport
+// internals, URLs, or server response text in a settings panel.
+export const SYNC_HEALTH_FAILURE_KEYS = Object.freeze({
+  hub_not_configured: 'settings.sync.failure.hubNotConfigured',
+  hub_secret_not_configured: 'settings.sync.failure.secretMissing',
+  hub_transport_unavailable: 'settings.sync.failure.transportUnavailable',
+  insecure_hub_transport: 'settings.sync.failure.insecureTransport',
+  unauthorized: 'settings.sync.failure.unauthorized',
+  forbidden: 'settings.sync.failure.forbidden',
+  request_timeout: 'settings.sync.failure.timeout',
+  refused: 'settings.sync.failure.refused',
+  dns: 'settings.sync.failure.dns',
+  unreachable: 'settings.sync.failure.unreachable',
+  hub_server_error: 'settings.sync.failure.server',
+  hub_read_failed: 'settings.sync.failure.readFailed',
+  hub_invalid_response: 'settings.sync.failure.invalidResponse',
+  disconnected: 'settings.sync.failure.disconnected',
+  idle_timeout: 'settings.sync.failure.idleTimeout',
+  stream_offline: 'settings.sync.failure.streamOffline',
+  mode_reconcile_failed: 'settings.sync.failure.mode',
+  upload_failed: 'settings.sync.failure.upload',
+  sync_failed: 'settings.sync.failure.generic',
+  aborted: 'settings.sync.failure.aborted'
+});
+
+const FAILURE_CHANNELS = Object.freeze(['rest', 'upload', 'stream', 'local']);
+
+/** Translate a stable failure code without exposing raw Error.message text. */
+export function syncHealthFailureLabel(code, t) {
+  const normalized = String(code || '').trim().toLowerCase();
+  const key = SYNC_HEALTH_FAILURE_KEYS[normalized] || SYNC_HEALTH_FAILURE_KEYS.sync_failed;
+  return typeof t === 'function' ? t(key) : key;
+}
+
+/** Return the most useful persistent failure for the desktop connection panel. */
+export function primarySyncHealthFailure(health) {
+  if (!health || typeof health !== 'object') return null;
+  for (const channel of FAILURE_CHANNELS) {
+    const value = health[channel];
+    const code = String(value?.failureCode || '').trim().toLowerCase();
+    if (!code || code === 'aborted') continue;
+    return {
+      channel,
+      code,
+      status: Number.isInteger(Number(value?.status)) ? Number(value.status) : null,
+      state: String(value?.state || '').trim()
+    };
+  }
+  return null;
+}
+
 /** States the main process is allowed to publish, for tests and validation. */
 export const KNOWN_SYNC_HEALTH_STATES = Object.freeze(Object.keys(SYNC_HEALTH_STATE_KEYS));
 

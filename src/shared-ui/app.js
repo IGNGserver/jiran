@@ -30,7 +30,11 @@ import {
   resolveScopePeriod
 } from './core/dateRanges.js';
 import { configureViewContext, VIEW_HELPER_NAMES } from './core/viewContext.js';
-import { syncHealthStateLabel } from './core/syncHealth.js';
+import {
+  primarySyncHealthFailure,
+  syncHealthFailureLabel,
+  syncHealthStateLabel
+} from './core/syncHealth.js';
 import { renderLimits } from './views/limits.js';
 import { renderHome } from './views/home.js';
 import { renderUsage, renderTokenMix } from './views/usage.js';
@@ -416,6 +420,7 @@ const state = {
   desktopInfo: null,
   desktopAppUpdate: null,
   desktopSyncHealth: null,
+  desktopConnectionError: null,
   desktopSnapshotMeta: null
 };
 
@@ -512,7 +517,9 @@ function formatDuration(milliseconds) {
 }
 
 function renderDesktopSyncStatus() {
-  if (!els.desktopSyncStatus || !isCapable('desktopSettings')) return;
+  if (!isCapable('desktopSettings')) return;
+  renderDesktopConnectionError();
+  if (!els.desktopSyncStatus) return;
   els.desktopSyncStatus.classList.remove('hidden');
   const health = state.desktopSyncHealth || {};
   const channels = [
@@ -528,7 +535,9 @@ function renderDesktopSyncStatus() {
     row.dataset.state = stateValue;
     const stateNode = row.querySelector('[data-sync-state]');
     if (stateNode) stateNode.textContent = syncHealthStateLabel(stateValue, tr);
-    const failure = value?.failureCode ? ` · ${value.failureCode}` : '';
+    const failure = value?.failureCode
+      ? ` · ${syncHealthFailureLabel(value.failureCode, tr)}`
+      : '';
     row.title = `${syncHealthStateLabel(stateValue, tr)}${failure}`;
   }
   const source = String(state.desktopSnapshotMeta?.source || 'empty');
@@ -544,6 +553,36 @@ function renderDesktopSyncStatus() {
         ? tr('settings.sync.healthState.unknown')
         : tr('settings.sync.healthState.ok');
   }
+  renderDesktopConnectionError();
+}
+
+function desktopConnectionFailure() {
+  return state.desktopConnectionError || primarySyncHealthFailure(state.desktopSyncHealth);
+}
+
+function renderDesktopConnectionError() {
+  const node = document.querySelector('[data-desktop-connection-error]');
+  if (!node || !isCapable('desktopSettings')) return;
+  const failure = desktopConnectionFailure();
+  const clientMode = state.desktopSettings?.hubMode === 'client';
+  const visible = clientMode && Boolean(failure);
+  node.classList.toggle('hidden', !visible);
+  if (!visible) return;
+
+  const channelKeys = {
+    local: 'settings.sync.healthLocal',
+    upload: 'settings.sync.healthUpload',
+    rest: 'settings.sync.healthRest',
+    stream: 'settings.sync.healthStream'
+  };
+  const channel = tr(channelKeys[failure.channel] || 'settings.sync.healthRest');
+  const reason = syncHealthFailureLabel(failure.code, tr);
+  const status = Number.isInteger(Number(failure.status)) && Number(failure.status) > 0
+    ? ` · ${tr('settings.sync.httpStatus', { status: Number(failure.status) })}`
+    : '';
+  const message = node.querySelector('[data-desktop-connection-message]');
+  if (message) message.textContent = `${channel}：${reason}${status}`;
+  node.dataset.failureCode = failure.code;
 }
 
 function showToast(message) {
@@ -1987,11 +2026,15 @@ let lastRenderedView = '';
 /** Write `#content` only when the bytes actually changed; restore state either way. */
 function writeContentHtml(html, renderState) {
   const view = state.prefs.view;
-  if (html === lastRenderedHtml && view === lastRenderedView) return;
+  if (html === lastRenderedHtml && view === lastRenderedView) {
+    if (typeof renderDesktopConnectionError === 'function') renderDesktopConnectionError();
+    return;
+  }
   els.content.innerHTML = html;
   lastRenderedHtml = html;
   lastRenderedView = view;
   restoreRenderState(renderState);
+  if (typeof renderDesktopConnectionError === 'function') renderDesktopConnectionError();
 }
 
 async function ensureHistory({ force = false, deviceId = state.prefs.deviceFilter || '' } = {}) {
@@ -2099,6 +2142,9 @@ function connectStream() {
       if (!isCapable('desktopSettings')) return;
       if (health?.snapshot) state.desktopSnapshotMeta = health.snapshot;
       state.desktopSyncHealth = health;
+      if (health?.local || health?.upload || health?.rest || health?.stream) {
+        state.desktopConnectionError = null;
+      }
       renderDesktopSyncStatus();
     },
     onRetry: (delay) => {
@@ -3774,6 +3820,7 @@ async function loadDesktopSettings() {
     state.desktopInfo = info || {};
     state.desktopAppUpdate = appUpdateState || null;
     state.desktopSyncHealth = syncHealth || null;
+    state.desktopConnectionError = null;
     state.desktopSnapshotMeta = snapshotMeta || syncHealth?.snapshot || null;
     renderDesktopSyncStatus();
   } catch (error) {
@@ -3782,6 +3829,7 @@ async function loadDesktopSettings() {
     state.desktopSettings = {};
     state.desktopInfo = {};
     state.desktopSyncHealth = null;
+    state.desktopConnectionError = { channel: 'rest', code: 'sync_failed', status: null };
     state.desktopSnapshotMeta = null;
     console.warn('Could not load desktop settings:', error?.message || error);
   }
@@ -3794,10 +3842,18 @@ async function saveDesktopSettings(patch) {
   try {
     const next = await desktop.updateSettings(patch);
     if (next) state.desktopSettings = next;
+    state.desktopConnectionError = null;
     syncFluentMotion(state.desktopSettings?.reduceMotion || 'system');
     adoptDesktopPrefs(next);
+    renderDesktopConnectionError();
     return true;
   } catch (error) {
+    state.desktopConnectionError = {
+      channel: 'rest',
+      code: error?.code || 'sync_failed',
+      status: Number.isInteger(Number(error?.status)) ? Number(error.status) : null
+    };
+    renderDesktopConnectionError();
     showToast(error?.message || tr('error.generic'));
     return false;
   }
@@ -3849,6 +3905,25 @@ async function runDesktopAction(action, element) {
         render();
         showToast(tr('toast.saved'));
         break;
+      case 'recover-sync': {
+        element?.setAttribute('disabled', 'disabled');
+        state.desktopConnectionError = null;
+        const result = await desktop.recoverNow?.();
+        state.desktopSyncHealth = await desktop.getSyncHealth?.() || state.desktopSyncHealth;
+        const failure = primarySyncHealthFailure(state.desktopSyncHealth)
+          || (result?.ok === false
+            ? {
+              channel: 'rest',
+              code: result.rest?.code || result.upload?.code || 'sync_failed',
+              status: result.rest?.status || result.upload?.status || null
+            }
+            : null);
+        state.desktopConnectionError = failure;
+        render();
+        if (!failure) showToast(tr('desktop.sync.recovered'));
+        element?.removeAttribute('disabled');
+        break;
+      }
       default:
         break;
     }
