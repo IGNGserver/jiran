@@ -79,6 +79,7 @@ import com.igng.tokenmonitor.android.ui.components.TrendMetric
 import com.igng.tokenmonitor.android.ui.components.TrendRange
 import com.igng.tokenmonitor.android.ui.components.countActiveDays
 import com.igng.tokenmonitor.android.ui.components.formatTokensShort
+import com.igng.tokenmonitor.android.data.model.parseHistoryDate
 import com.igng.tokenmonitor.android.ui.components.takeRange
 import com.igng.tokenmonitor.android.ui.components.topShareEntries
 import com.igng.tokenmonitor.android.ui.haptics.HapticEvent
@@ -537,8 +538,8 @@ fun OverviewScreen(
         showPicker = false
         hubViewModel.loadCustomRange(startDate.toString(), endDate.toString(), startHour, endHour)
       },
-      initialStartDate = state.customRange?.startDate?.let { java.time.LocalDate.parse(it) },
-      initialEndDate = state.customRange?.endDate?.let { java.time.LocalDate.parse(it) },
+      initialStartDate = state.customRange?.startDate?.let { parseHistoryDate(it) },
+      initialEndDate = state.customRange?.endDate?.let { parseHistoryDate(it) },
       initialStartHour = state.customRange?.startHour,
       initialEndHour = state.customRange?.endHour
     )

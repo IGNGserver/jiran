@@ -71,6 +71,7 @@ import com.igng.tokenmonitor.android.ui.components.devicePlatformLabel
 import com.igng.tokenmonitor.android.ui.components.formatRelativeTime
 import com.igng.tokenmonitor.android.ui.components.formatTokensShort
 import com.igng.tokenmonitor.android.ui.components.formatUsd
+import com.igng.tokenmonitor.android.ui.components.keyedDevices
 import com.igng.tokenmonitor.android.ui.components.rememberScrolledFlag
 import com.igng.tokenmonitor.android.ui.components.topShareEntries
 import com.igng.tokenmonitor.android.ui.components.wslStatusLabel
@@ -97,6 +98,7 @@ fun DevicesScreen(
   // derive; `rememberScrolledFlag` was computing one nothing read.
   val listState = rememberLazyListState()
   val sorted = fleetSorted(devices)
+  val keyed = remember(sorted) { keyedDevices(sorted) }
   val activeDevices = sorted.filterNot { it.stale }
   val onlineCount = fleetOnlineCount(devices)
 
@@ -144,16 +146,20 @@ fun DevicesScreen(
         // ones between them stay square. `dividerAbove` asks whether a predecessor exists
         // rather than trusting the loop index, which is not stable across a keyed list.
         itemsIndexed(
-          items = sorted,
-          key = { _, device -> device.deviceId.orEmpty().ifBlank { device.hostname.orEmpty() } }
-        ) { index, device ->
+          items = keyed,
+          key = { _, item -> item.key }
+        ) { index, item ->
+          val device = item.device
+          val deviceId = device.deviceId?.trim().orEmpty()
           DeviceRow(
             device = device,
             dividerAbove = index > 0,
-            groupShape = listGroupShape(index, sorted.size),
-            onClick = {
-              haptics.perform(HapticEvent.Tap)
-              navController.navigate("device/${Uri.encode(device.deviceId.orEmpty())}")
+            groupShape = listGroupShape(index, keyed.size),
+            onClick = deviceId.takeIf { it.isNotBlank() }?.let { id ->
+              {
+                haptics.perform(HapticEvent.Tap)
+                navController.navigate("device/${Uri.encode(id)}")
+              }
             }
           )
         }
@@ -167,7 +173,7 @@ private fun DeviceRow(
   device: DeviceDto,
   dividerAbove: Boolean,
   groupShape: androidx.compose.ui.graphics.Shape = FluentShapeDefaults.cardCorner,
-  onClick: () -> Unit
+  onClick: (() -> Unit)?
 ) {
   val colors = LocalFluentColors.current
   FluentListRow(
@@ -185,7 +191,7 @@ private fun DeviceRow(
     leading = { StatusDot(active = !device.stale, size = 8.dp) },
     trailingPrimary = formatTokensShort(device.periods.today.totalTokens),
     trailingSecondary = formatUsd(device.periods.today.costUsd, compact = true),
-    disclosure = true,
+    disclosure = onClick != null,
     dividerAbove = dividerAbove,
     containerShape = groupShape,
     // Only the caps carry the outline: interior rows are separated by the hairline
@@ -215,6 +221,7 @@ fun DeviceDetailScreen(
 ) {
   val colors = LocalFluentColors.current
   var periodIndex by rememberSaveable { mutableIntStateOf(0) }
+  val safePeriodIndex = periodIndex.coerceIn(periodOptions.indices)
   val scrollState = rememberScrollState()
   val scrolled = rememberScrolledFlag(scrollState)
   // The fleet summary drops each device's session archive and client×model grain,
@@ -254,12 +261,12 @@ fun DeviceDetailScreen(
       }
       return@Column
     }
-    val selectedPeriod: PeriodDto = when (periodIndex) {
+    val selectedPeriod: PeriodDto = when (safePeriodIndex) {
       1 -> shown.periods.month
       2 -> shown.periods.allTime
       else -> shown.periods.today
     }
-    val periodLabel = periodOptions[periodIndex]
+    val periodLabel = periodOptions[safePeriodIndex]
 
     Column(
       Modifier
@@ -359,7 +366,7 @@ fun DeviceDetailScreen(
       // Period selection drives every block below it, so it sits above them.
       FluentTabStrip(
         options = periodOptions,
-        selectedIndex = periodIndex,
+        selectedIndex = safePeriodIndex,
         onSelect = { periodIndex = it },
         modifier = Modifier.fillMaxWidth()
       )

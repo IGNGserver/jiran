@@ -1,9 +1,14 @@
 package com.igng.tokenmonitor.android.ui.components
 
 import com.igng.tokenmonitor.android.data.model.HistoryDayDto
+import com.igng.tokenmonitor.android.data.model.HistoryDto
+import com.igng.tokenmonitor.android.data.model.HistoryMonthDto
+import com.igng.tokenmonitor.android.data.model.DeviceDto
 import com.igng.tokenmonitor.android.data.model.LimitProviderDto
+import com.igng.tokenmonitor.android.data.model.sanitizeForDisplay
 import com.igng.tokenmonitor.android.data.local.clampHomeLimitAccountCount
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -56,6 +61,62 @@ class FormattersHelpersTest {
     assertEquals("2026-07-02", filled[1].date)
     assertEquals(0.0, filled[1].tokens, 0.001)
     assertEquals("2026-07-03", filled[2].date)
+  }
+
+  @Test
+  fun historyDailyForHeatmapCanonicalizesTimestampsAndIgnoresBadDates() {
+    val filled = historyDailyForHeatmap(
+      listOf(
+        HistoryDayDto(date = "2026-07-07T00:00:00.000Z", tokens = 4.0),
+        HistoryDayDto(date = "bad", tokens = 9.0)
+      ),
+      days = 1
+    )
+
+    assertEquals(listOf("2026-07-07"), filled.map { it.date })
+    assertEquals(4.0, filled.single().tokens, 0.001)
+  }
+
+  @Test
+  fun historyLabelsHandleLegacyTimestampsWithoutThrowing() {
+    assertEquals("9/30", formatHistoryDayLabel("2026-09-30T00:00:00.000Z"))
+    assertEquals("26/09", formatHistoryMonthLabel("2026-09"))
+    assertEquals("26/09", formatHistoryMonthLabel("2026-09-30T00:00:00.000Z"))
+    assertEquals("—", formatHistoryDayLabel("not-a-date"))
+    assertEquals("—", formatHistoryDayLabel("2026-09-30garbage"))
+  }
+
+  @Test
+  fun sanitizeForDisplayCanonicalizesTimestampKeysAndDropsInvalidRows() {
+    val safe = HistoryDto(
+      daily = listOf(
+        HistoryDayDto(date = "2026-09-30T00:00:00.000Z", tokens = 1.0),
+        HistoryDayDto(date = " 2026-09-29 ", tokens = 0.5),
+        HistoryDayDto(date = "not-a-date", tokens = 2.0)
+      ),
+      monthly = listOf(
+        HistoryMonthDto(month = "2026-09-30T00:00:00.000Z", tokens = 3.0),
+        HistoryMonthDto(month = "not-a-month", tokens = 4.0)
+      )
+    ).sanitizeForDisplay()
+
+    assertEquals(listOf("2026-09-30", "2026-09-29"), safe.daily.map { it.date })
+    assertEquals(listOf("2026-09"), safe.monthly.map { it.month })
+  }
+
+  @Test
+  fun deviceKeysAreNonEmptyAndUniqueForMalformedRows() {
+    val keyed = keyedDevices(
+      listOf(
+        DeviceDto(),
+        DeviceDto(),
+        DeviceDto(deviceId = "dev-a"),
+        DeviceDto(deviceId = "dev-a")
+      )
+    )
+
+    assertEquals(4, keyed.map { it.key }.toSet().size)
+    assertTrue(keyed.all { it.key.isNotBlank() })
   }
 
   @Test

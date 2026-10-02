@@ -2,6 +2,8 @@ package com.igng.tokenmonitor.android.ui.components
 
 import com.igng.tokenmonitor.android.data.model.ClientMeasurementDto
 import com.igng.tokenmonitor.android.data.model.HistoryDayDto
+import com.igng.tokenmonitor.android.data.model.parseHistoryDate
+import com.igng.tokenmonitor.android.data.model.parseHistoryMonth
 import java.text.NumberFormat
 import java.time.Duration
 import java.time.Instant
@@ -151,6 +153,15 @@ fun formatIsoCompact(raw: String?): String {
   val instant = parseInstant(raw) ?: return raw?.takeIf { it.isNotBlank() } ?: "未知"
   return LocalDateTime.ofInstant(instant, ZoneId.systemDefault()).format(shortDateTime)
 }
+
+/** A chart label that remains total even when a legacy Hub sends an invalid date. */
+fun formatHistoryDayLabel(raw: String?): String =
+  parseHistoryDate(raw)?.let { "${it.monthValue}/${it.dayOfMonth}" } ?: "—"
+
+/** A chart label for `YYYY-MM` keys and timestamp-shaped legacy month values. */
+fun formatHistoryMonthLabel(raw: String?): String =
+  parseHistoryMonth(raw)?.let { "${it.year.toString().takeLast(2)}/${it.monthValue.toString().padStart(2, '0')}" }
+    ?: "—"
 
 data class ShareEntry(
   val key: String,

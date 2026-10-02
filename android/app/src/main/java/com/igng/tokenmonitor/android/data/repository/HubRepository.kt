@@ -15,6 +15,7 @@ import com.igng.tokenmonitor.android.data.model.DevicesResponseDto
 import com.igng.tokenmonitor.android.data.model.HealthDto
 import com.igng.tokenmonitor.android.data.model.HubAuthorizationDto
 import com.igng.tokenmonitor.android.data.model.HistoryDto
+import com.igng.tokenmonitor.android.data.model.sanitizeForDisplay
 import com.igng.tokenmonitor.android.data.model.PricingListDto
 import com.igng.tokenmonitor.android.data.model.PricingRequestDto
 import com.igng.tokenmonitor.android.data.model.PricingResponseDto
@@ -54,6 +55,11 @@ data class HubError(val message: String, val kind: Kind) {
   enum class Kind { NotConfigured, Unauthorized, Network, MalformedResponse, Api }
 }
 
+private inline fun <T, R> HubResult<T>.mapSuccess(transform: (T) -> R): HubResult<R> = when (this) {
+  is HubResult.Success -> HubResult.Success(transform(value))
+  is HubResult.Failure -> this
+}
+
 @Singleton
 class HubRepository @Inject constructor(
   private val store: ConnectionStorage,
@@ -80,7 +86,8 @@ class HubRepository @Inject constructor(
     )
   }
   suspend fun capabilities(): HubResult<HubAuthorizationDto> = withConnection { apiFactory.create(it).capabilities() }
-  suspend fun stats(): HubResult<StatsDto> = withConnection { apiFactory.create(it).stats() }
+  suspend fun stats(): HubResult<StatsDto> =
+    withConnection { apiFactory.create(it).stats() }.mapSuccess { it.sanitizeForDisplay() }
   /**
    * [staged] asks for the first-paint summary instead of the full fleet snapshot.
    * The caller decides from the Hub's advertised capability, so an older Hub is
@@ -88,12 +95,14 @@ class HubRepository @Inject constructor(
    */
   suspend fun stats(staged: Boolean): HubResult<StatsDto> =
     withConnection { apiFactory.create(it).let { api -> if (staged) api.statsSummary() else api.stats() } }
+      .mapSuccess { it.sanitizeForDisplay() }
   suspend fun device(deviceId: String): HubResult<DeviceResponseDto> =
     withConnection { apiFactory.create(it).device(deviceId) }
   suspend fun sessions(period: String? = null): HubResult<SessionsResponseDto> =
     withConnection { apiFactory.create(it).sessions(period) }
   suspend fun history(deviceId: String? = null): HubResult<HistoryDto> =
     withConnection { apiFactory.create(it).history(deviceId) }
+      .mapSuccess { it.sanitizeForDisplay() }
 
   /**
    * Conditional history read.
@@ -118,7 +127,7 @@ class HubRepository @Inject constructor(
     return try {
       val response = apiFactory.create(config).historyConditional(deviceId, etag)
       HubResult.Success(HistoryFetch(
-        document = if (response.code() == 304) null else response.body(),
+        document = if (response.code() == 304) null else response.body()?.sanitizeForDisplay(),
         etag = response.headers()["etag"]
       ))
     } catch (error: HttpException) {
@@ -182,7 +191,9 @@ class HubRepository @Inject constructor(
     }
     val source = apiFactory.eventSource(config, apiFactory.statsRequest(config), object : EventSourceListener() {
       override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-        runCatching { json.decodeFromString<SseStatsDto>(data) }.onSuccess { trySend(it) }.onFailure { close(it) }
+        runCatching { json.decodeFromString<SseStatsDto>(data).sanitizeForDisplay() }
+          .onSuccess { trySend(it) }
+          .onFailure { close(it) }
       }
 
       override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {

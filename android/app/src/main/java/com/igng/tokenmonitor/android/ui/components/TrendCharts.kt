@@ -362,13 +362,11 @@ fun formatActiveTimeMs(ms: Double): String {
 }
 
 private fun shortDayLabel(date: String): String {
-  val parts = date.split("-")
-  return if (parts.size >= 3) "${parts[1].toInt()}/${parts[2].toInt()}" else date.takeLast(5)
+  return formatHistoryDayLabel(date)
 }
 
 private fun shortMonthLabel(month: String): String {
-  val parts = month.split("-")
-  return if (parts.size >= 2) "${parts[0].takeLast(2)}/${parts[1]}" else month
+  return formatHistoryMonthLabel(month)
 }
 
 enum class TrendStackMode { Client, Model }
