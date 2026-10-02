@@ -62,6 +62,19 @@ test('the sync collector refuses to start while an external agent is active', ()
   assert.match(gateBody, /publishSyncHealth\(\)/, 'the relay state should still be published to the renderer');
 });
 
+test('client startup checks authenticated connectivity before its first upload', () => {
+  const body = functionBody(mainSource, 'startMode');
+  const probe = body.indexOf('const startupProbe = startClientRestBootstrap');
+  const collector = body.indexOf('startSyncCollector({ startupProbe });');
+  const stream = body.indexOf('startStatsStream({ resetSnapshot: true, resetBackoff: true })');
+  assert.ok(probe >= 0, 'client mode must start an authenticated startup probe');
+  assert.ok(collector > probe, 'the collector must receive the startup probe before it can upload');
+  assert.ok(stream > collector, 'the live stream must start after the startup probe is settled');
+
+  const collectorBody = functionBody(mainSource, 'startSyncCollector');
+  assert.match(collectorBody, /await startupProbe;/, 'the uploader must wait for the startup probe');
+});
+
 test('the relay state is a known sync-health state in every locale', async () => {
   // The mapping moved into the shared UI, which both hosts render, so the guard
   // points there now. It stays a named map because a state the main process can

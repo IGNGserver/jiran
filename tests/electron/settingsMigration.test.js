@@ -131,6 +131,21 @@ test('the glass preference is normalized to a boolean on both paths', () => {
     'the settings:update path must normalize the glass value');
 });
 
+test('an implicit device ID stays blank while runtime code keeps the hostname fallback', () => {
+  assert.match(
+    main,
+    /deviceId: normalizeDeviceIdValue\(process\.env\.TOKEN_MONITOR_DEVICE_ID, ''\)/,
+    'default settings must not persist the hostname as a configured value'
+  );
+  assert.match(main, /merged\.deviceId = normalizeDeviceIdValue\(merged\.deviceId, ''\)/,
+    'settings reads must preserve an empty device ID');
+  assert.match(main, /deviceId: normalizeDeviceIdValue\(patch\.deviceId !== undefined \? patch\.deviceId : settings\.deviceId, ''\)/,
+    'clearing the field must persist an empty device ID');
+  const runtimeConfig = fs.readFileSync(path.join(root, 'src', 'electron', 'runtimeConfig.js'), 'utf8');
+  assert.match(runtimeConfig, /deviceId: settings\.deviceId \|\| context\.defaultDeviceId/,
+    'the hostname fallback belongs at the runtime envelope boundary');
+});
+
 test('legacy widget settings keys are invalidated like other removed credentials', () => {
   // The device-local quota keys were already stripped before this rewrite; the
   // rewrite must not have removed that cleanup.

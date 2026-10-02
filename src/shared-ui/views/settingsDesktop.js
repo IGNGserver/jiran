@@ -157,6 +157,13 @@ export function renderDesktopSettings(settings = {}, info = {}) {
       <label class="mode-toggle" for="hub-mode-client"><fluent-radio id="hub-mode-client" value="client" aria-labelledby="hub-mode-client-label"${hubMode === 'client' ? ' checked' : ''}></fluent-radio><span id="hub-mode-client-label">${escapeHtml(tr('desktop.settings.hubClient'))}</span></label>
     </fluent-radio-group>`);
   connectionRows.push(hubOnly([
+    `<div class="desktop-connection-feedback hidden" data-desktop-connection-error role="alert" aria-live="assertive">
+      <div class="desktop-connection-feedback-copy">
+        <strong>${escapeHtml(tr('desktop.sync.connectionFailure'))}</strong>
+        <span data-desktop-connection-message></span>
+      </div>
+      <fluent-button appearance="primary" type="button" class="ghost-btn" data-desktop-action="recover-sync">${escapeHtml(tr('desktop.sync.retryConnection'))}</fluent-button>
+    </div>`,
     textField('hubUrl', 'desktop.settings.hubUrl', settings.hubUrl || '', { placeholder: 'http://hub-host:17321' }),
     `<div class="desktop-setting-block desktop-hub-secret" data-hub-secret>
       <fluent-text-input class="field" type="password" data-hub-secret-input autocomplete="new-password" spellcheck="false" placeholder="${escapeHtml(settings.hubSecretConfigured ? tr('desktop.settings.hubSecretConfigured') : tr('desktop.settings.hubSecretMissing'))}">${escapeHtml(tr('settings.secret'))}</fluent-text-input>

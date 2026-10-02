@@ -162,6 +162,41 @@ body.is-mac .period-tabs {
   gap: 6px;
 }
 
+.desktop-connection-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--bad) 45%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bad) 8%, var(--bg-soft));
+  color: var(--text);
+}
+
+.desktop-connection-feedback-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.desktop-connection-feedback-copy strong {
+  font-size: 13px;
+}
+
+.desktop-connection-feedback-copy span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+@media (max-width: 620px) {
+  .desktop-connection-feedback {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .desktop-token-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

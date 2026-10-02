@@ -2362,10 +2362,3 @@ fluent-text-input::part(label) { font-size: 14px; line-height: 20px; font-weight
     font-weight: 600;
   }
 }
-
-/* The vendor switch floats its thumb inside a padded track, which reads as
-   "centred" when off. Pin the thumb flush to the inline edge in both states so
-   off and on visibly differ. */
-fluent-switch { padding-inline: 2px !important; }
-fluent-switch::part(checked-indicator) { margin-inline-start: 0 !important; }
-fluent-switch[aria-checked="true"]::part(checked-indicator) { margin-inline-start: calc(100% - 14px) !important; }

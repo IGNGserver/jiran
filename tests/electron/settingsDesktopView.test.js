@@ -71,6 +71,31 @@ test('every retained settings key has a form control', () => {
   assert.ok(html.includes('data-desktop-action="download-install-update"'), 'an install button exists');
 });
 
+test('device ID is blank by default and connection errors have a persistent recovery surface', () => {
+  const { renderDesktopSettings } = loadView();
+  const html = renderDesktopSettings({ hubMode: 'client', deviceId: '' }, { platform: 'win32', loginItemSupported: true });
+  assert.match(html, /name="deviceId"[^>]*value=""/);
+  assert.match(html, /name="deviceId"[^>]*placeholder="desktop\.settings\.deviceIdHint"/);
+  assert.match(html, /data-desktop-connection-error/);
+  assert.match(html, /data-desktop-connection-message/);
+  assert.match(html, /data-desktop-action="recover-sync"/);
+});
+
+test('every desktop switch emits a real checked state for the Fluent component', () => {
+  const { renderDesktopSettings } = loadView();
+  const html = renderDesktopSettings({
+    hubMode: 'client',
+    startAtLogin: true,
+    startHidden: false,
+    closeToTray: true,
+    allowInsecureHubHttp: true
+  }, { platform: 'win32', loginItemSupported: true });
+  assert.match(html, /id="desktop-setting-startAtLogin"[^>]*checked/);
+  assert.match(html, /id="desktop-setting-closeToTray"[^>]*checked/);
+  assert.match(html, /id="desktop-setting-allowInsecureHubHttp"[^>]*checked/);
+  assert.doesNotMatch(html, /id="desktop-setting-startHidden"[^>]*checked/);
+});
+
 test('hub-owned fields are offered only in hub mode', () => {
   const { renderDesktopSettings } = loadView();
   const client = renderDesktopSettings({ hubMode: 'client' }, { platform: 'linux', loginItemSupported: true });

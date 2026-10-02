@@ -313,7 +313,11 @@ function defaultSettings() {
     hubUrl: envHubUrl,
     secret: process.env.TOKEN_MONITOR_SECRET || '',
     allowInsecureHubHttp: parseBoolean(process.env.TOKEN_MONITOR_ALLOW_INSECURE_HTTP, false),
-    deviceId: normalizeDeviceIdValue(process.env.TOKEN_MONITOR_DEVICE_ID, defaultDeviceId()),
+    // Keep the configured value empty when no explicit ID was supplied. The
+    // hostname remains the runtime fallback when the usage envelope is built,
+    // which lets the settings UI show its placeholder instead of persisting a
+    // value the user never chose.
+    deviceId: normalizeDeviceIdValue(process.env.TOKEN_MONITOR_DEVICE_ID, ''),
     // Display (the settings page's 显示 group) plus the browser preferences the
     // shared UI persists through its prefs channel.
     theme: 'system',
@@ -686,7 +690,7 @@ function readSettings() {
     // string 'off', which every consumer reads as "glass on" (`=== false`).
     merged.systemGlass = parseBoolean(merged.systemGlass, true);
     merged.theme = normalizeThemeChoice(merged.theme);
-    merged.deviceId = normalizeDeviceIdValue(merged.deviceId, defaultDeviceId());
+    merged.deviceId = normalizeDeviceIdValue(merged.deviceId, '');
     merged.windowsBackdrop = normalizeWindowsBackdropMode(merged.windowsBackdrop);
     merged.macosGlassStyle = normalizeMacosGlassStyle(merged.macosGlassStyle);
     merged.collectionPaused = parseBoolean(merged.collectionPaused, false);
@@ -780,6 +784,14 @@ function currentLoginItemState() {
   catch (_) { return false; }
 }
 
+function electronLoginItemPath() {
+  try {
+    const executablePath = String(app.getPath('exe') || '').trim();
+    if (executablePath) return executablePath;
+  } catch (_) { /* app.getPath('exe') may be unavailable before ready */ }
+  return String(process.execPath || '').trim();
+}
+
 function applyLoginItem(startAtLogin) {
   if (!loginItemEnabledHere()) return false;
   if (process.platform === 'linux') {
@@ -791,8 +803,10 @@ function applyLoginItem(startAtLogin) {
   // `openAsHidden` is macOS-only; Windows takes the launch argument instead. Both
   // mean "a sign-in launch stays in the tray", which is the default the product
   // wants, while a double-click from the icon still shows the window.
+  const executablePath = electronLoginItemPath();
   app.setLoginItemSettings({
     openAtLogin: Boolean(startAtLogin),
+    ...(executablePath ? { path: executablePath } : {}),
     ...(process.platform === 'darwin'
       ? { openAsHidden: Boolean(startAtLogin && settings.startHidden !== false) }
       : { args: startAtLogin && settings.startHidden !== false ? [HIDDEN_LAUNCH_ARG] : [] })
@@ -804,6 +818,16 @@ function syncLoginItemSettingFromOs() {
   if (!settings) return;
   const actual = currentLoginItemState();
   if (settings.startAtLogin === actual) return;
+  if (settings.startAtLogin === true && actual === false) {
+    // A stale registration is common after a portable/installed executable is
+    // moved or upgraded. Repair it against the current executable path, but do
+    // not erase the user's requested state merely because the OS read-back was
+    // temporarily false.
+    const repaired = applyLoginItem(true);
+    if (repaired === true) return;
+    console.warn('[settings] login-item registration could not be confirmed; keeping the requested state');
+    return;
+  }
   settings.startAtLogin = actual;
   saveSettings();
 }
@@ -1340,7 +1364,8 @@ function stopSyncCollector(options = {}) {
   });
 }
 
-function startSyncCollector() {
+function startSyncCollector(options) {
+  options = options || {};
   stopSyncCollector();
   if (settings.collectionPaused) {
     updateSyncHealth('local', { state: 'paused', failureCode: null });
@@ -1359,10 +1384,16 @@ function startSyncCollector() {
     publishSyncHealth();
     return;
   }
+  // The first upload in client mode is held behind the authenticated startup
+  // probe. This keeps the order deterministic (connectivity check -> collect ->
+  // upload) without delaying local collection or the cached dashboard.
+  const startupProbe = Promise.resolve(options.startupProbe || { ok: true, code: 'not_required' })
+    .catch((error) => ({ ok: false, code: stableSyncFailureCode(error, 'hub_connectivity_failed') }));
   const syncUploadSink = createSyncUploadSink({
     intervalMs: normalizeSyncUploadIntervalMs(),
     flushTimeoutMs: HUB_REQUEST_TIMEOUT_MS,
     upload: async (summary, context) => {
+      await startupProbe;
       updateSyncHealth('upload', { state: 'uploading', failureCode: null, status: null });
       try {
         const result = await postToHub(summary, context);
@@ -1814,12 +1845,24 @@ function startClientRestBootstrap(generation) {
   const isCurrent = () => generation === modeGeneration
     && settings?.hubMode === 'client'
     && restBootstrapAbortController === controller;
-  void fetchHubStatsSnapshot({ signal: controller.signal, isCurrent }).then((stats) => {
-    if (!stats || !isCurrent()) return;
+  if (isCurrent()) {
+    updateSyncHealth('rest', { state: 'connecting', failureCode: null, status: null });
+  }
+  return fetchHubStatsSnapshot({ signal: controller.signal, isCurrent }).then((stats) => {
+    if (!stats || !isCurrent()) return { ok: false, superseded: true, code: 'startup_probe_superseded' };
     sendPush({ event: 'stats', data: { type: 'stats', reason: 'rest-bootstrap', transport: 'rest', mode, stats, at: new Date().toISOString() } });
+    return { ok: true, stats };
   }).catch((error) => {
-    if (!isCurrent() || stableSyncFailureCode(error) === 'aborted') return;
-    console.log(`[rest] startup bootstrap failed (${stableSyncFailureCode(error)})`);
+    if (!isCurrent() || stableSyncFailureCode(error) === 'aborted') {
+      return { ok: false, superseded: true, code: 'startup_probe_aborted' };
+    }
+    const code = stableSyncFailureCode(error, 'hub_connectivity_failed');
+    console.log(`[rest] startup bootstrap failed (${code})`);
+    return {
+      ok: false,
+      code,
+      status: Number.isInteger(Number(error?.status)) ? Number(error.status) : null
+    };
   }).finally(() => {
     if (restBootstrapAbortController === controller) restBootstrapAbortController = null;
   });
@@ -2086,12 +2129,18 @@ function startMode() {
       return { ok: false, superseded: true, generation: requestedGeneration };
     }
     if (settings.hubMode === 'client') {
-      startSyncCollector();
-      // The first REST snapshot and the long-lived SSE supervisor are both
-      // read-side startup work. Start them together; a stream that is blocked
-      // must not delay the initial snapshot or the local collector.
-      startClientRestBootstrap(requestedGeneration);
-      void startStatsStream({ resetSnapshot: true, resetBackoff: true }).catch((error) => {
+      // `/api/stats` is an authenticated connectivity check, not merely a
+      // socket probe: it verifies the address, transport policy, and saved
+      // secret before the first POST /api/ingest is allowed to run.
+      const startupProbe = startClientRestBootstrap(requestedGeneration);
+      startSyncCollector({ startupProbe });
+      // Start the long-lived stream only after the probe settles. A failed probe
+      // still gets a stream retry path, but no read/write channel races the
+      // initial connectivity result.
+      void startupProbe.then(() => {
+        if (requestedGeneration !== modeGeneration || settings?.hubMode !== 'client') return;
+        return startStatsStream({ resetSnapshot: true, resetBackoff: true });
+      }).catch((error) => {
         console.log(`[stream] start failed (${stableSyncFailureCode(error)}): ${error.message}`);
       });
       const config = safeEffectiveHubConfig();
@@ -2099,6 +2148,7 @@ function startMode() {
         ok: config.ok && Boolean(config.url),
         mode: 'client',
         code: config.ok ? (config.url ? null : 'hub_not_configured') : (config.error?.code || 'hub_transport_unavailable'),
+        state: 'connecting',
         generation: requestedGeneration
       };
     } else {
@@ -3444,7 +3494,7 @@ app.whenReady().then(() => {
       ...settings,
       ...normalizedPatch,
       hubMode: patch.hubMode !== undefined ? normalizeHubMode(patch.hubMode, settings.hubMode) : settings.hubMode,
-      deviceId: normalizeDeviceIdValue(patch.deviceId !== undefined ? patch.deviceId : settings.deviceId, defaultDeviceId()),
+      deviceId: normalizeDeviceIdValue(patch.deviceId !== undefined ? patch.deviceId : settings.deviceId, ''),
       theme: normalizeThemeChoice(patch.theme !== undefined ? patch.theme : settings.theme),
       systemGlass: parseBoolean(patch.systemGlass ?? settings.systemGlass, true),
       collectionPaused: parseBoolean(patch.collectionPaused ?? settings.collectionPaused, false),
