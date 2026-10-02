@@ -40,6 +40,7 @@ import com.igng.tokenmonitor.android.ui.components.formatRelativeTime
 import com.igng.tokenmonitor.android.ui.components.wslStatusLabel
 import com.igng.tokenmonitor.android.ui.components.devicePlatformLabel
 import com.igng.tokenmonitor.android.ui.components.agentRuntimeLabel
+import com.igng.tokenmonitor.android.ui.components.keyedDevices
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1331,6 +1332,7 @@ fun StatusScreen(stats: StatsDto?, onBack: () -> Unit, onHome: (() -> Unit)? = n
   val scrolled = rememberScrolledFlag(listState)
   val providers = stats?.limits?.providers.orEmpty()
   val devices = stats?.devices.orEmpty()
+  val keyed = remember(devices) { keyedDevices(devices) }
   val okCount = providers.count { !it.status.isNullOrBlank() && it.status.equals("ok", ignoreCase = true) }
   val warnCount = providers.size - okCount
   val staleCount = devices.count { it.stale == true }
@@ -1364,7 +1366,8 @@ fun StatusScreen(stats: StatsDto?, onBack: () -> Unit, onHome: (() -> Unit)? = n
             SummaryChip(label = "过期", value = staleCount.toString(), modifier = Modifier.weight(1f))
           }
         }
-        items(devices, key = { it.deviceId.orEmpty().ifBlank { it.hostname.orEmpty() } }) { device ->
+        items(keyed, key = { it.key }) { item ->
+          val device = item.device
           AppCard {
             Text(
               device.hostname?.takeIf { it.isNotBlank() } ?: device.deviceId.orEmpty().ifBlank { "设备" },

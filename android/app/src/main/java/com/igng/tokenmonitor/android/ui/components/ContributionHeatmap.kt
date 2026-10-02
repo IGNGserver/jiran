@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.igng.tokenmonitor.android.data.model.HistoryDayDto
+import com.igng.tokenmonitor.android.data.model.parseHistoryDate
 import com.igng.tokenmonitor.android.ui.theme.FluentShapeDefaults
 import com.igng.tokenmonitor.android.ui.theme.FluentSpacingDefaults
 import com.igng.tokenmonitor.android.ui.theme.FluentTypeRamp
@@ -45,10 +46,15 @@ fun heatmapValue(day: HistoryDayDto, metric: HeatmapMetric): Double =
 
 fun historyDailyForHeatmap(daily: List<HistoryDayDto>, days: Int = 90): List<HistoryDayDto> {
   if (daily.isEmpty() || days <= 0) return emptyList()
-  val byDate = daily.associateBy { it.date }
-  val end = daily.mapNotNull {
-    runCatching { LocalDate.parse(it.date) }.getOrNull()
-  }.maxOrNull() ?: LocalDate.now()
+  val safeDaily = daily.mapNotNull { day ->
+    parseHistoryDate(day.date)?.let { date ->
+      val canonical = date.toString()
+      if (day.date == canonical) day else day.copy(date = canonical)
+    }
+  }
+  if (safeDaily.isEmpty()) return emptyList()
+  val byDate = safeDaily.associateBy { it.date }
+  val end = safeDaily.mapNotNull { parseHistoryDate(it.date) }.maxOrNull() ?: LocalDate.now()
   val start = end.minusDays((days - 1).toLong())
   return generateSequence(start) { current ->
     val next = current.plusDays(1)
@@ -139,10 +145,10 @@ fun ContributionHeatmap(
   val weekFirst = com.igng.tokenmonitor.android.ui.core.DateRanges.firstDayOfWeek()
   val startDow = remember(days, weekFirst) {
     days.firstOrNull()?.date?.let { raw ->
-      runCatching {
-        val first = LocalDate.parse(raw).dayOfWeek
+      parseHistoryDate(raw)?.let {
+        val first = it.dayOfWeek
         (((first.value - weekFirst.value) % 7) + 7) % 7
-      }.getOrDefault(0)
+      } ?: 0
     } ?: 0
   }
   val weeks = if (days.isEmpty()) 0 else ceil((days.size + startDow) / 7.0).toInt()
@@ -168,7 +174,7 @@ fun ContributionHeatmap(
     } else {
       val monthOfWeek = IntArray(weeks)
       days.forEachIndexed { index, day ->
-        val month = runCatching { LocalDate.parse(day.date).monthValue }.getOrNull()
+        val month = parseHistoryDate(day.date)?.monthValue
         if (month != null) {
           val week = (index + startDow) / 7
           if (monthOfWeek[week] == 0) monthOfWeek[week] = month

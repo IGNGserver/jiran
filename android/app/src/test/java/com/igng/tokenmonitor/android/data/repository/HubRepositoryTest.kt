@@ -192,6 +192,19 @@ class HubRepositoryTest {
     assertEquals(5.0, fetch.document?.summary?.totalTokens)
   }
 
+  @Test fun historySanitizesLegacyTimestampKeysBeforeUiConsumption() = runBlocking {
+    server.enqueue(MockResponse()
+      .setResponseCode(200)
+      .setBody("""{"daily":[{"date":"2026-09-30T00:00:00.000Z","tokens":1},{"date":"bad","tokens":2}],"monthly":[{"month":"2026-09-30T00:00:00.000Z","tokens":3},{"month":"bad","tokens":4}]}"""))
+
+    val result = repository.history("dev-a")
+
+    assertTrue(result is HubResult.Success)
+    val history = (result as HubResult.Success).value
+    assertEquals(listOf("2026-09-30"), history.daily.map { it.date })
+    assertEquals(listOf("2026-09"), history.monthly.map { it.month })
+  }
+
   @Test fun disallowingInsecureHttpBlocksRemoteHttpEndpoint() {
     val nonTestingFactory = HubApiFactory(json)
     val insecureConfig = ConnectionConfig("http://remote.host:17321", "test-secret", allowInsecureHttp = false)
