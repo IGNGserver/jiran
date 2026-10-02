@@ -1,7 +1,7 @@
 > 设备级规范：`~/.qoder/coder-rules/global-rules.md`（本机所有 harness 已引入）。以下 6 行是模式判定，正文为仓库自有约定；冲突时安全条款以设备级为准。
 Collaboration: solo
+Baseline: main
 Default branch: main
-Integration: direct-after-validation
 Release: tag + Actions（`.github/workflows/` 4 个，含各平台 dist 与 verify:deb）
 Validation: 以 package.json 实际存在的脚本为准（`npm test`、`npm run test:mysql`、`npm run verify:deb` 等），不得臆造
 Worktree: `~/项目/.wt/token记录系统/<slug>`
